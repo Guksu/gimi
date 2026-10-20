@@ -7,6 +7,23 @@
 
 > 지금은 구현을 시작한 단계(0.0.1)입니다. 설치해도 아직 쓸 만한 기능이 없습니다. 설계는 [docs/design/2026-10-19-gimi.md](docs/design/2026-10-19-gimi.md)에 있습니다.
 
+## 설치
+
+아직 기능이 거의 없습니다. 구조를 확인하려는 경우에만 설치하세요.
+
+**Claude Code** — 대화창에서:
+
+```text
+/plugin install gimi --marketplace Guksu/gimi
+```
+
+**Codex** — 터미널에서:
+
+```bash
+codex plugin marketplace add Guksu/gimi
+codex plugin add gimi@gimi
+```
+
 ## 개발
 
 Node.js 22 이상이 필요합니다. 의존성은 없습니다.
