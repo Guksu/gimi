@@ -1,0 +1,75 @@
+{
+  "note": "함께 깔릴 법한 스킬의 description. gimi 두 스킬과 섞어 순위를 매긴다. 테스트 일반 스킬은 넣지 않는다 — gimi-test가 맡을 일과 같아 구별을 시험하지 못한다.",
+  "decoys": [
+    {
+      "name": "code-review",
+      "source": "Claude Code 내장 /code-review — 설명을 바꿔 씀",
+      "description": "현재 diff나 PR 번호·브랜치·경로를 대상으로 정확성 버그를 찾는 코드 리뷰. 노력 단계를 고르고, 찾은 문제를 PR 인라인 코멘트로 남기거나 바로 고친다. Review the current diff or a pull request for correctness bugs, post inline PR comments or apply the fixes."
+    },
+    {
+      "name": "simplify",
+      "source": "Claude Code 내장 /simplify — 설명을 바꿔 씀",
+      "description": "바뀐 코드를 재사용·단순화·효율 관점에서 다듬고 바로 고친다. 버그는 찾지 않는다. Review changed code for reuse, simplification and efficiency cleanups, then apply the fixes."
+    },
+    {
+      "name": "security-review",
+      "source": "Claude Code 내장 /security-review — 설명을 바꿔 씀",
+      "description": "현재 브랜치에서 아직 머지되지 않은 변경을 보안 관점에서 검토한다(취약점·인증·입력 검증). Security review of the pending changes on the current branch."
+    },
+    {
+      "name": "understand-diff",
+      "source": "understand-anything 플러그인 — 설명을 바꿔 씀",
+      "description": "git diff나 PR을 분석해 무엇이 바뀌었는지, 영향받는 컴포넌트와 위험을 설명한다. Analyze git diffs or pull requests to understand what changed, affected components, and risks."
+    },
+    {
+      "name": "suta",
+      "source": "Guksu/suta skills/suta/SKILL.md",
+      "description": "웹·React Native 앱의 UI를 만들거나 고칠 때 AI 슬롭(AI slop) — 모든 것을 감싼 카드와 제각각인 여백, 기본 파랑·연노랑을 뿌린 탁한 색, 아무 데나 붙인 transition, 레이아웃을 흔드는 애니메이션, 동작 줄이기 설정 무시, 키보드로 못 쓰는 컴포넌트처럼 AI가 만든 티가 나는 UI — 을 없앤다. 이를 막는 레이아웃·색·글꼴·문구·모션 기준과 검증된 UI 패턴 57종의 코드(모달·바텀시트·토스트·드롭다운·캐러셀·탭·폼·제스처)를 제공한다. \"로그인·목록·상세·설정·채팅 화면 만들어줘, 페이지 구현, 컴포넌트 추가, 레이아웃·여백 다듬어줘, 버튼 애니메이션 넣어줘, 문구 다듬어줘, 모바일 제스처, AI 티 안 나게\" 요청과 UI, landing page, screen, layout, spacing, component, modal, dropdown, toast, animation, keyboard accessibility 작업에 쓴다. 화면이 없는 백엔드·데이터·문서 작업에는 쓰지 않는다."
+    },
+    {
+      "name": "fe-predeploy",
+      "source": "Guksu/guksu-harness",
+      "description": "요청된 프론트엔드 배포 점검을 계측하고 가능·불가·보류로 판정한다."
+    },
+    {
+      "name": "fe-craft",
+      "source": "Guksu/guksu-harness",
+      "description": "요청된 UI 디자인·모션·React 성능 비평과 개선에 사용한다."
+    },
+    {
+      "name": "pr",
+      "source": "Guksu/guksu-harness",
+      "description": "요청된 커밋·푸시·PR 생성 또는 PR 수정을 수행한다."
+    },
+    {
+      "name": "backend-api",
+      "source": "Guksu/suta evals/trigger.json의 가상 decoy",
+      "description": "REST·GraphQL API 엔드포인트와 서버 라우트를 설계하고 구현한다. \"API 추가해줘, 엔드포인트 만들어줘, 서버 응답 고쳐줘\" 요청과 backend, server, endpoint 작업에 쓴다."
+    },
+    {
+      "name": "sql-database",
+      "source": "Guksu/suta evals/trigger.json의 가상 decoy",
+      "description": "SQL 쿼리 작성·튜닝, 인덱스, 테이블 마이그레이션을 다룬다. \"쿼리 느려, 인덱스 잡아줘, 테이블 마이그레이션\" 요청과 database, PostgreSQL, MySQL, migration 작업에 쓴다."
+    },
+    {
+      "name": "git-workflow",
+      "source": "Guksu/suta evals/trigger.json의 가상 decoy",
+      "description": "커밋·브랜치·PR 정리와 충돌 해결을 돕는다. \"커밋 메시지 정리, 브랜치 정리, PR 올려줘, 충돌 해결\" 요청과 git, commit, rebase 작업에 쓴다."
+    },
+    {
+      "name": "docs-writing",
+      "source": "Guksu/suta evals/trigger.json의 가상 decoy",
+      "description": "README·가이드·번역 같은 문서를 쓰고 다듬는다. \"README 써줘, 문서 번역해줘, 가이드 정리\" 요청과 documentation, translate, writing 작업에 쓴다."
+    },
+    {
+      "name": "deploy-ci",
+      "source": "Guksu/suta evals/trigger.json의 가상 decoy",
+      "description": "Docker 이미지, CI 파이프라인, 배포 스크립트를 구성한다. \"배포 파이프라인, 도커로 띄워줘, GitHub Actions 설정\" 요청과 deploy, docker, CI/CD 작업에 쓴다."
+    },
+    {
+      "name": "data-files",
+      "source": "Guksu/suta evals/trigger.json의 가상 decoy",
+      "description": "CSV·엑셀·JSON 데이터 파일을 읽어 정리·집계·변환한다. \"CSV 파싱, 합계 내줘, 엑셀 정리\" 요청과 spreadsheet, csv, data cleaning 작업에 쓴다."
+    }
+  ]
+}
