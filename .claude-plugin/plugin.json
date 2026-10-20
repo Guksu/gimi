@@ -1,0 +1,10 @@
+{
+  "name": "gimi",
+  "description": "Code review that reads beyond the diff, and tests without AI slop, for Claude Code and Codex.",
+  "version": "0.0.1",
+  "author": { "name": "Guksu", "url": "https://github.com/Guksu" },
+  "homepage": "https://github.com/Guksu/gimi",
+  "repository": "https://github.com/Guksu/gimi",
+  "license": "MIT",
+  "keywords": ["code-review", "testing", "ai-slop", "frontend", "backend", "commerce"]
+}
