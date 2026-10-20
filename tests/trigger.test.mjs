@@ -45,6 +45,25 @@ describe('evaluateTrigger', () => {
     assert.equal(result.failures[0].kind, 'shouldNot')
   })
 
+  it('contested는 대상이 1위 동점 안에 있으면 통과하고, 동점이면 경고를 남긴다', () => {
+    const tied = [
+      { name: 'gimi-review', description: '코드 리뷰' },
+      { name: 'code-review', description: '코드 리뷰' },
+      { name: 'third', description: '여백' },
+    ]
+    const result = evaluateTrigger({ target: 'gimi-review', docs: tied, should: [], shouldNot: [], contested: ['코드 리뷰'] })
+    assert.equal(result.passed, 1)
+    assert.equal(result.total, 1)
+    assert.equal(result.warnings.length, 1)
+    assert.match(result.warnings[0], /code-review/)
+  })
+
+  it('contested에서 대상이 지면 실패한다', () => {
+    const result = evaluateTrigger({ target: 'gimi-review', docs, should: [], shouldNot: [], contested: ['경계값 테스트'] })
+    assert.equal(result.passed, 0)
+    assert.equal(result.failures[0].kind, 'contested')
+  })
+
   it('통과한 should마다 2위와의 점수 차를 남긴다', () => {
     const result = evaluateTrigger({ target: 'gimi-test', docs, should: ['동시성 테스트'], shouldNot: [] })
     assert.equal(result.margins.length, 1)
@@ -56,6 +75,13 @@ describe('validateSpec', () => {
   it('should 8개·shouldNot 6개보다 적으면 오류를 낸다', () => {
     const errors = validateSpec({ spec: { skill: 'gimi-review', should: ['a'], shouldNot: [] } })
     assert.equal(errors.length, 2)
+  })
+
+  it('contested 질의가 should·shouldNot에도 있으면 오류를 낸다', () => {
+    const should = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    const shouldNot = ['x', 'y', 'z', 'u', 'v', 'w']
+    const errors = validateSpec({ spec: { skill: 'gimi-review', should, shouldNot, contested: ['a'] } })
+    assert.equal(errors.length, 1)
   })
 
   it('같은 질의가 should와 shouldNot에 함께 있으면 오류를 낸다', () => {

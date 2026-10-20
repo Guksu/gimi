@@ -17,11 +17,14 @@ const tiedTopOf = (ranked) => ranked.filter((r) => r.score === ranked[0].score).
 export const top3 = (ranked) => ranked.slice(0, 3).map((r) => `${r.name}:${r.score.toFixed(1)}`).join(', ')
 
 /**
- * @param {{ target: string, docs: { name: string, description: string }[], should: string[], shouldNot: string[], stopwords?: ReadonlySet<string> }} args
+ * contested — 요청의 단어가 대상과 경쟁 스킬(예: 내장 /code-review)의 설명에 똑같이 들어 있어 단어 겹침으로는 동점을 깰 수 없는 질의.
+ * 질의를 바꿔 동점을 숨기지 않고, 대상이 1위 동점 안에 있으면 통과·지면 실패로 보며 동점은 경고로 남긴다.
+ * @param {{ target: string, docs: { name: string, description: string }[], should: string[], shouldNot: string[], contested?: string[], stopwords?: ReadonlySet<string> }} args
  */
-export const evaluateTrigger = ({ target, docs, should, shouldNot, stopwords = TRIGGER_STOPWORDS }) => {
+export const evaluateTrigger = ({ target, docs, should, shouldNot, contested = [], stopwords = TRIGGER_STOPWORDS }) => {
   const rank = createRanker({ docs, stopwords })
   const failures = []
+  const warnings = []
   const margins = []
   const lines = []
   let passed = 0
@@ -49,7 +52,21 @@ export const evaluateTrigger = ({ target, docs, should, shouldNot, stopwords = T
     else failures.push({ kind: 'shouldNot', query, detail: `${target}이(가) 1위 (${mine.score.toFixed(1)})` })
   }
 
-  return { total: should.length + shouldNot.length, passed, failures, margins, lines }
+  for (const query of contested) {
+    const ranked = rank(query)
+    const mine = ranked.find((r) => r.name === target)
+    const tiedTop = tiedTopOf(ranked)
+    lines.push(`contested "${query}" → ${top3(ranked)}`)
+    if (mine && mine.score > 0 && tiedTop.includes(target)) {
+      passed += 1
+      const rivals = tiedTop.filter((name) => name !== target)
+      if (rivals.length > 0) warnings.push(`${target} contested "${query}" → ${rivals.join('/')}와(과) 동점 (${mine.score.toFixed(1)})`)
+    } else {
+      failures.push({ kind: 'contested', query, detail: `1위 ${tiedTop.join('/')} (${ranked[0].score.toFixed(1)}), ${target} ${(mine?.score ?? 0).toFixed(1)}` })
+    }
+  }
+
+  return { total: should.length + shouldNot.length + contested.length, passed, failures, warnings, margins, lines }
 }
 
 /**
@@ -64,6 +81,8 @@ export const validateSpec = ({ spec }) => {
   const shouldNot = Array.isArray(spec.shouldNot) ? spec.shouldNot : []
   if (should.length < MIN_SHOULD) errors.push(`${name}: should 질의 ${MIN_SHOULD}개 이상 필요 — 지금 ${should.length}개`)
   if (shouldNot.length < MIN_SHOULD_NOT) errors.push(`${name}: shouldNot 질의 ${MIN_SHOULD_NOT}개 이상 필요 — 지금 ${shouldNot.length}개`)
+  const contested = Array.isArray(spec.contested) ? spec.contested : []
   for (const query of should) if (shouldNot.includes(query)) errors.push(`${name}: "${query}"가 should와 shouldNot에 모두 있음`)
+  for (const query of contested) if (should.includes(query) || shouldNot.includes(query)) errors.push(`${name}: contested "${query}"가 should·shouldNot에도 있음`)
   return errors
 }
