@@ -1,0 +1,69 @@
+/**
+ * 트리거 평가의 순수 로직 — 스킬 하나의 평가 파일(should·shouldNot)을 설명 집합(두 gimi 스킬 + 함께 깔릴 법한 스킬)에 대어 본다.
+ *
+ * 에이전트는 시작할 때 설치된 스킬의 description만 보고 어떤 스킬을 읽을지 고른다.
+ * 그래서 should 요청에는 대상 스킬이 혼자 1위여야 하고, shouldNot 요청(다른 스킬의 일)에는 1위가 아니어야 한다.
+ * 파일 읽기와 종료 코드는 scripts/evalSelection.mjs가 맡는다.
+ */
+import { TRIGGER_STOPWORDS, createRanker } from './selection.mjs'
+
+const MIN_SHOULD = 8
+const MIN_SHOULD_NOT = 6
+
+/** @param {{ name: string, score: number }[]} ranked */
+const tiedTopOf = (ranked) => ranked.filter((r) => r.score === ranked[0].score).map((r) => r.name)
+
+/** @param {{ name: string, score: number }[]} ranked */
+export const top3 = (ranked) => ranked.slice(0, 3).map((r) => `${r.name}:${r.score.toFixed(1)}`).join(', ')
+
+/**
+ * @param {{ target: string, docs: { name: string, description: string }[], should: string[], shouldNot: string[], stopwords?: ReadonlySet<string> }} args
+ */
+export const evaluateTrigger = ({ target, docs, should, shouldNot, stopwords = TRIGGER_STOPWORDS }) => {
+  const rank = createRanker({ docs, stopwords })
+  const failures = []
+  const margins = []
+  const lines = []
+  let passed = 0
+
+  for (const query of should) {
+    const ranked = rank(query)
+    const mine = ranked.find((r) => r.name === target)
+    const tiedTop = tiedTopOf(ranked)
+    lines.push(`should "${query}" → ${top3(ranked)}`)
+    if (mine && mine.score > 0 && tiedTop.length === 1 && tiedTop[0] === target) {
+      passed += 1
+      const second = ranked.find((r) => r.name !== target)
+      margins.push({ query, margin: mine.score - (second?.score ?? 0), second: second?.name })
+    } else {
+      failures.push({ kind: 'should', query, detail: `1위 ${tiedTop.join('/')} (${ranked[0].score.toFixed(1)}), ${target} ${(mine?.score ?? 0).toFixed(1)}` })
+    }
+  }
+
+  // 다른 스킬의 요청 — 대상이 0점이거나 1위가 아니면 통과. 모두 0점인 동점은 아무 스킬도 걸리지 않은 것이라 통과다
+  for (const query of shouldNot) {
+    const ranked = rank(query)
+    const mine = ranked.find((r) => r.name === target)
+    lines.push(`shouldNot "${query}" → ${top3(ranked)}`)
+    if (!mine || mine.score === 0 || !tiedTopOf(ranked).includes(target)) passed += 1
+    else failures.push({ kind: 'shouldNot', query, detail: `${target}이(가) 1위 (${mine.score.toFixed(1)})` })
+  }
+
+  return { total: should.length + shouldNot.length, passed, failures, margins, lines }
+}
+
+/**
+ * 평가 파일의 모양을 검사한다 — 질의가 너무 적으면 통과해도 믿을 수 없고, 같은 질의가 양쪽에 있으면 모순이다.
+ * @param {{ spec: { skill?: string, should?: string[], shouldNot?: string[] } }} args
+ * @returns {string[]}
+ */
+export const validateSpec = ({ spec }) => {
+  const errors = []
+  const name = spec.skill ?? '(skill 없음)'
+  const should = Array.isArray(spec.should) ? spec.should : []
+  const shouldNot = Array.isArray(spec.shouldNot) ? spec.shouldNot : []
+  if (should.length < MIN_SHOULD) errors.push(`${name}: should 질의 ${MIN_SHOULD}개 이상 필요 — 지금 ${should.length}개`)
+  if (shouldNot.length < MIN_SHOULD_NOT) errors.push(`${name}: shouldNot 질의 ${MIN_SHOULD_NOT}개 이상 필요 — 지금 ${shouldNot.length}개`)
+  for (const query of should) if (shouldNot.includes(query)) errors.push(`${name}: "${query}"가 should와 shouldNot에 모두 있음`)
+  return errors
+}
