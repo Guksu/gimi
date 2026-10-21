@@ -19,3 +19,39 @@ jobs:
         run: npm test
       - name: 구조 검사 + 트리거 평가
         run: npm run validate
+
+  shop-fixture:
+    # 예제 저장소(evals/shop-fixture) — 앱 테스트와 결함 PR 검사. PostgreSQL은 서비스 컨테이너로 띄운다(설계 결정 46)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shop
+          POSTGRES_DB: shop
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U shop -d shop"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    defaults:
+      run:
+        working-directory: evals/shop-fixture
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: evals/shop-fixture/package-lock.json
+      - name: 의존성 설치
+        run: npm ci --ignore-scripts
+      - name: 타입 검사
+        run: npm run typecheck
+      - name: 테스트(fake-pg·server·web)
+        run: npm test
+      - name: 결함 PR 검사(패치·정답 위치·잡는 테스트)
+        run: node ../../scripts/defects.mjs check
