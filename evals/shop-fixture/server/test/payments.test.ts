@@ -52,9 +52,12 @@ describe('POST /payments/confirm', () => {
   })
 
   it('승인 응답이 늦어 시간을 넘기면 실패로 단정하지 않고 PG에 조회해 결과를 정한다', async () => {
+    // PG 시간 제한을 짧게 다시 띄우고, PG는 그보다 늦게 답한다
+    await t.close()
+    t = await startApp({ pgTimeoutMs: 300 })
     const { order, paymentKey } = await orderWithCheckout(t)
     t.pg.behavior.confirm = 'slow'
-    t.pg.behavior.delayMs = 500
+    t.pg.behavior.delayMs = 1000
     const res = await confirm({ orderId: order.id, paymentKey, amount: 15000 })
     expect([res.status, res.body.status]).toEqual([200, 'paid'])
   })

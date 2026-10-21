@@ -3,7 +3,7 @@ info:
   title: 국수집 주문 API
   version: 1.0.0
   description: |
-    gimi 평가용 예제 저장소의 server API. web은 이 계약에서 만든 타입(web/src/api/schema.d.ts)을 쓴다.
+    국수집 주문 앱의 server API. web은 이 계약에서 만든 타입(web/src/api/schema.d.ts)을 쓴다.
     금액은 모두 원 단위 정수다. 사용자는 x-user-id 머리로 정한다(예제라 로그인이 없다).
 paths:
   /products:

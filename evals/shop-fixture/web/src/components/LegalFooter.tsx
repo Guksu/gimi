@@ -2,7 +2,7 @@
  * 법정 표시 사항 — 모든 화면 아래에 같은 컴포넌트로 보인다. 예제 가게라 값은 모두 지어낸 것이다
  */
 const BUSINESS = {
-  name: 'gimi 국수집(예제 가게)',
+  name: '국수집(예제 가게)',
   owner: '김예제',
   registrationNumber: '000-00-00000',
   mailOrderNumber: '제2026-예제-0000호',

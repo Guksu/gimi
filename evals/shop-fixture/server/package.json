@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "migrate": "tsx db/migrate.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"

@@ -38,7 +38,11 @@ export interface TestApp {
   close: () => Promise<void>
 }
 
-export const startApp = async (): Promise<TestApp> => {
+/**
+ * 테스트마다 앱·가짜 PG를 새로 띄우고 표를 비운 뒤 시드를 넣는다.
+ * PG 시간 제한은 시간 초과를 시험할 때만 짧게 준다 — 짧은 기본값은 프로세스의 첫 요청이 느린 기계에서 시간을 넘긴다
+ */
+export const startApp = async ({ pgTimeoutMs = 2000 }: { pgTimeoutMs?: number } = {}): Promise<TestApp> => {
   const pg = await createFakePg(KEYS)
   Object.assign(process.env, {
     DATABASE_URL: TEST_URL,
@@ -46,7 +50,7 @@ export const startApp = async (): Promise<TestApp> => {
     PG_SECRET_KEY: KEYS.secretKey,
     PG_CLIENT_KEY: KEYS.clientKey,
     PG_WEBHOOK_SECRET: KEYS.webhookSecret,
-    PG_TIMEOUT_MS: '200',
+    PG_TIMEOUT_MS: String(pgTimeoutMs),
     WEB_BASE_URL: 'http://web.test',
   })
   const clock = new FixedClock()
