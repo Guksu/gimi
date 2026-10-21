@@ -227,11 +227,14 @@ describe('check.mjs — 멈추라는 신호', () => {
       const { GIMI_CHECK_RUNNING: _, ...env } = process.env
       const child = spawn(process.execPath, [CLI], { cwd: repo.dir, stdio: 'ignore', env })
       const pidFile = join(repo.dir, 'pid')
+      // gimi-ignore: test/real-wait — 실제 하위 프로세스가 pid 파일을 쓸 때까지 기다린다(가짜 타이머로 대신할 수 없다)
       while (!existsSync(pidFile)) await new Promise((resolve) => setTimeout(resolve, 50))
+      // gimi-ignore: test/real-wait — 하위 프로세스가 신호를 받을 준비가 될 때까지 기다린다
       await new Promise((resolve) => setTimeout(resolve, 100))
       const pid = Number(readFileSync(pidFile, 'utf8'))
       child.kill('SIGTERM')
       const code = await new Promise((resolve) => child.on('exit', (exitCode, signal) => resolve(exitCode ?? signal)))
+      // gimi-ignore: test/real-wait — 멈춘 프로세스가 정말 사라질 때까지 기다린다
       await new Promise((resolve) => setTimeout(resolve, 300))
       let alive = true
       try {
