@@ -118,6 +118,28 @@ describe('영향 범위 — 프로젝트의 TypeScript로', () => {
   })
 })
 
+describe('영향 범위 — tsconfig에 없는 파일', () => {
+  it('그 파일의 export는 문자열로 찾고, 심볼마다가 아니라 파일 수로 한 번 알린다', () => {
+    const repo = makeRepo()
+    try {
+      const { 'tsconfig.json': _, ...noConfig } = BASE
+      repo.write(noConfig)
+      repo.commit('feat: 처음')
+      repo.git('switch', '-q', '-c', 'feat/x')
+      repo.write(CHANGED)
+      repo.commit('feat: 바꿈')
+      const { impact } = collectContext({ exec: execFor({ dir: repo.dir }), useGh: false, loadTs: () => ({ ts, reason: null }) })
+      assert.ok(impact.symbols.every((s) => s.method === 'text'))
+      const notes = impact.notes.filter((n) => /tsconfig/.test(n))
+      // order.ts(getStatus 등)·keys.ts(ORDERS_KEY 값)·list.ts(list 값) — 바뀐 export가 있는 파일 셋
+      assert.equal(notes.length, 1)
+      assert.match(notes[0], /파일 3개\(src\/keys\.ts, src\/list\.ts, src\/order\.ts\)/)
+    } finally {
+      repo.cleanup()
+    }
+  })
+})
+
 describe('영향 범위 — TypeScript가 없을 때', () => {
   it('문자열 검색으로 내려가고 이유를 적는다 — 이름만 같은 지역 함수도 잡힌다(정확도 낮음)', () => {
     const repo = buildRepo()

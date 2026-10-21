@@ -149,6 +149,7 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
   const added = []
   let otherFiles = 0
   let dirtyFiles = 0
+  const outsideConfig = new Set()
 
   const textUsages = ({ name, exclude }) =>
     grep({ exec, args: ['-w', '-F', '-e', name, '--', ...CODE_GLOBS, `:(exclude)${exclude}`] })
@@ -190,7 +191,7 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
           found = refs
             .map((ref) => usageAt({ readLines, path: ref.path, line: lineOfPos({ readLines, path: ref.path, pos: ref.pos }), changedPaths }))
             .filter((usage) => !IMPORT_LINE.test(usage.text))
-        } else notes.push(`${path}이(가) 어느 tsconfig에도 없어 ${change.name}의 사용처를 문자열로 찾았다`)
+        } else outsideConfig.add(path)
       }
       // 이름 없는 default export는 이름으로 찾을 수 없다
       const searched = found != null || change.name !== 'default'
@@ -198,6 +199,7 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
       symbols.push({ name: change.name, kind: change.kind, change: change.change, path, method, searched, ...finalize(found) })
     }
   }
+  if (outsideConfig.size > 0) notes.push(`어느 tsconfig에도 없는 파일 ${outsideConfig.size}개(${[...outsideConfig].slice(0, 3).join(', ')}${outsideConfig.size > 3 ? ' 등' : ''})는 사용처를 문자열로 찾았다`)
   if (dirtyFiles > 0) notes.push(`커밋하지 않은 변경이 있는 파일 ${dirtyFiles}개는 참조 위치가 어긋날 수 있어 문자열로 찾았다`)
 
   const literals = []
