@@ -11,3 +11,4 @@
 |------|----------|------|------|
 | 2026-10-20 | 저장소 뼈대 — 매니페스트(Claude Code·Codex, 훅 없음), AGENTS.md·CLAUDE.md, 두 스킬 SKILL.md, 트리거 평가, 구조 검사, CI | 전체 | 사용자 결정 — suta처럼 뼈대와 트리거 평가부터 구현 |
 | 2026-10-21 | 맥락 수집 1단계 — context.mjs(범위·바뀐 파일·의도·이력, 요약 + JSON). 영향 범위는 2단계 | skills/gimi-review/scripts·tests | 사용자 요청 — 맥락 수집 스크립트를 테스트부터 |
+| 2026-10-21 | 맥락 수집 2단계 — 영향 범위(바뀐 export·바뀐 문자열의 사용처, 프로젝트의 TypeScript 참조 찾기 + 문자열 검색). typescript 6.0.3을 테스트 전용 개발 의존성으로. 계약 파일은 3단계 | skills/gimi-review/scripts·tests·package.json·CI | 사용자 결정 — typescript는 개발 의존성, 계약 파일은 따로 |
