@@ -87,9 +87,27 @@ describe('collectContext — gh 없이', () => {
     assert.ok(context.skipped.some((s) => s.context === '의도' && /gh/.test(s.reason)))
   })
 
-  it('영향 범위는 아직 모으지 않는다고 적는다', () => {
-    assert.equal(context.impact, null)
-    assert.ok(context.skipped.some((s) => s.context === '영향 범위'))
+  it('프로젝트에 typescript가 없으면 영향 범위를 문자열 검색으로 찾고 이유를 적는다', () => {
+    assert.equal(context.impact.method, 'text')
+    assert.match(context.impact.reason, /typescript가 없다/)
+    assert.ok(!context.skipped.some((s) => s.context === '영향 범위'))
+  })
+})
+
+describe('collectContext — 계약 파일', () => {
+  it('OpenAPI 같은 계약 파일이 바뀌면 프론트·백엔드 잇기는 아직 구현 전이라고 건너뜀에 적는다', () => {
+    const repo = makeRepo()
+    try {
+      repo.write({ 'api/openapi.yaml': 'openapi: 3.0.0\n' })
+      repo.commit('feat: 처음')
+      repo.git('switch', '-q', '-c', 'feat/api')
+      repo.write({ 'api/openapi.yaml': 'openapi: 3.1.0\n' })
+      repo.commit('feat: 스키마')
+      const context = collectContext({ exec: execFor({ dir: repo.dir }), useGh: false })
+      assert.ok(context.skipped.some((s) => s.context === '영향 범위' && /계약 파일\(api\/openapi\.yaml\)/.test(s.reason)))
+    } finally {
+      repo.cleanup()
+    }
   })
 })
 
