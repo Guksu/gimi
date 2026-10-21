@@ -12,7 +12,7 @@ import { compareExports, extractExportsText, extractExportsTs } from './exports.
 import { changedLiterals } from './literals.mjs'
 
 const CODE = /\.(m|c)?[jt]sx?$|\.(vue|svelte)$/
-const CODE_GLOBS = ['*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs', '*.vue', '*.svelte']
+export const CODE_GLOBS = ['*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs', '*.vue', '*.svelte']
 const LOCKFILES = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb']
 const IMPORT_LINE = /^\s*import\b/
 const MAX_USAGES = 100
@@ -34,7 +34,7 @@ export const loadTypescript = ({ root }) => {
 }
 
 /** 파일 내용 캐시 — 줄 번호와 문맥을 읽는다 */
-const createFileReader = ({ root }) => {
+export const createFileReader = ({ root }) => {
   const cache = new Map()
   return (path) => {
     if (!cache.has(path)) {
@@ -45,7 +45,7 @@ const createFileReader = ({ root }) => {
   }
 }
 
-const usageAt = ({ readLines, path, line, changedPaths }) => {
+export const usageAt = ({ readLines, path, line, changedPaths }) => {
   const lines = readLines(path)
   const from = Math.max(1, line - CONTEXT)
   const to = Math.min(lines.length, line + CONTEXT)
@@ -53,13 +53,13 @@ const usageAt = ({ readLines, path, line, changedPaths }) => {
 }
 
 /** 이 변경에서 안 바뀐 사용처가 먼저다 — 깨질 수 있는 곳은 거기다 */
-const finalize = (usages) => {
+export const finalize = (usages) => {
   const unique = [...new Map(usages.map((u) => [`${u.path}:${u.line}`, u])).values()]
   unique.sort((a, b) => Number(a.changedInPr) - Number(b.changedInPr) || a.path.localeCompare(b.path) || a.line - b.line)
   return { total: unique.length, unchanged: unique.filter((u) => !u.changedInPr).length, usages: unique.slice(0, MAX_USAGES) }
 }
 
-const grep = ({ exec, args }) => {
+export const grep = ({ exec, args }) => {
   const out = attempt(() => exec.git(['grep', '-n', '-z', '-I', ...args]))
   if (!out) return []
   return out
@@ -72,7 +72,7 @@ const grep = ({ exec, args }) => {
 }
 
 /** 언어 서비스 — tsconfig마다 하나씩 만들어 둔다. 솔루션형 tsconfig(references)는 한 단계 따라간다 */
-const createTsIndex = ({ ts, root }) => {
+export const createTsIndex = ({ ts, root }) => {
   const projects = new Map()
   const load = (configPath) => {
     if (projects.has(configPath)) return projects.get(configPath)
@@ -127,7 +127,7 @@ const createTsIndex = ({ ts, root }) => {
   return { referencesOf }
 }
 
-const lineOfPos = ({ readLines, path, pos }) => {
+export const lineOfPos = ({ readLines, path, pos }) => {
   let rest = pos
   const lines = readLines(path)
   for (let i = 0; i < lines.length; i += 1) {

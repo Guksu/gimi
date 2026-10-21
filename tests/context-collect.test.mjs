@@ -94,23 +94,6 @@ describe('collectContext — gh 없이', () => {
   })
 })
 
-describe('collectContext — 계약 파일', () => {
-  it('OpenAPI 같은 계약 파일이 바뀌면 프론트·백엔드 잇기는 아직 구현 전이라고 건너뜀에 적는다', () => {
-    const repo = makeRepo()
-    try {
-      repo.write({ 'api/openapi.yaml': 'openapi: 3.0.0\n' })
-      repo.commit('feat: 처음')
-      repo.git('switch', '-q', '-c', 'feat/api')
-      repo.write({ 'api/openapi.yaml': 'openapi: 3.1.0\n' })
-      repo.commit('feat: 스키마')
-      const context = collectContext({ exec: execFor({ dir: repo.dir }), useGh: false })
-      assert.ok(context.skipped.some((s) => s.context === '영향 범위' && /계약 파일\(api\/openapi\.yaml\)/.test(s.reason)))
-    } finally {
-      repo.cleanup()
-    }
-  })
-})
-
 describe('collectContext — 서식 정리 커밋 무시 목록', () => {
   it('.git-blame-ignore-revs에 있는 커밋은 건너뛰고 그 전 커밋을 찾는다', () => {
     const built = buildRepo({ ignoreFormatting: true })

@@ -11,7 +11,9 @@
     "우리 회사는 커머스야, 리뷰할 도메인 규칙 설정해줘",
     "리뷰에서 반복되는 지적을 팀 규칙으로 정리해줘",
     "review this pull request against the ticket requirements",
-    "code review my branch before merge and check the impact on callers"
+    "code review my branch before merge and check the impact on callers",
+    "OpenAPI 스키마 바꾼 거 프론트 화면에 영향 없는지 리뷰해줘",
+    "GraphQL 스키마에서 필드 지웠는데 쓰는 곳 깨지는지 봐줘"
   ],
   "shouldNot": [
     "이 함수 단위 테스트 써줘",

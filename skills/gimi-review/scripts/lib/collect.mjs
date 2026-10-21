@@ -2,16 +2,16 @@
  * 맥락 묶음 만들기 — 범위·바뀐 파일·의도·이력·영향 범위를 모으고, 모으지 못한 것은 이유와 함께 skipped에 남긴다(설계 결정 19).
  * "없음"과 "건너뜀"을 섞지 않는다. 사용처를 찾지 못한 것과 찾기를 건너뛴 것은 다르다.
  */
+import { collectContracts } from './contracts.mjs'
 import { parseDiff } from './diff.mjs'
 import { attempt } from './exec.mjs'
 import { collectHistory } from './history.mjs'
 import { collectImpact, loadTypescript } from './impact.mjs'
 import { collectIntent } from './intent.mjs'
 import { resolveScope } from './scope.mjs'
+import { loadYaml } from './yaml.mjs'
 
 const PR_FIELDS = 'number,title,body,url,baseRefName,headRefOid,closingIssuesReferences'
-// 프론트·백엔드를 잇는 계약 파일 — 이것이 바뀌면 사용처를 이어 찾아야 하는데, 아직 구현 전이다(설계 결정 47, 3단계)
-const CONTRACT_FILE = /openapi|swagger|\.graphqls?$|\.proto$/i
 const MAX_LINE_TEXT = 300
 
 // 맥락 묶음에는 지운 줄의 내용(파일에서 사라졌다)과 더한 줄의 번호만 담는다 — 더한 줄은 파일을 열면 있다
@@ -57,8 +57,11 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   const root = exec.git(['rev-parse', '--show-toplevel']).trim()
   const { ts, reason } = loadTs({ root })
   const impact = collectImpact({ exec, root, scope, files, ts, reason })
-  const contracts = files.map((file) => file.newPath ?? file.oldPath).filter((path) => CONTRACT_FILE.test(path))
-  if (contracts.length > 0) skipped.push({ context: '영향 범위', reason: `계약 파일(${contracts.slice(0, 3).join(', ')})로 프론트·백엔드를 잇는 것은 아직 구현 전 — 생성된 타입의 사용처는 직접 찾는다` })
+  // 프론트·백엔드를 잇는 계약 파일(OpenAPI·GraphQL 스키마) — 바뀐 엔드포인트·필드와 그 사용처(설계 결정 47)
+  const contracts = collectContracts({ exec, root, scope, files, ts, yaml: loadYaml({ root }) })
+  impact.contracts = contracts.contracts
+  impact.notes.push(...contracts.notes)
+  skipped.push(...contracts.skipped)
   if (scope.dirty) notes.push('작업 트리에 커밋하지 않은 변경이 있다 — 맥락에 넣지 않았다')
 
   const prRef = prInfo ? { number: prInfo.number, url: prInfo.url } : pr != null ? { number: pr, url: null } : null

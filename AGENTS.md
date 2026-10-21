@@ -12,7 +12,7 @@ gimi — 코드 리뷰·테스트 스킬 두 개를 담은 설치형 플러그�
 | 테스트 스킬 | `skills/gimi-test/SKILL.md` | 테스트 작성·테스트 슬롭 금지선·끝내기 전 검사 |
 | 끝내기 전 검사 | `skills/gimi-test/scripts/check.mjs` + `lib/` | 바뀐 범위의 테스트·타입 검사·린트 명령을 찾아 돌리고 명령·종료 코드·결과 수로 보고한다. 바뀐 JS·TS 줄에서 테스트·코드 슬롭(설계 7절의 검사 error·warn 줄)을 찾는다. `--baseline`은 실패를 기준(갈림점)에서 다시 돌린다. `--hook`(Stop 훅)·`--verifier`(guksu-harness 항목)는 옵트인 연결이 부른다 |
 | 옵트인 연결 | `skills/gimi-test/scripts/connect.mjs` + `lib/connect.mjs` | 프로젝트에 check.mjs를 복사하고 guksu-harness verifier 또는 Stop 훅에 등록한다. `--remove`로 되돌린다 |
-| 맥락 수집 | `skills/gimi-review/scripts/context.mjs` + `lib/` | 리뷰 전에 범위·바뀐 파일·의도·이력·영향 범위를 모은다. 스킬과 함께 설치되는 스크립트이고, 영향 범위는 리뷰하는 프로젝트의 `typescript`를 쓴다 |
+| 맥락 수집 | `skills/gimi-review/scripts/context.mjs` + `lib/` | 리뷰 전에 범위·바뀐 파일·의도·이력·영향 범위를 모은다. 계약 파일(OpenAPI·GraphQL)이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾는다. 스킬과 함께 설치되는 스크립트이고, 영향 범위는 리뷰하는 프로젝트의 `typescript`, YAML은 프로젝트의 `yaml`·`js-yaml`(없으면 내장 파서)을 쓴다 |
 | 트리거 평가 | `evals/trigger/` | 두 스킬이 맞는 요청에 걸리고, 서로·다른 스킬의 요청에는 걸리지 않는지 |
 | 저장소 스크립트 | `scripts/` | 구조 검사(`validateSkills.mjs`), 트리거 평가(`evalSelection.mjs`), 순수 로직(`lib/`) |
 | 테스트 | `tests/` | `scripts/lib/`·`skills/*/scripts/lib/`의 단위 테스트와 임시 git 저장소 통합 테스트(`node:test`, `tests/helpers/repo.mjs`) |

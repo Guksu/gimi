@@ -95,6 +95,42 @@ const impactRows = (impact) => {
   return rows
 }
 
+const LEVEL_LABEL = { breaking: '깨질 수 있음', caution: '확인', additive: '추가' }
+const PARSER_LABEL = { json: 'JSON', yaml: 'yaml 패키지', 'js-yaml': 'js-yaml', 내장: '내장 YAML 파서' }
+const METHOD_LABEL = { text: '경로 문자열 검색', 'typescript+text': 'TypeScript 참조 + 경로 문자열 검색' }
+const MAX_CONTRACT_CHANGES = 15
+
+const contractUsage = (change, graphql) => {
+  if (!change.searched) return ''
+  const unit = graphql ? '연산' : '사용처'
+  if (change.total === 0) return `  ${unit} 없음`
+  const how = graphql ? '' : ` · ${METHOD_LABEL[change.method] ?? change.method}`
+  return `  ${unit} ${change.total}(이 변경에서 안 바뀜 ${change.unchanged}${how})`
+}
+
+const contractRows = (contracts) => {
+  if (!contracts || contracts.length === 0) return []
+  const all = contracts.flatMap((c) => c.changes)
+  const count = (level) => all.filter((c) => c.level === level).length
+  const rows = [`계약      바뀐 계약 ${contracts.length}개 — 깨질 수 있음 ${count('breaking')} · 확인 ${count('caution')} · 추가 ${count('additive')}`]
+  for (const contract of contracts) {
+    const graphql = contract.kind === 'graphql'
+    const kind = graphql ? 'GraphQL' : `OpenAPI · ${PARSER_LABEL[contract.parser] ?? contract.parser}`
+    rows.push(`  ${contract.path} (${kind}) — 바뀐 것 ${contract.changes.length}`)
+    for (const change of contract.changes.slice(0, MAX_CONTRACT_CHANGES)) {
+      const endpoints = change.target === 'schema' && change.endpoints?.length > 0 ? ` / 엔드포인트 ${change.endpoints[0]}${change.endpoints.length > 1 ? ` 외 ${change.endpoints.length - 1}` : ''}` : ''
+      rows.push(`    ${change.key}  ${LEVEL_LABEL[change.level]} — ${change.details.join(' / ')}${endpoints}${contractUsage(change, graphql)}`)
+      if (!change.searched || change.total === 0) continue
+      const shown = change.usages.filter((usage) => !usage.changedInPr).slice(0, MAX_USAGES)
+      for (const usage of shown) rows.push(`      ${usage.path}:${usage.line}${usage.operation ? `  ${usage.operation} › ${usage.fieldPath}` : ''}`)
+      if (change.unchanged > shown.length) rows.push(`      … 안 바뀐 곳 ${change.unchanged - shown.length}곳 더 — JSON에 있다`)
+      if (change.total > change.unchanged) rows.push(`      이 변경에서 함께 바뀐 곳 ${change.total - change.unchanged}곳 — diff에서 본다`)
+    }
+    if (contract.changes.length > MAX_CONTRACT_CHANGES) rows.push(`    … 외 ${contract.changes.length - MAX_CONTRACT_CHANGES}개 — JSON에 있다`)
+  }
+  return rows
+}
+
 const impactNotes = (impact) => {
   if (!impact) return []
   const fallback = impact.method === 'text' ? [`영향 범위는 문자열 검색으로 찾았다(정확도 낮음) — ${impact.reason}`] : []
@@ -111,7 +147,7 @@ export const renderSummary = ({ context, outPath, maxLines = 300 }) => {
   rows.push('바뀐 파일', ...(files.length > 0 ? capped({ rows: files.map(fileRow), max: MAX_FILES, unit: '개' }) : ['  없음']))
   rows.push(...intentRows(intent))
   if (history) rows.push(...historyRows(history))
-  if (context.impact) rows.push(...impactRows(context.impact))
+  if (context.impact) rows.push(...impactRows(context.impact), ...contractRows(context.impact.contracts))
   rows.push(...(context.skipped.length > 0 ? context.skipped.map((skip) => `건너뜀  ${skip.context} — ${skip.reason}`) : ['건너뜀  없음']))
   for (const note of [...context.notes, ...(history?.notes ?? []), ...impactNotes(context.impact)]) rows.push(`참고    ${note}`)
   const last = `전체    ${outPath ?? '(JSON을 표준 출력으로 냈다)'}`
