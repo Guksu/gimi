@@ -1,0 +1,21 @@
+{
+  "id": "COM-007",
+  "rules": ["COM-007"],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 재고가 모자라면 남은 수량을 알려 준다",
+    "body": "## 배경\n재고 부족 오류가 어떤 상품이 몇 개 남았는지 알려 주지 않는다. 고객센터 도구가 API 오류의 message를 그대로 보여 주는데, 상담원이 남은 수량을 따로 찾아봐야 한다.\n\n## 변경\n- 주문할 때 상품의 현재 재고를 읽고, 모자라면 남은 수량을 오류 message에 담는다\n- 읽은 재고에서 주문 수량을 뺀 값으로 재고를 갱신한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다. 동시에 들어온 주문이 같은 재고를 읽어 둘 다 통과하고, 재고 1개가 여러 번 팔린다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 65,
+      "endLine": 68,
+      "evidence": [{ "path": "server/src/orders/orders.service.ts", "line": 54 }]
+    }
+  ],
+  "catches": ["server/test/orders.test.ts"]
+}

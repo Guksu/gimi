@@ -1,0 +1,17 @@
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..2a2220d 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -236,9 +236,10 @@ export class OrdersService {
+     const reason = input.reason
+     if (reason !== 'change_of_mind' && reason !== 'defective') throw fail(400, 'INVALID_REASON', '사유는 change_of_mind·defective 중 하나다')
+     if (order.status !== 'delivered' || !order.delivered_at) throw fail(409, 'NOT_DELIVERED', '배송이 끝나기 전에는 주문을 취소한다')
+-    const deadline = returnDeadline(order.delivered_at, reason === 'defective' ? DEFECTIVE_DAYS : CHANGE_OF_MIND_DAYS)
++    const days = reason === 'defective' ? DEFECTIVE_DAYS : CHANGE_OF_MIND_DAYS
++    const deadline = new Date(order.delivered_at.getTime() + days * 24 * 60 * 60 * 1000)
+     const now = this.clock.now()
+-    if (now >= deadline) throw fail(409, 'RETURN_WINDOW_CLOSED', '반품 기한이 지났다')
++    if (now >= deadline) throw fail(409, 'RETURN_WINDOW_CLOSED', `반품 기한(${deadline.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })})이 지났다`)
+     if (reason === 'change_of_mind') {
+       const items = (await this.db.pool.query<{ returnable: boolean }>('SELECT returnable FROM order_items WHERE order_id = $1', [orderId])).rows
+       if (!items.some((item) => item.returnable)) throw fail(409, 'NOT_RETURNABLE', '단순 변심으로 반품할 수 없다고 표시한 상품이다')

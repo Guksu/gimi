@@ -1,0 +1,21 @@
+{
+  "id": "COM-016",
+  "rules": ["COM-016"],
+  "context": "도메인 규칙",
+  "layer": "프론트",
+  "pr": {
+    "title": "fix: 결제 실패 뒤 다시 누르면 새 요청으로 보낸다",
+    "body": "## 배경\n결제하기를 눌렀다가 오류가 난 뒤 다시 누르면, 같은 Idempotency-Key가 다시 가서 서버가 예전 요청으로 처리한다는 문의가 있었다.\n\n## 변경\n- 멱등 키를 주문 확인 화면에 들어올 때 한 번 만들던 것을, 결제하기를 누를 때마다 새로 만든다\n- 진행 중의 두 번째 클릭은 지금처럼 막는다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "멱등 키를 누를 때마다 새로 만든다. 주문을 만든 뒤 응답이 끊겨 다시 누르면 주문이 하나 더 생기고 재고·쿠폰·포인트가 두 번 차감된다",
+      "path": "web/src/pages/CheckoutPage.tsx",
+      "line": 40,
+      "endLine": 41,
+      "evidence": [{ "path": "server/src/orders/orders.service.ts", "line": 57, "endLine": 58 }]
+    }
+  ],
+  "catches": ["web/src/pages/checkout.test.tsx"]
+}

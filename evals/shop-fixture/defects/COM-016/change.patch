@@ -1,0 +1,22 @@
+diff --git a/web/src/pages/CheckoutPage.tsx b/web/src/pages/CheckoutPage.tsx
+index 443a7b0..b939e06 100644
+--- a/web/src/pages/CheckoutPage.tsx
++++ b/web/src/pages/CheckoutPage.tsx
+@@ -19,8 +19,6 @@ export const CheckoutPage = () => {
+   const [agreed, setAgreed] = useState(false)
+   const [submitting, setSubmitting] = useState(false)
+   const [error, setError] = useState<string | null>(null)
+-  // 이 화면에서 만드는 주문 하나에 멱등 키 하나 — 다시 눌러도 같은 주문이다
+-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+   const inFlight = useRef(false)
+ 
+   useEffect(() => {
+@@ -39,6 +37,8 @@ export const CheckoutPage = () => {
+     if (inFlight.current || !quote) return
+     inFlight.current = true
+     setSubmitting(true)
++    // 실패한 뒤 다시 누르면 서버가 예전 요청으로 보지 않게 누를 때마다 새 키를 만든다
++    const idempotencyKey = crypto.randomUUID()
+     try {
+       const { data: order } = await api.createOrder({ items: cart.items, couponCode: cart.couponCode ?? undefined, points: cart.points || undefined, method }, idempotencyKey)
+       if (order.status === 'paid') {

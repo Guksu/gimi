@@ -40,4 +40,30 @@ describe('주문 확인·결제', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('주문 요청의 응답이 끊긴 뒤 다시 눌러도 같은 멱등 키로 보낸다 — 서버가 이미 만든 주문이면 그 주문을 돌려받는다', async () => {
+    const keys: string[] = []
+    server.use(
+      http.post(`${API}/orders`, ({ request }) => {
+        keys.push(request.headers.get('idempotency-key') ?? '')
+        // 첫 요청은 서버가 주문을 만든 뒤 응답이 끊긴 경우다
+        return keys.length === 1 ? HttpResponse.error() : HttpResponse.json(order({ status: 'pending_payment' }), { status: 200 })
+      }),
+      http.post(`${API}/orders/7/checkout`, () => HttpResponse.json({ paymentKey: 'pay_1', checkoutUrl: 'http://pg.test/checkout/pay_1' }, { status: 201 })),
+    )
+    const assign = vi.fn()
+    const { user } = openAt('/checkout', [{ productId: 1, quantity: 2 }])
+    vi.stubGlobal('location', { ...window.location, assign })
+    try {
+      await user.click(await screen.findByRole('checkbox', { name: '주문 내용을 확인했고 결제에 동의해요' }))
+      await user.click(screen.getByRole('button', { name: '15,000원 결제하기' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('문제가 생겼어요. 잠시 뒤 다시 시도해 주세요')
+      await user.click(screen.getByRole('button', { name: '15,000원 결제하기' }))
+      await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('http://pg.test/checkout/pay_1'))
+      expect(keys).toHaveLength(2)
+      expect(keys[1]).toBe(keys[0])
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
