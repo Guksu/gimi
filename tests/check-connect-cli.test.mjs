@@ -86,15 +86,14 @@ describe('connect.mjs', () => {
     }
   })
 
-  it('--remove는 복사본을 지우고 설정을 끄고 등록한 항목만 뗀다', () => {
+  it('--remove는 복사본과 연결이 만든 설정을 지우고 등록한 항목만 뗀다', () => {
     const repo = fresh({ '.claude/settings.json': JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'x' }] }] } }) })
     try {
       connect(repo.dir)
       const result = connect(repo.dir, ['--remove'])
       assert.equal(result.status, 0, result.stdout + result.stderr)
       assert.match(result.stdout, /^끝내기 전 검사 연결 해제/m)
-      assert.equal(existsSync(join(repo.dir, '.agents/gimi/check')), false)
-      assert.equal(json(repo, '.agents/gimi.json').finishCheck.enabled, false)
+      assert.equal(existsSync(join(repo.dir, '.agents')), false)
       assert.deepEqual(json(repo, '.claude/settings.json'), { hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'x' }] }] } })
     } finally {
       repo.cleanup()

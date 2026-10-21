@@ -87,7 +87,7 @@ const apply = ({ root, actions, remove }) => {
     } else if (action.kind === 'delete') rmSync(path, { force: true })
   }
   // 비어 있는 폴더만 지운다 — 손으로 고친 파일이 남았으면 폴더도 남는다
-  if (remove) for (const dir of [`${COPY_DIR}/lib`, COPY_DIR, '.agents/gimi']) attempt(() => rmdirSync(join(root, dir)))
+  if (remove) for (const dir of [`${COPY_DIR}/lib`, COPY_DIR, '.agents/gimi', '.agents']) attempt(() => rmdirSync(join(root, dir)))
 }
 
 const main = () => {

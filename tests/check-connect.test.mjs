@@ -109,7 +109,7 @@ describe('planConnect — 복사본 갱신과 --remove', () => {
     assert.equal(write(result, '.agents/gimi/check/manifest.json').files['lib/plan.mjs'], sha('plan v1'))
   })
 
-  it('--remove는 고치지 않은 복사본과 기록을 지우고, 설정을 끄고, 등록한 항목만 뗀다', () => {
+  it('--remove는 고치지 않은 복사본과 기록을 지우고, 설정을 끄고(연결이 넣은 값만 남으면 지우고), 등록한 항목만 뗀다', () => {
     const settings = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'other' }] }, { hooks: [{ type: 'command', command: CLAUDE_HOOK, timeout: 900 }] }] } }
     const map = {
       '.agents/gimi/check/check.mjs': 'check v2',
@@ -123,10 +123,27 @@ describe('planConnect — 복사본 갱신과 --remove', () => {
       ['delete', '.agents/gimi/check/check.mjs'],
       ['conflict', '.agents/gimi/check/lib/plan.mjs'],
       ['delete', '.agents/gimi/check/manifest.json'],
-      ['update', '.agents/gimi.json'],
+      ['delete', '.agents/gimi.json'],
       ['update', '.claude/settings.json'],
     ])
-    assert.deepEqual(write(result, '.agents/gimi.json'), { finishCheck: { enabled: false } })
     assert.deepEqual(write(result, '.claude/settings.json').hooks.Stop.map((entry) => entry.hooks[0].command), ['other'])
+  })
+})
+
+describe('planConnect — 손댄 흔적 줄이기', () => {
+  it('사람이 다르게 맞춘 JSON을 다시 쓸 때는 형식이 바뀐다고 밝힌다', () => {
+    const settings = '{\n    "hooks": {}\n}\n'
+    const action = plan({ '.claude/settings.json': settings }).actions.find((a) => a.path === '.claude/settings.json')
+    assert.equal(action.kind, 'update')
+    assert.match(action.reason, /2칸 들여쓰기로 다시 썼다/)
+    const tidy = plan({ '.claude/settings.json': '{\n  "hooks": {}\n}\n' }).actions.find((a) => a.path === '.claude/settings.json')
+    assert.doesNotMatch(tidy.reason, /다시 썼다/)
+  })
+
+  it('--remove에서 설정에 연결이 넣은 값만 남으면 설정 파일을 지운다', () => {
+    const only = plan({ '.agents/gimi.json': JSON.stringify({ finishCheck: { enabled: true } }) }, { remove: true })
+    assert.deepEqual(only.actions.find((a) => a.path === '.agents/gimi.json').kind, 'delete')
+    const more = plan({ '.agents/gimi.json': JSON.stringify({ stacks: ['backend'], finishCheck: { enabled: true } }) }, { remove: true })
+    assert.deepEqual(more.actions.find((a) => a.path === '.agents/gimi.json').kind, 'update')
   })
 })

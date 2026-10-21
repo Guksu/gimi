@@ -34,22 +34,24 @@ const toText = (value) => `${JSON.stringify(value, null, 2)}\n`
 /** JSON 파일 읽기 — 없으면 fallback, 읽지 못하면 null(충돌로 다룬다) */
 const readJsonFile = (files, path, fallback) => {
   const text = files.read(path)
-  if (text === null) return { value: fallback, existed: false }
+  if (text === null) return { value: fallback, existed: false, text }
   try {
-    return { value: JSON.parse(text), existed: true }
+    return { value: JSON.parse(text), existed: true, text }
   } catch {
-    return { value: null, existed: true }
+    return { value: null, existed: true, text }
   }
 }
 
 /** JSON 파일을 고치는 동작 — 바뀌지 않으면 keep */
-const jsonAction = ({ files, path, fallback, change, reason }) => {
-  const { value, existed } = readJsonFile(files, path, fallback)
+const jsonAction = ({ files, path, fallback, change, reason, deleteWhen }) => {
+  const { value, existed, text } = readJsonFile(files, path, fallback)
   if (value === null) return { kind: 'conflict', path, reason: 'JSON으로 읽지 못해 고치지 않았다' }
   const next = change(structuredClone(value))
   if (same(next, value) && existed) return { kind: 'keep', path }
-  if (next === undefined) return { kind: 'keep', path }
-  return { kind: existed ? 'update' : 'create', path, text: toText(next), reason }
+  if (existed && deleteWhen && same(next, deleteWhen)) return { kind: 'delete', path, reason: '연결이 넣은 값만 남아 지웠다' }
+  // 사람이 다르게 맞춘 형식은 지키지 못한다 — 바뀐다고 밝힌다
+  const reformatted = existed && text !== toText(value)
+  return { kind: existed ? 'update' : 'create', path, text: toText(next), reason: reformatted ? `${reason ?? '고침'} (파일 전체를 2칸 들여쓰기로 다시 썼다)` : reason }
 }
 
 const isOurs = (hook) => typeof hook?.command === 'string' && OURS.test(hook.command)
@@ -143,7 +145,14 @@ export const planConnect = ({ files, sources, version, app = null, remove = fals
   actions.push(
     remove
       ? files.exists(CONFIG)
-        ? jsonAction({ files, path: CONFIG, fallback: {}, change: (config) => ({ ...config, finishCheck: { ...config.finishCheck, enabled: false } }), reason: 'finishCheck.enabled를 false로' })
+        ? jsonAction({
+            files,
+            path: CONFIG,
+            fallback: {},
+            change: (config) => ({ ...config, finishCheck: { ...config.finishCheck, enabled: false } }),
+            reason: 'finishCheck.enabled를 false로',
+            deleteWhen: { finishCheck: { enabled: false } },
+          })
         : { kind: 'keep', path: CONFIG }
       : jsonAction({ files, path: CONFIG, fallback: {}, change: (config) => ({ ...config, finishCheck: { ...config.finishCheck, enabled: true } }), reason: 'finishCheck.enabled를 true로' }),
   )
