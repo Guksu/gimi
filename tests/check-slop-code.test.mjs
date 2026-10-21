@@ -147,3 +147,15 @@ describe('바뀐 줄만 본다', () => {
     assert.deepEqual(result.checked, { test: 0, code: 2, snapshot: 0 })
   })
 })
+
+describe('RULE_SEVERITY — check.mjs가 내는 지적의 목록', () => {
+  it('규칙 코드가 내는 ID를 모두 담고, 등급(error·warn)이 코드와 같다', async () => {
+    const { RULE_SEVERITY } = await import('../skills/gimi-test/scripts/lib/slop.mjs')
+    const { readFileSync } = await import('node:fs')
+    const source = ['slop-test.mjs', 'slop-code.mjs'].map((name) => readFileSync(new URL(`../skills/gimi-test/scripts/lib/${name}`, import.meta.url), 'utf8')).join('\n')
+    const emitted = new Set([...source.matchAll(/(?:add\(|id: )'((?:test|code|done)\/[a-z-]+)'/g)].map((m) => m[1]))
+    assert.deepEqual([...emitted].sort(), Object.keys(RULE_SEVERITY).sort())
+    assert.equal(RULE_SEVERITY['test/only-left'], 'error')
+    assert.equal(RULE_SEVERITY['code/debug-leftover'], 'warn')
+  })
+})

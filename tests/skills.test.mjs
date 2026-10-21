@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkAgentDocs, checkManifests, checkRoot, checkSharedCopies, checkSkillDoc, checkSkillSet } from '../scripts/lib/skills.mjs'
+import { checkAgentDocs, checkManifests, checkRoot, checkRules, checkSharedCopies, checkSkillDoc, checkSkillSet } from '../scripts/lib/skills.mjs'
 
 describe('checkSharedCopies', () => {
   const header = '// @shared exec.mjs origin: gimi-review\n'
@@ -30,6 +30,35 @@ describe('checkSharedCopies', () => {
 
   it('머리가 없는 파일은 보지 않는다', () => {
     assert.deepEqual(checkSharedCopies({ files: [{ skill: 'gimi-test', path: 'scripts/lib/run.mjs', text: '/** 그냥 파일 */\n' }] }), [])
+  })
+
+  it('Markdown은 HTML 주석 머리(<!-- @shared … origin: … -->)로 같은 검사를 한다', () => {
+    const md = '<!-- @shared test.md origin: gimi-test -->\n# 테스트 금지선\n'
+    const mdOrigin = { skill: 'gimi-test', path: 'shared/rules/test.md', text: md }
+    assert.deepEqual(checkSharedCopies({ files: [mdOrigin, { skill: 'gimi-review', path: 'shared/rules/test.md', text: md }] }), [])
+    assert.equal(checkSharedCopies({ files: [mdOrigin, { skill: 'gimi-review', path: 'shared/rules/test.md', text: `${md}고침\n` }] }).length, 1)
+  })
+})
+
+describe('checkRules — 규칙 파일과 check.mjs가 맞는지', () => {
+  const rule = (id, check) => `## ${id} 한 줄\n- 대상: 둘 다\n- 왜: a\n- 대신: b\n- 확인: c\n- 검사: ${check}\n- 근거: 측정 전\n`
+  const files = (text) => [{ path: 'skills/gimi-test/shared/rules/test.md', text, kind: 'slop', area: 'test' }]
+
+  it('검사 error·warn인 규칙과 check.mjs가 내는 지적의 ID·등급이 같으면 통과한다 — 리뷰·기록 줄은 check.mjs에 없어도 된다', () => {
+    const text = `${rule('test/only-left', 'error')}\n${rule('test/real-wait', 'warn')}\n${rule('test/sequential-only', '리뷰')}`
+    assert.deepEqual(checkRules({ files: files(text), slopSeverity: { 'test/only-left': 'error', 'test/real-wait': 'warn' } }), [])
+  })
+
+  it('규칙 파일에만 있거나, check.mjs에만 있거나, 등급이 다르면 오류다', () => {
+    const text = `${rule('test/only-left', 'warn')}\n${rule('test/tautology', 'warn')}`
+    const errors = checkRules({ files: files(text), slopSeverity: { 'test/only-left': 'error', 'code/empty-catch': 'error' } })
+    assert.ok(errors.some((e) => /test\/only-left.*error/.test(e)))
+    assert.ok(errors.some((e) => /test\/tautology.*check\.mjs에 없다/.test(e)))
+    assert.ok(errors.some((e) => /code\/empty-catch.*규칙 파일에 없다/.test(e)))
+  })
+
+  it('형식 오류도 함께 낸다', () => {
+    assert.ok(checkRules({ files: files('## test/a 한 줄\n- 대상: 둘 다\n'), slopSeverity: {} }).some((e) => /필수 항목/.test(e)))
   })
 })
 

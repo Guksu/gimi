@@ -1,11 +1,13 @@
-# 분야 프리셋 초안 — `commerce` (커머스·결제 기술 규칙)
+<!-- @shared rules.md origin: gimi-review -->
+# 분야 프리셋 — `commerce` (커머스·결제 기술 규칙)
 
-설계 문서 결정 39~42의 프리셋 초안이다. 구현할 때 `skills/*/shared/domains/commerce/rules.md`로 옮긴다. 형식은 결정 26(회사 규칙)과 같고, 프리셋은 `대상`·`경계값`(결정 38)을 더한다. `근거`에는 공개 출처를 적는다. 출처가 없는 규칙은 "출처 없음"으로 표시하고 예제 저장소의 결함 사례로만 뒷받침한다(결정 41).
+커머스·결제에서 깨지기 쉬운 곳의 기술 규칙이다. 설정 `.agents/gimi.json`의 `presets`에 `commerce`를 넣으면 리뷰(gimi-review)와 테스트 작성(gimi-test)이 쓴다. 규칙 하나가 `## {ID} {한 줄}` 절 하나이고, 회사 규칙(`docs/gimi/rules.md`)과 형식이 같다.
 
-- 조사일: 2026-10-19. 출처는 조사 에이전트 세 개가 페이지를 직접 열어 확인한 것이다. 인용은 줄이고 바꿔 썼다.
-- 대상은 프론트(React·TypeScript)·백엔드(언어 무관, 결정 37)·둘 다 중 하나다. 언어별 코드 신호는 예로만 든다.
-- `검사`(정규식)는 구현할 때 정한다. 지금은 `확인`에 리뷰에서 볼 코드 신호를 적는다.
-- 규칙마다 예제 저장소(결정 15)에 결함 PR을 하나씩 둔다. 결함 사례 목록은 예제 저장소를 설계할 때 정한다.
+- `대상`은 프론트(React·TypeScript)·백엔드(언어 무관)·둘 다 중 하나다. `scripts/rules.mjs`가 설정의 `stacks`로 걸러 보인다. 언어별 코드 신호는 예로만 든다.
+- `확인`은 리뷰에서 볼 코드 신호다. 이 프리셋은 끝내기 전 검사(`check.mjs`)가 정규식으로 잡지 않는다 — 리뷰가 영향 범위·의도와 함께 판단한다.
+- `경계값`은 테스트를 쓸 때 넣을 입력이다. 프론트(입력·표시)와 백엔드(동시 요청·재시도·순서가 바뀐 웹훅)를 나눠 적었다.
+- `근거`는 공개 출처다. 2026-10-19에 페이지를 직접 열어 확인했고(일부는 2026-10-21에 다시 확인했다), 인용은 줄이고 바꿔 썼다. 출처가 없는 규칙은 "출처 없음"으로 표시했다.
+- 팀의 사정이 다르면 회사 규칙의 `## 끈 프리셋 규칙` 절에 `- COM-004 — 이유`처럼 적어 끈다.
 
 ## 금액
 
@@ -36,7 +38,8 @@
 - 근거:
   - Java `RoundingMode` — HALF_EVEN은 누적 오차를 줄인다 https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/math/RoundingMode.html
   - Kotlin BigDecimal `div` — 피제수 스케일 유지, HALF_EVEN https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/div.html
-  - 가격표시제 실시요령 제8조② — 단위가격은 1원 미만 반올림(대형 온라인몰). URL 확인 필요
+  - 가격표시제 실시요령 제8조② — 표시단위가격은 1원 단위이고 1원 이하는 반올림한다(2021년 개정본 조문. 국가법령정보센터 현행 본문은 열지 못했다) https://www.ulex.co.kr/%EB%B2%95%EB%A5%A0/2100000207888-33397-%EA%B0%80%EA%B2%A9%ED%91%9C%EC%8B%9C%EC%A0%9C
+  - 산업통상자원부 — 2025.4 개정으로 연간 거래금액 10조 원 이상 온라인쇼핑몰도 단위가격 표시 대상(1년 유예) https://www.korea.kr/news/policyNewsView.do?newsId=148934673
 
 ## COM-003 결제 금액은 서버가 계산·저장하고, 승인 직전에 대조한 저장값만 PG에 보낸다
 - 대상: 둘 다
@@ -92,7 +95,7 @@
 - 경계값:
   - 프론트: 상세·장바구니·결제의 합계가 같다
   - 백엔드: 중복 불가 쿠폰 2장, 정률·정액 순서를 바꿨을 때
-- 근거: 출처 없음 — 도메인 관례. 예제 저장소의 결함 사례로만 뒷받침한다
+- 근거: 출처 없음 — 도메인 관례. 팀의 요구사항으로 확인한다
 
 ## COM-007 재고·쿠폰·포인트는 확인과 차감을 원자적으로 하고, 사용 한도는 DB 제약으로 막는다
 - 대상: 백엔드
@@ -129,7 +132,7 @@
   - 프론트: 재고 0에서 목록 빠른 담기·장바구니 + 버튼
   - 백엔드: 재고 0에 직접 보낸 담기 요청
 - 근거:
-  - OWASP ASVS 5.0 V2 2.2.1·2.2.2 — 업무 규칙은 서버에서 검증하고, 클라이언트 검증은 보안 통제로 보지 않는다
+  - OWASP ASVS 5.0 V2 2.2.1·2.2.2 — 업무 규칙은 신뢰할 수 있는 서버 층에서 검증하고, 클라이언트 검증은 보안 통제로 보지 않는다 https://github.com/OWASP/ASVS/blob/master/5.0/en/0x11-V2-Validation-and-Business-Logic.md
 
 ## COM-010 수량은 서버에서 양의 정수인지, 상한을 넘지 않는지 모든 경로에서 검증한다
 - 대상: 둘 다
@@ -141,7 +144,7 @@
   - 백엔드: −1, 0, 0.5, 재고, 재고 + 1, 구매 제한 + 1, 중복 파라미터, 빈 문자열
 - 근거:
   - OWASP WSTG 결제 기능 — 소수·음수 수량, 삭제 반복, 파라미터 오염
-  - OWASP ASVS 5.0 V2 2.2.1·2.2.2
+  - OWASP ASVS 5.0 V2 2.2.1·2.2.2 https://github.com/OWASP/ASVS/blob/master/5.0/en/0x11-V2-Validation-and-Business-Logic.md
   - MDN `Number` — `Number("")`는 0, 정확한 정수는 2^53 − 1까지 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number
 
 ## COM-011 주문 확정 단계에서 가격·재고·한도를 다시 검사하고, 단계 순서는 서버가 강제한다
@@ -253,7 +256,7 @@
 - 경계값:
   - 백엔드: 같은 결제 ID로 동시 2회 → 부수효과 1회
 - 근거:
-  - Stripe 이행 — 이행 함수는 같은 세션으로 여러 번, 동시에 불릴 수 있다
+  - Stripe 이행 — 이행 함수는 같은 세션으로 여러 번, 동시에 불릴 수 있다 https://docs.stripe.com/checkout/fulfillment
 
 ## COM-019 승인 결과가 불확실하면 실패로 단정하지 않는다
 - 대상: 백엔드
@@ -315,6 +318,9 @@
 - 왜: `NEXT_PUBLIC_TOSS_SECRET_KEY`가 번들에 실려 제3자가 결제를 취소한다
 - 대신: 시크릿 키는 서버 환경 변수에만 두고, 클라이언트는 클라이언트 키만 쓴다. 로그·쿼리스트링에 넣지 않는다. 테스트 키와 운영 키를 섞지 않는다
 - 확인: `NEXT_PUBLIC_`·`VITE_`·`REACT_APP_` 접두어가 붙은 시크릿, 클라이언트 코드의 PG API 직접 호출, 요청 헤더 통째 로깅
+- 경계값:
+  - 프론트: 빌드 결과물(번들)에 시크릿 키 값이 없다
+  - 백엔드: 운영 환경에 테스트 키를 넣으면 시작할 때 실패한다
 - 근거:
   - 토스페이먼츠 Quick Reference §2.1
   - 토스페이먼츠 인증 — 키를 로그·쿼리스트링에 넣지 않는다
@@ -330,7 +336,7 @@
 - 경계값:
   - 프론트: 부분 취소된 주문, 입금 대기 주문의 버튼
 - 근거:
-  - OWASP ASVS 5.0 V2 2.2.2 — 업무 판단은 서버에서
+  - OWASP ASVS 5.0 V2 2.2.2 — 업무 판단은 서버에서 https://github.com/OWASP/ASVS/blob/master/5.0/en/0x11-V2-Validation-and-Business-Logic.md
 
 ## COM-025 누적 환불액이 결제액을 넘지 않게 하고, 부분 취소에는 서버가 아는 잔액을 검증값으로 보낸다
 - 대상: 백엔드
@@ -365,9 +371,13 @@
 - 왜: 요청 본문을 통째로 로깅해 CVC가 저장된다. 결제 비밀값(client_secret)이 노출되면 그것만으로 결제를 완료할 수 있다. 개인정보가 분석 도구·브라우저 저장소에 남는다
 - 대신: 시크릿·토큰·세션 ID·CVC는 로그에 남기지 않는다. 카드번호는 앞 6자리·뒤 4자리까지만 보인다. 개인정보는 가려서 남긴다(PG가 요구하는 노티 로그는 남긴다). URL·분석 도구·브라우저 저장소·PG 메타데이터에 넣지 않는다. 고객 식별 키에 예측 가능한 값(이메일·전화번호)을 쓰지 않는다
 - 확인: `logger.info(req.body)`, 본문을 포함하는 요청 로깅 필터, Sentry·GA로 보낸 이메일·카드 정보, `localStorage`의 개인정보, 쿼리스트링의 토큰, CVC 컬럼
+- 경계값:
+  - 프론트: 결제를 마친 뒤 URL·브라우저 저장소·분석 이벤트에 토큰·카드·개인 정보가 없다
+  - 백엔드: 카드번호가 든 요청을 로깅하면 앞 6자리·뒤 4자리만 남고, CVC는 어디에도 남지 않는다
 - 근거:
   - OWASP 로깅 치트시트 — 카드·계좌 정보, 토큰, 세션 ID는 로그에서 뺀다 https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
-  - OWASP ASVS 5.0 16.2.5·14.2.1·14.2.3·14.3.3 — 결제 정보 로깅·URL·트래커·브라우저 저장소 금지(장별 URL 확인 필요)
+  - OWASP ASVS 5.0 16.2.5 — 결제 정보는 로그에 남기지 않고, 세션 토큰 같은 값은 가려서 남긴다 https://github.com/OWASP/ASVS/blob/master/5.0/en/0x25-V16-Security-Logging-and-Error-Handling.md
+  - OWASP ASVS 5.0 14.2.1·14.2.3·14.3.3 — 민감 정보는 URL·쿼리 문자열, 분석·추적 도구, 브라우저 저장소에 두지 않는다 https://github.com/OWASP/ASVS/blob/master/5.0/en/0x23-V14-Data-Protection.md
   - PCI SSC 데이터 저장 — CVV·트랙·PIN은 인가 뒤 저장 불가, PAN 표시는 최대 앞 6·뒤 4 https://listings.pcisecuritystandards.org/pdfs/pci_fs_data_storage.pdf
   - PCI SSC FAQ — 고객 동의가 있어도 CVC 보관 불가 https://blog.pcisecuritystandards.org/faq-can-cvc-be-stored-for-card-on-file-or-recurring-transactions
   - Stripe PaymentIntent — client_secret 로깅·URL 노출 금지, metadata에 개인정보 금지
@@ -391,7 +401,7 @@
 - 확인: 의도 — 요구사항 문구
 - 경계값:
   - 프론트·백엔드: 기준 − 1, 기준, 기준 + 1, 할인 전후로 기준을 넘나드는 주문
-- 근거: 출처 없음 — 도메인 관례. 예제 저장소의 결함 사례로만 뒷받침한다
+- 근거: 출처 없음 — 도메인 관례. 팀의 요구사항으로 확인한다
 
 ## 확인하지 못한 것
 
