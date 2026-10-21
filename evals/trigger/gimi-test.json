@@ -11,7 +11,9 @@
     "작업 끝내기 전에 바뀐 범위 테스트 돌려서 확인해줘",
     "쿠폰 할인 경계값 테스트 케이스 뽑아줘",
     "write tests for this checkout hook with MSW",
-    "add a regression test for this bug before fixing it"
+    "add a regression test for this bug before fixing it",
+    "이 프로젝트에서 끝내기 전에 테스트 검사가 자동으로 돌게 연결해줘",
+    "기존 실패인지 기준 브랜치에서 테스트 돌려서 확인해줘"
   ],
   "shouldNot": [
     "이 PR 리뷰해줘",
