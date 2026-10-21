@@ -6,6 +6,12 @@
 import { posix } from 'node:path'
 
 const CODE = /\.(m|c)?[jt]sx?$|\.(vue|svelte)$/
+// 타입 선언에는 테스트가 없다 — 타입 검사는 하되 관련 테스트 찾기에는 넘기지 않는다
+const DECLARATION = /\.d\.[cm]?ts$/
+// .agents/·.claude/·.github/처럼 점으로 시작하는 폴더는 도구용 파일이다
+const TOOLING = /(^|\/)\.[^/]+\//
+// 이보다 많으면 명령 줄이 너무 길어진다 — 관련 테스트를 고르지 않고 전체를 돌린다
+const MAX_RELATED = 100
 const MARKERS = ['package.json', 'build.gradle.kts', 'build.gradle', 'pom.xml', 'pyproject.toml', 'go.mod']
 // check.mjs가 하네스 설정을 읽고 하네스가 다시 check.mjs를 부르면 끝없이 돈다
 const SELF = /check\.mjs/
@@ -32,14 +38,18 @@ const planJs = ({ dir, files, project }) => {
   const pkg = project.readJson(at(dir, 'package.json'))
   const scripts = pkg.scripts ?? {}
   const deps = { ...pkg.dependencies, ...pkg.devDependencies }
-  const code = files.filter((path) => CODE.test(path)).map((path) => within({ dir, path }))
+  const code = files.map((path) => within({ dir, path })).filter((path) => CODE.test(path) && !TOOLING.test(path))
   if (code.length === 0) return { checks: [], skipped: ['test', 'typecheck', 'lint'].map((name) => ({ name, cwd: dir, reason: '바뀐 코드 파일이 없다' })) }
+  const related = code.filter((path) => !DECLARATION.test(path))
   const checks = []
   const skipped = []
 
   const testScript = scripts.test ?? ''
-  if (deps.vitest || /\bvitest\b/.test(testScript)) checks.push({ name: 'test', cwd: dir, scope: 'related', command: `npx vitest related --run ${join(code)}` })
-  else if (deps.jest || /\bjest\b/.test(testScript)) checks.push({ name: 'test', cwd: dir, scope: 'related', command: `npx jest --findRelatedTests ${join(code)} --passWithNoTests` })
+  const runner = deps.vitest || /\bvitest\b/.test(testScript) ? 'vitest' : deps.jest || /\bjest\b/.test(testScript) ? 'jest' : null
+  if (runner && related.length === 0) skipped.push({ name: 'test', cwd: dir, reason: '관련 테스트를 찾을 코드 파일이 없다(타입 선언만 바뀌었다)' })
+  else if (runner && related.length > MAX_RELATED) checks.push({ name: 'test', cwd: dir, scope: 'all', command: runner === 'vitest' ? 'npx vitest run' : 'npx jest --passWithNoTests' })
+  else if (runner === 'vitest') checks.push({ name: 'test', cwd: dir, scope: 'related', command: `npx vitest related --run ${join(related)}` })
+  else if (runner === 'jest') checks.push({ name: 'test', cwd: dir, scope: 'related', command: `npx jest --findRelatedTests ${join(related)} --passWithNoTests` })
   else if (testScript && !/no test specified/.test(testScript)) checks.push({ name: 'test', cwd: dir, scope: 'all', command: 'npm test' })
   else skipped.push({ name: 'test', cwd: dir, reason: '테스트 스크립트(package.json의 test)가 없다' })
 

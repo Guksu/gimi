@@ -71,6 +71,20 @@ describe('planChecks — 프로젝트 파일 감지(JavaScript·TypeScript)', ()
     )
   })
 
+  it('타입 선언 파일(.d.ts)과 도구용 숨김 폴더(.agents/ 등)의 파일은 관련 테스트 찾기에 넘기지 않는다', () => {
+    const project = projectOf({ 'package.json': pkg({ devDependencies: { vitest: '3' } }) })
+    const plan = planChecks({ changed: changedOf('src/a.ts', 'src/types.d.ts', '.agents/skills/x/bundle.js'), config: {}, harness: null, project })
+    assert.equal(plan.checks[0].command, 'npx vitest related --run src/a.ts')
+  })
+
+  it('바뀐 코드 파일이 100개를 넘으면 관련 테스트를 고르지 않고 전체를 돌린다고 밝힌다', () => {
+    const many = Array.from({ length: 101 }, (_, i) => `src/f${i}.ts`)
+    const vitest = planChecks({ changed: changedOf(...many), config: {}, harness: null, project: projectOf({ 'package.json': pkg({ devDependencies: { vitest: '3' } }) }) })
+    assert.deepEqual([vitest.checks[0].command, vitest.checks[0].scope], ['npx vitest run', 'all'])
+    const jest = planChecks({ changed: changedOf(...many), config: {}, harness: null, project: projectOf({ 'package.json': pkg({ scripts: { test: 'jest' } }) }) })
+    assert.deepEqual([jest.checks[0].command, jest.checks[0].scope], ['npx jest --passWithNoTests', 'all'])
+  })
+
   it('공백이 든 경로는 따옴표로 감싼다', () => {
     const project = projectOf({ 'package.json': pkg({ devDependencies: { vitest: '3' } }) })
     const plan = planChecks({ changed: changedOf('src/a b.ts'), config: {}, harness: null, project })
