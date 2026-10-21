@@ -9,7 +9,7 @@ const CHANGE_LABEL = { signature: '시그니처 변경', removed: '삭제', body
 const CHANGE_ORDER = { signature: 0, removed: 1, body: 2 }
 const MAX_FILES = 30
 const MAX_COMMITS = 10
-const MAX_USAGES = 20
+const MAX_USAGES = 10
 
 const capped = ({ rows, max, unit }) => (rows.length > max ? [...rows.slice(0, max), `  … 외 ${rows.length - max}${unit}`] : rows)
 
@@ -57,10 +57,17 @@ const historyRows = (history) => {
   return rows
 }
 
+// 요약에는 diff 밖(이 변경에서 안 바뀐) 사용처만 줄로 보인다 — 함께 바뀐 곳은 diff에서 이미 보이므로 수로 묶는다
 const usageRows = (item) => {
-  const shown = item.usages.slice(0, MAX_USAGES).map((usage) => `    ${usage.path}:${usage.line}  ${usage.changedInPr ? '이 변경에서 바뀜' : '이 변경에서 안 바뀜'}`)
-  if (item.total > shown.length) shown.push(`    … 외 ${item.total - shown.length}곳`)
-  return shown
+  const rows = item.usages
+    .filter((usage) => !usage.changedInPr)
+    .slice(0, MAX_USAGES)
+    .map((usage) => `    ${usage.path}:${usage.line}`)
+  const moreUnchanged = item.unchanged - rows.length
+  if (moreUnchanged > 0) rows.push(`    … 안 바뀐 곳 ${moreUnchanged}곳 더 — JSON에 있다`)
+  const changed = item.total - item.unchanged
+  if (changed > 0) rows.push(`    이 변경에서 함께 바뀐 곳 ${changed}곳 — diff에서 본다`)
+  return rows
 }
 
 const usageSummary = ({ item, marker }) => {

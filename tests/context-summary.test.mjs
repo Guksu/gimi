@@ -82,11 +82,12 @@ describe('renderSummary', () => {
     assert.match(text, /^영향 범위 {2}바뀐 export 4개\(TypeScript 참조\) \/ 바뀐 문자열 1개 \/ 새 export 1개$/m)
   })
 
-  it('시그니처 변경·삭제를 본문만 변경보다 먼저 보이고, 사용처마다 이 변경에서 함께 바뀌었는지 적는다', () => {
+  it('시그니처 변경·삭제를 본문만 변경보다 먼저 보이고, diff 밖(이 변경에서 안 바뀐) 사용처만 줄로 보이고 바뀐 곳은 수로 묶는다', () => {
     const text = renderSummary({ context: context(), outPath: 'x.json' })
     assert.match(text, /^ {2}getStatus \(시그니처 변경\) — src\/order\.ts {2}사용처 2\(이 변경에서 안 바뀜 1\)$/m)
-    assert.match(text, /^ {4}src\/badge\.ts:2 {2}이 변경에서 안 바뀜$/m)
-    assert.match(text, /^ {4}src\/list\.ts:2 {2}이 변경에서 바뀜$/m)
+    assert.match(text, /^ {4}src\/badge\.ts:2$/m)
+    assert.doesNotMatch(text, /src\/list\.ts:2/)
+    assert.match(text, /^ {4}이 변경에서 함께 바뀐 곳 1곳 — diff에서 본다$/m)
     assert.match(text, /^ {2}legacy \(삭제\) — src\/order\.ts {2}사용처 1\(이 변경에서 안 바뀜 1 · 문자열 검색\)$/m)
     assert.match(text, /^ {2}stable \(본문만 변경\) — src\/order\.ts {2}사용처 없음$/m)
     assert.ok(text.indexOf('legacy (삭제)') < text.indexOf('stable (본문만 변경)'), text)
@@ -96,15 +97,15 @@ describe('renderSummary', () => {
     const text = renderSummary({ context: context(), outPath: 'x.json' })
     assert.match(text, /^ {2}default \(본문만 변경\) — src\/page\.tsx {2}사용처를 찾지 않음\(이름 없는 default export\)$/m)
     assert.match(text, /^ {2}"orders\/list" \(바뀐 문자열\) — src\/keys\.ts {2}사용처 1\(이 변경에서 안 바뀜 1\)$/m)
-    assert.match(text, /^ {4}src\/cache\.ts:1 {2}이 변경에서 안 바뀜$/m)
+    assert.match(text, /^ {4}src\/cache\.ts:1$/m)
   })
 
-  it('사용처는 20곳까지만 보이고 나머지 수를 적는다', () => {
+  it('안 바뀐 사용처는 10곳까지만 보이고 나머지 수를 적는다', () => {
     const ctx = context()
     const usages = Array.from({ length: 25 }, (_, i) => ({ path: `src/u${i}.ts`, line: 1, text: '', context: [], changedInPr: false }))
     ctx.impact.symbols = [{ name: 'formatPrice', kind: 'function', change: 'signature', path: 'src/price.ts', method: 'typescript', searched: true, total: 40, unchanged: 40, usages }]
     const text = renderSummary({ context: ctx, outPath: 'x.json' })
-    assert.match(text, /^ {4}… 외 20곳$/m)
+    assert.match(text, /^ {4}… 안 바뀐 곳 30곳 더 — JSON에 있다$/m)
   })
 
   it('문자열 검색으로 내려갔으면 이유와 정확도를 참고로 적는다', () => {
