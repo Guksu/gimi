@@ -1,0 +1,23 @@
+{
+  "id": "KCL-001",
+  "rules": ["KCL-001"],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 반품 기한이 지났으면 마감 시각을 알려 준다",
+    "body": "## 배경\n반품 기한이 지났다는 오류만 보여서, 언제까지였는지 묻는 문의가 있다.\n\n## 변경\n- 반품 기한 오류 message에 마감 시각(한국 시간)을 담는다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "반품 기한을 배송 시각 + 7×24시간으로 따로 계산한다. 화면이 보이는 마감(returnDeadline — 받은 다음 날부터 7일째 23:59)보다 일찍 막아, 7일째 저녁의 청약철회를 거절한다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 240,
+      "evidence": [
+        { "path": "server/src/orders/returns-policy.ts", "line": 12 },
+        { "path": "server/src/orders/orders.service.ts", "line": 128 }
+      ]
+    }
+  ],
+  "catches": ["server/test/refunds-returns.test.ts"]
+}

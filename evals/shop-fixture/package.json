@@ -1,0 +1,21 @@
+{
+  "name": "shop-fixture",
+  "private": true,
+  "description": "국수집 주문 앱(web·server·fake-pg + PostgreSQL)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "fake-pg",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down -v",
+    "migrate": "npm run migrate -w server",
+    "test": "npm test -w fake-pg && npm test -w server && npm test -w web",
+    "typecheck": "npm run typecheck -w fake-pg && npm run typecheck -w server && npm run typecheck -w web"
+  }
+}

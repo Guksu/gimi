@@ -1,0 +1,15 @@
+# 로컬 개발·테스트용 PostgreSQL — 암호 없이(trust) 붙는다. 운영 설정이 아니다
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: shop
+      POSTGRES_DB: shop
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "54329:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
