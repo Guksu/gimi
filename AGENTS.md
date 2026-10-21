@@ -10,7 +10,7 @@ gimi — 코드 리뷰·테스트 스킬 두 개를 담은 설치형 플러그�
 |---|---|---|
 | 리뷰 스킬 | `skills/gimi-review/SKILL.md` | 맥락 리뷰(영향 범위·의도·이력)와 도메인 규칙 설정 |
 | 테스트 스킬 | `skills/gimi-test/SKILL.md` | 테스트 작성·테스트 슬롭 금지선·끝내기 전 검사 |
-| 맥락 수집 | `skills/gimi-review/scripts/context.mjs` + `lib/` | 리뷰 전에 범위·바뀐 파일·의도·이력을 모은다. 스킬과 함께 설치되는 스크립트다 |
+| 맥락 수집 | `skills/gimi-review/scripts/context.mjs` + `lib/` | 리뷰 전에 범위·바뀐 파일·의도·이력·영향 범위를 모은다. 스킬과 함께 설치되는 스크립트이고, 영향 범위는 리뷰하는 프로젝트의 `typescript`를 쓴다 |
 | 트리거 평가 | `evals/trigger/` | 두 스킬이 맞는 요청에 걸리고, 서로·다른 스킬의 요청에는 걸리지 않는지 |
 | 저장소 스크립트 | `scripts/` | 구조 검사(`validateSkills.mjs`), 트리거 평가(`evalSelection.mjs`), 순수 로직(`lib/`) |
 | 테스트 | `tests/` | `scripts/lib/`·`skills/*/scripts/lib/`의 단위 테스트와 임시 git 저장소 통합 테스트(`node:test`, `tests/helpers/repo.mjs`) |
@@ -20,7 +20,8 @@ gimi — 코드 리뷰·테스트 스킬 두 개를 담은 설치형 플러그�
 ## 개발 명령
 
 ```bash
-npm test                          # scripts/lib 단위 테스트 (node:test, 의존성 없음)
+npm ci                            # 개발 의존성(typescript — 테스트 전용) 설치
+npm test                          # 단위·통합 테스트 (node:test)
 npm run validate                  # 구조 검사 + 트리거 평가 — 실패하면 exit 1
 node scripts/evalSelection.mjs --verbose   # 질의마다 상위 3개 점수
 node scripts/evalSelection.mjs --margins   # 1위와 2위 점수 차가 작은 should 질의
@@ -32,7 +33,7 @@ node scripts/evalSelection.mjs --margins   # 1위와 2위 점수 차가 작은 s
 2. **커밋·PR 형식.** 커밋은 `feat:`·`fix:`·`docs:`·`test:`·`chore:` + 한국어 제목, 본문은 글머리표. PR 본문은 `## 개요` / `## 주요 변경`(커밋 해시) / `## 확인한 것`(실제 실행한 명령과 결과) / `## 참고`(확인하지 못한 것).
 3. **평가 먼저.** 스킬 description을 쓰거나 고치기 전에 `evals/trigger/{스킬}.json`을 먼저 고친다(Red). 그다음 description을 고쳐 통과시킨다(Green). description은 3인칭으로 "무엇을 하는가 + 언제 쓰는가"만 적고, 1,024바이트 이하이며 `": "`를 쓰지 않는다(YAML이 깨진다). 요청의 단어가 경쟁 스킬(예: 내장 `/code-review`)의 설명과 같아 단어 겹침으로는 동점을 깰 수 없는 질의는 `contested`에 둔다. 질의를 바꿔 동점을 숨기지 않는다.
 4. **코드는 TDD.** `scripts/lib/`의 로직은 `tests/`에 테스트를 먼저 쓴다(Red → Green). 입출력(파일 읽기·종료 코드)은 CLI(`scripts/*.mjs`)가 맡고, 판단은 `lib/`의 순수 함수에 둔다.
-5. **스크립트는 `.mjs`, 의존성 0, Node 22 이상.** `.ts`를 그대로 실행하지 않는다(Node 22.18 미만에서 돌지 않는다 — 설계 결정 23).
+5. **스크립트는 `.mjs`, 런타임 의존성 0, Node 22 이상.** `.ts`를 그대로 실행하지 않는다(Node 22.18 미만에서 돌지 않는다 — 설계 결정 23). TypeScript가 필요하면 리뷰하는 프로젝트의 것을 불러오고, 없거나 언어 서비스 API가 없는 버전이면 문자열 검색으로 내려간다. gimi 저장소의 `typescript`는 테스트 전용 개발 의존성이다.
 6. **스킬은 설치된 프로젝트에서 단독으로 완결된다.** `SKILL.md`는 저장소의 `docs/`·`evals/`·`scripts/`를 가리키지 않는다(설치하면 없다). 두 스킬이 함께 쓰는 파일은 각 스킬의 `shared/`에 복사본을 두고, 구조 검사가 원본과 같은지 본다.
 7. **시크릿은 읽지도 기록하지도 않는다.** `.env`·키 파일을 열지 않는다.
 8. **출력은 읽는 사람이 이해할 수 있게.** 전문용어는 처음 나올 때 한 줄로 풀이하고, 한 문장에 하나의 내용만 담는다.
