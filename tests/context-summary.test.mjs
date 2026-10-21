@@ -77,9 +77,15 @@ describe('renderSummary', () => {
     assert.match(text, /docs\/gimi\/reviews\/x\.context\.json/)
   })
 
-  it('영향 범위 머리에 바뀐 export·바뀐 문자열·새 export 수와 찾은 방법을 쓴다', () => {
+  it('영향 범위 머리에 바뀐 export·바뀐 문자열·새 export 수와, 심볼마다 실제로 쓴 방법의 수를 쓴다', () => {
     const text = renderSummary({ context: context(), outPath: 'x.json' })
-    assert.match(text, /^영향 범위 {2}바뀐 export 4개\(TypeScript 참조\) \/ 바뀐 문자열 1개 \/ 새 export 1개$/m)
+    assert.match(text, /^영향 범위 {2}바뀐 export 4개\(TypeScript 참조 2 · 문자열 검색 2\) \/ 바뀐 문자열 1개 \/ 새 export 1개$/m)
+  })
+
+  it('TypeScript를 불러왔어도 모든 심볼을 문자열로 찾았으면(tsconfig 없음) 머리에 문자열 검색이라고 쓴다', () => {
+    const ctx = context()
+    ctx.impact.symbols = ctx.impact.symbols.map((s) => ({ ...s, method: 'text' }))
+    assert.match(renderSummary({ context: ctx, outPath: 'x.json' }), /^영향 범위 {2}바뀐 export 4개\(문자열 검색\)/m)
   })
 
   it('시그니처 변경·삭제를 본문만 변경보다 먼저 보이고, diff 밖(이 변경에서 안 바뀐) 사용처만 줄로 보이고 바뀐 곳은 수로 묶는다', () => {

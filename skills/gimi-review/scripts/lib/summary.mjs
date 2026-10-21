@@ -79,7 +79,11 @@ const usageSummary = ({ item, marker }) => {
 const impactRows = (impact) => {
   const { symbols, literals, added } = impact
   if (symbols.length === 0 && literals.length === 0) return [`영향 범위  바뀐 export·문자열 없음${added.length > 0 ? ` / 새 export ${added.length}개` : ''}`]
-  const method = impact.method === 'typescript' ? 'TypeScript 참조' : '문자열 검색'
+  // 머리의 방법은 심볼마다 실제로 쓴 것을 센다 — TypeScript를 불러왔어도 tsconfig 밖이나 지운 export는 문자열로 찾는다
+  const byTs = symbols.filter((symbol) => symbol.method === 'typescript').length
+  const byText = symbols.length - byTs
+  const method =
+    impact.method === 'text' || byTs === 0 ? '문자열 검색' : byText === 0 ? 'TypeScript 참조' : `TypeScript 참조 ${byTs} · 문자열 검색 ${byText}`
   const rows = [`영향 범위  바뀐 export ${symbols.length}개(${method}) / 바뀐 문자열 ${literals.length}개 / 새 export ${added.length}개`]
   // 시그니처 변경·삭제가 먼저다 — 쓰는 쪽이 깨질 수 있다. 같은 종류 안에서는 이 변경에서 안 바뀐 사용처가 많은 것부터
   const ordered = [...symbols].sort((a, b) => CHANGE_ORDER[a.change] - CHANGE_ORDER[b.change] || b.unchanged - a.unchanged)
