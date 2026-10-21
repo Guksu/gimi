@@ -6,7 +6,7 @@
 const SOURCE = {
   detected: '프로젝트 파일 감지',
   config: '설정(.agents/gimi.json의 finishCheck.commands)',
-  harness: 'guksu-harness verifier 설정(.agents/hooks/verifierGate.config.json)',
+  harness: 'guksu-harness verifier 설정',
 }
 const SCOPE = { related: '관련 테스트만', all: '전체', module: '모듈', config: '설정대로', harness: '설정대로' }
 const LABEL = { pass: '통과      ', fail: '실패      ', timeout: '시간 초과  ' }
@@ -68,11 +68,20 @@ export const renderCheckReport = ({ report }) => {
   const parts = [['커밋', from('commit')], ['작업 트리', from('worktree')], ['새 파일', from('untracked')]].filter(([, n]) => n > 0).map(([label, n]) => `${label} ${n}`)
   const rows = [
     `끝내기 전 검사  바뀐 파일 ${scope.files.length}개${parts.length > 0 ? `(${parts.join(' · ')})` : ''} — 기준 ${scope.baseRef}, 갈림점 ${scope.mergeBase.slice(0, 7)}`,
-    `명령 출처  ${SOURCE[report.source] ?? report.source}`,
+    `명령 출처  ${SOURCE[report.source] ?? report.source}${report.source === 'harness' ? `(${report.harnessPath ?? '.agents/hooks/verifierGate.config.json'})` : ''}`,
   ]
   for (const run of runs) {
     rows.push(`${LABEL[run.status]}${run.name}(${SCOPE[run.scope] ?? run.scope})  ${where(run.cwd)}${run.command}  (${detailOf(run)})`)
-    if (run.status !== 'pass') for (const line of run.outputTail.slice(-FAIL_TAIL)) rows.push(`          ${line}`)
+    if (run.status !== 'pass') for (const line of run.outputTail.slice(-FAIL_TAIL)) rows.push(`${INDENT}${line}`)
+    const base = run.baseline
+    if (!base) continue
+    // 기준에서 돌렸으면 결과를, 돌리지 않았으면(볼 파일 없음·준비 실패) 이유만 쓴다
+    rows.push(base.status ? `기준      ${base.message}  (${detailOf(base)})` : `기준      ${base.message}`)
+    if (base.status && base.status !== 'pass') for (const line of base.outputTail.slice(-FAIL_TAIL)) rows.push(`${INDENT}${line}`)
+  }
+  if (report.baseline) {
+    if (!runs.some((run) => run.baseline)) rows.push(`기준      실패한 명령이 없어 기준(갈림점 ${report.baseline.mergeBase.slice(0, 7)})에서 돌리지 않았다`)
+    else if (report.baseline.dependenciesChanged) rows.push('기준      의존성 파일(package.json·잠금 파일)이 바뀌었다 — 기준도 지금의 node_modules로 돌렸다')
   }
   for (const skip of skipped) rows.push(`건너뜀    ${where(skip.cwd)}${skip.name} — ${skip.reason}`)
   const { slop } = report
@@ -82,7 +91,11 @@ export const renderCheckReport = ({ report }) => {
   const slopErrors = slop ? slop.findings.filter((f) => f.severity === 'error').length : 0
   const slopTally = slop && slop.findings.length > 0 ? ` · 슬롭 error ${slopErrors} · warn ${slop.findings.length - slopErrors}` : ''
   rows.push(runs.length === 0 ? `결과      돌린 명령 없음 · 건너뜀 ${skipped.length}${slopTally}` : `결과      통과 ${tally('pass')} · 실패 ${tally('fail')} · 시간 초과 ${tally('timeout')} · 건너뜀 ${skipped.length}${slopTally}`)
-  const advice = ['실행한 명령·종료 코드·결과 수를 그대로 붙인다.', '건너뛴 검사는 이유와 함께 적는다.', '실패를 "원래 있던 실패"라고 하려면 기본 브랜치에서 같은 명령을 돌려 본다.']
+  const advice = [
+    '실행한 명령·종료 코드·결과 수를 그대로 붙인다.',
+    '건너뛴 검사는 이유와 함께 적는다.',
+    runs.some((run) => run.baseline) ? '실패를 "원래 있던 실패"라고 하려면 기준 줄을 그대로 붙인다.' : '실패를 "원래 있던 실패"라고 하려면 --baseline으로 기준(갈림점)에서 같은 명령을 돌려 본다.',
+  ]
   if (slopErrors > 0) advice.push('슬롭 error는 고친 뒤 다시 돌린다.')
   if (slop && slop.findings.some((f) => f.severity !== 'error')) advice.push('슬롭 warn은 고치거나, 그대로 두면 이유를 적는다.')
   if (slop && slop.findings.some((f) => f.disclose)) advice.push('건너뛰게 한 테스트·바꾼 기대값·갱신한 스냅샷은 이유와 함께 밝힌다.')
