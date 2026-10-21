@@ -16,7 +16,34 @@ const TOOLING = /(?:^|\/)\.[^/]+\//
 const TEST_CONFIG = /(?:^|\/)(?:vitest|vite|jest|playwright|cypress)\.config\.(?:m|c)?[jt]s$|(?:^|\/)vitest\.workspace\.(?:m|c)?[jt]s$/
 // 구현으로 보는 파일 — 기대값을 바꾼 테스트와 함께 바뀌었는지 볼 때 쓴다
 const IMPLEMENTATION = /\.(?:m|c)?[jt]sx?$|\.(?:vue|svelte|py|go|kt|kts|java|rb|rs|cs|php|swift|scala)$/
-const ERRORS = new Set(['test/only-left', 'test/no-assertion', 'test/mock-subject', 'test/swallowed-failure', 'code/empty-catch'])
+/**
+ * check.mjs가 내는 지적과 기본 등급 — 규칙 파일(shared/rules/*.md)의 "검사: error·warn" 줄과 같아야 한다(구조 검사가 대조한다).
+ * code/debug-leftover는 warn이지만 debugger만 error로 낸다.
+ */
+export const RULE_SEVERITY = Object.freeze({
+  'test/only-left': 'error',
+  'test/no-assertion': 'error',
+  'test/mock-subject': 'error',
+  'test/swallowed-failure': 'error',
+  'test/skip-without-reason': 'warn',
+  'test/tautology': 'warn',
+  'test/mock-echo': 'warn',
+  'test/rewritten-expectation': 'warn',
+  'test/implementation-detail': 'warn',
+  'test/real-wait': 'warn',
+  'test/waitfor-misuse': 'warn',
+  'test/network-module-mock': 'warn',
+  'test/silenced-console': 'warn',
+  'test/snapshot-dump': 'warn',
+  'test/testid-first': 'warn',
+  'test/retry-mask': 'warn',
+  'code/empty-catch': 'error',
+  'code/type-escape': 'warn',
+  'code/commented-out': 'warn',
+  'code/debug-leftover': 'warn',
+  'code/index-key': 'warn',
+  'done/test-bent': 'warn',
+})
 const IGNORE = /gimi-ignore:\s*([\w/-]+(?:\s*,\s*[\w/-]+)*)\s*(?:(?:—|–|--|-|:)\s*([\s\S]*?))?\s*(?:\*\/)?\s*$/
 
 /** @param {string} path @returns {'test' | 'code' | 'snapshot' | null} */
@@ -83,7 +110,7 @@ export const checkSlop = ({ files, changedPaths = [], stacks = ['frontend-ts'] }
       seen.add(key)
       const finding = {
         id: found.id,
-        severity: found.severity ?? (ERRORS.has(found.id) ? 'error' : 'warn'),
+        severity: found.severity ?? RULE_SEVERITY[found.id] ?? 'warn',
         path: file.path,
         line: found.line,
         message: found.message,

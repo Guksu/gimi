@@ -2,9 +2,13 @@
  * 스킬 구조 검사의 순수 로직 — 입력(문서 내용·매니페스트·파일 목록)을 받아 오류 문장 목록을 돌려준다.
  * 파일 읽기와 종료 코드는 scripts/validateSkills.mjs가 맡는다. suta의 validateSkills.mjs에서 gimi에 맞는 검사만 가져왔다.
  */
+import { checkRuleFile, itemText, parseRuleFile } from '../../skills/gimi-review/scripts/lib/rulefile.mjs'
 import { bodyOf, fieldOf, frontmatterOf } from './frontmatter.mjs'
 
 export const SKILLS = ['gimi-review', 'gimi-test']
+// 두 스킬이 모두 갖는 공유 파일 — 공통 금지선 네 영역(결정 43)과 분야 프리셋(결정 39)
+export const SHARED_FILES = ['shared/rules/test.md', 'shared/rules/code.md', 'shared/rules/review.md', 'shared/rules/done.md', 'shared/domains/commerce/rules.md', 'shared/domains/kr-commerce-law/rules.md']
+export const PRESET_PREFIX = { commerce: 'COM', 'kr-commerce-law': 'KCL' }
 export const PLUGIN = 'gimi'
 // 저장소 루트가 곧 플러그인이라, 이런 것이 생기면 설치한 사용자 환경에 그대로 로드된다
 const ROOT_COMPONENTS = ['commands', 'agents', 'hooks', 'output-styles', '.mcp.json']
@@ -93,7 +97,8 @@ export const checkManifests = ({ claudePlugin, claudeMarketplace, codexPlugin, a
   return errors
 }
 
-const SHARED_HEADER = /^\/\/ @shared (\S+) origin: ([\w-]+)\s*$/
+// .mjs는 // 주석, Markdown은 HTML 주석으로 첫 줄에 단다
+const SHARED_HEADER = /^(?:\/\/|<!--) @shared (\S+) origin: ([\w-]+)\s*(?:-->)?\s*$/
 
 /**
  * 두 스킬이 함께 쓰는 파일 — 각 스킬에 복사본을 두고(스킬 하나만 설치해도 돈다), 첫 줄 머리로 원본을 가리킨다.
@@ -114,6 +119,27 @@ export const checkSharedCopies = ({ files }) => {
     if (!source) errors.push(`${label}: 원본 skills/${origin}/${file.path} 없음`)
     else if (source.text !== file.text) errors.push(`${label}: 원본 skills/${origin}/${file.path}과 다름 — 원본을 다시 복사한다`)
   }
+  return errors
+}
+
+/**
+ * 규칙 파일(공통 금지선·분야 프리셋)의 형식과, 검사 error·warn 줄이 check.mjs가 실제로 내는 지적과 맞는지
+ * @param {{ files: { path: string, text: string, kind: 'slop' | 'preset', area?: string, prefix?: string }[], slopSeverity: Record<string, 'error' | 'warn'> }} args
+ */
+export const checkRules = ({ files, slopSeverity }) => {
+  const errors = files.flatMap((file) => checkRuleFile(file))
+  const declared = new Map()
+  for (const file of files.filter((f) => f.kind === 'slop')) {
+    for (const rule of parseRuleFile(file.text).rules) {
+      const check = itemText(rule, '검사').match(/^(error|warn)\b/)?.[1]
+      if (check) declared.set(rule.id, { check, path: file.path })
+    }
+  }
+  for (const [id, { check, path }] of declared) {
+    if (!(id in slopSeverity)) errors.push(`${path} ${id} — 검사 ${check}인데 check.mjs에 없다 — 검사를 구현하거나 검사 항목을 리뷰로 바꾼다`)
+    else if (slopSeverity[id] !== check) errors.push(`${path} ${id} — 검사는 ${check}인데 check.mjs는 ${slopSeverity[id]}로 낸다`)
+  }
+  for (const id of Object.keys(slopSeverity)) if (!declared.has(id)) errors.push(`${id} — check.mjs가 내는 지적인데 규칙 파일에 없다(또는 검사가 error·warn이 아니다)`)
   return errors
 }
 
