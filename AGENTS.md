@@ -10,9 +10,10 @@ gimi — 코드 리뷰·테스트 스킬 두 개를 담은 설치형 플러그�
 |---|---|---|
 | 리뷰 스킬 | `skills/gimi-review/SKILL.md` | 맥락 리뷰(영향 범위·의도·이력)와 도메인 규칙 설정 |
 | 테스트 스킬 | `skills/gimi-test/SKILL.md` | 테스트 작성·테스트 슬롭 금지선·끝내기 전 검사 |
+| 맥락 수집 | `skills/gimi-review/scripts/context.mjs` + `lib/` | 리뷰 전에 범위·바뀐 파일·의도·이력을 모은다. 스킬과 함께 설치되는 스크립트다 |
 | 트리거 평가 | `evals/trigger/` | 두 스킬이 맞는 요청에 걸리고, 서로·다른 스킬의 요청에는 걸리지 않는지 |
 | 저장소 스크립트 | `scripts/` | 구조 검사(`validateSkills.mjs`), 트리거 평가(`evalSelection.mjs`), 순수 로직(`lib/`) |
-| 테스트 | `tests/` | `scripts/lib/`의 단위 테스트(`node:test`) |
+| 테스트 | `tests/` | `scripts/lib/`·`skills/*/scripts/lib/`의 단위 테스트와 임시 git 저장소 통합 테스트(`node:test`, `tests/helpers/repo.mjs`) |
 
 저장소 루트가 곧 플러그인이다. 루트에 `commands/`·`agents/`·`hooks/`·`output-styles/`·`.mcp.json`을 만들지 않는다. 만들면 설치한 사용자 환경에 그대로 로드된다(구조 검사가 막는다). 매니페스트에는 훅을 두지 않는다(설계 결정 7·9). 끝내기 전 검사는 프로젝트별 옵트인이다.
 
