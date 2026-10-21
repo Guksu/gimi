@@ -26,10 +26,11 @@ codex plugin add gimi@gimi
 
 ## 개발
 
-Node.js 22 이상이 필요합니다. 의존성은 없습니다.
+Node.js 22 이상이 필요합니다. 스킬과 함께 설치되는 스크립트에는 런타임 의존성이 없습니다. `typescript`는 테스트에서만 씁니다(맥락 수집은 리뷰하는 프로젝트의 `typescript`를 씁니다).
 
 ```bash
-npm test          # 스크립트 단위 테스트 (node:test)
+npm ci            # 개발 의존성 설치
+npm test          # 단위·통합 테스트 (node:test)
 npm run validate  # 스킬 구조 검사 + 트리거 평가
 ```
 

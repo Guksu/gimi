@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: 개발 의존성 설치(typescript — 테스트 전용)
+        run: npm ci --ignore-scripts
       - name: 단위 테스트
         run: npm test
       - name: 구조 검사 + 트리거 평가
