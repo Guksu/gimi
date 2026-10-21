@@ -1,7 +1,7 @@
 import { after, before, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -145,5 +145,108 @@ describe('check.mjs — 슬롭 검사', () => {
     const result = run({ cwd: repo.dir, args: ['--dry-run'] })
     assert.equal(result.status, 0, result.stderr)
     assert.match(result.stdout, /^슬롭 검사 {2}바뀐 파일 1개\(코드 1\)의 바뀐 줄을 본다$/m)
+  })
+})
+
+describe('check.mjs --baseline', () => {
+  // src/a.js의 값이 2면 실패하는 검사 — 기준(갈림점)에서는 1이라 통과한다
+  const failsOnTwo = node("process.exit(require('fs').readFileSync('src/a.js', 'utf8').includes('2') ? 1 : 0)")
+  let repo
+  before(() => {
+    repo = makeRepo()
+    repo.write({ 'src/a.js': 'export const a = 1\n', 'src/b.js': 'export const b = 1\n' })
+    repo.commit('feat: 처음')
+    repo.git('switch', '-q', '-c', 'feat/x')
+    repo.write({ 'src/a.js': 'export const a = 2\n' })
+  })
+  after(() => repo.cleanup())
+
+  it('실패한 명령을 기준에서 다시 돌려, 기준에서 통과하면 이 변경에서 생긴 실패라고 쓴다 — 종료 코드는 그대로 1이다', () => {
+    withCommands(repo, [{ name: 'test', command: failsOnTwo }])
+    const result = run({ cwd: repo.dir, args: ['--baseline'] })
+    assert.equal(result.status, 1, result.stdout + result.stderr)
+    assert.match(result.stdout, /^실패 {6}test/m)
+    assert.match(result.stdout, /^기준 {6}기준에서는 통과한다 — 이 변경에서 생긴 실패다/m)
+  })
+
+  it('기준에서도 실패하면 원래 있던 실패일 수 있다고 쓰고, --json에 기준 결과를 담는다', () => {
+    withCommands(repo, [{ name: 'test', command: node('process.exit(1)') }])
+    const result = run({ cwd: repo.dir, args: ['--baseline', '--json'] })
+    assert.equal(result.status, 1)
+    const report = JSON.parse(result.stdout)
+    assert.equal(report.runs[0].baseline.verdict, 'preexisting')
+    assert.equal(report.runs[0].baseline.status, 'fail')
+    assert.equal(report.baseline.mergeBase, report.scope.mergeBase)
+  })
+
+  it('기준은 임시 폴더에서 돌고 끝나면 지운다 — 작업 트리는 그대로다', () => {
+    withCommands(repo, [{ name: 'test', command: node("require('fs').appendFileSync(require('path').join(require('os').tmpdir(), 'gimi-baseline-cwd.txt'), process.cwd() + '\\n'); process.exit(1)") }])
+    const before = repo.git('status', '--porcelain')
+    run({ cwd: repo.dir, args: ['--baseline'] })
+    assert.equal(repo.git('status', '--porcelain'), before)
+    const cwds = readFileSync(join(tmpdir(), 'gimi-baseline-cwd.txt'), 'utf8').trim().split('\n').slice(-2)
+    rmSync(join(tmpdir(), 'gimi-baseline-cwd.txt'), { force: true })
+    assert.ok(cwds[1].includes('gimi-baseline-'), cwds[1])
+    assert.equal(existsSync(cwds[1]), false)
+  })
+
+  it('실패가 없으면 기준에서 돌리지 않았다고 쓴다', () => {
+    withCommands(repo, [{ name: 'test', command: node('process.exit(0)') }])
+    const result = run({ cwd: repo.dir, args: ['--baseline'] })
+    assert.equal(result.status, 0)
+    assert.match(result.stdout, /^기준 {6}실패한 명령이 없어 기준\(갈림점 [0-9a-f]{7}\)에서 돌리지 않았다$/m)
+  })
+})
+
+describe('check.mjs — guksu-harness v2 위치', () => {
+  it('.agents/hooks가 없으면 v2 위치(.claude/hooks/verifierGate.config.json)의 검사 명령을 쓴다', () => {
+    const fresh = makeRepo()
+    try {
+      fresh.write({ 'src/a.js': 'export const a = 1\n', '.claude/hooks/verifierGate.config.json': JSON.stringify({ checks: [{ name: 'test', command: node("console.log('# pass 4')") }] }) })
+      fresh.commit('feat: 처음')
+      fresh.git('switch', '-q', '-c', 'feat/y')
+      fresh.write({ 'src/a.js': 'export const a = 2\n' })
+      const result = run({ cwd: fresh.dir })
+      assert.equal(result.status, 0, result.stdout + result.stderr)
+      assert.match(result.stdout, /^명령 출처 {2}guksu-harness verifier 설정\(\.claude\/hooks\/verifierGate\.config\.json\)$/m)
+    } finally {
+      fresh.cleanup()
+    }
+  })
+})
+
+describe('check.mjs — 멈추라는 신호', () => {
+  it('SIGTERM을 받으면 돌고 있는 명령의 프로세스 그룹까지 멈춘다 — verifier가 시간 초과로 끊어도 테스트가 남지 않게', async () => {
+    const repo = makeRepo()
+    try {
+      repo.write({ 'src/a.js': 'export const a = 1\n' })
+      repo.commit('feat: 처음')
+      repo.git('switch', '-q', '-c', 'feat/x')
+      repo.write({ 'src/a.js': 'export const a = 2\n' })
+      withCommands(repo, [{ name: 'test', command: node("require('fs').writeFileSync('pid', String(process.pid)); setTimeout(() => {}, 60000)") }])
+      const { GIMI_CHECK_RUNNING: _, ...env } = process.env
+      const child = spawn(process.execPath, [CLI], { cwd: repo.dir, stdio: 'ignore', env })
+      const pidFile = join(repo.dir, 'pid')
+      // gimi-ignore: test/real-wait — 실제 하위 프로세스가 pid 파일을 쓸 때까지 기다린다(가짜 타이머로 대신할 수 없다)
+      while (!existsSync(pidFile)) await new Promise((resolve) => setTimeout(resolve, 50))
+      // gimi-ignore: test/real-wait — 하위 프로세스가 신호를 받을 준비가 될 때까지 기다린다
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      const pid = Number(readFileSync(pidFile, 'utf8'))
+      child.kill('SIGTERM')
+      const code = await new Promise((resolve) => child.on('exit', (exitCode, signal) => resolve(exitCode ?? signal)))
+      // gimi-ignore: test/real-wait — 멈춘 프로세스가 정말 사라질 때까지 기다린다
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      let alive = true
+      try {
+        process.kill(pid, 0)
+      } catch {
+        alive = false
+      }
+      if (alive) process.kill(pid, 'SIGKILL')
+      assert.equal(code, 143)
+      assert.equal(alive, false)
+    } finally {
+      repo.cleanup()
+    }
   })
 })

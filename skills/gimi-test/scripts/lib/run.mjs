@@ -10,6 +10,22 @@ export const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000
 const MAX_OUTPUT = 200 * 1024
 const TAIL_LINES = 20
 const ANSI = /\u001b\[[0-9;]*[A-Za-z]/g
+// 돌고 있는 명령 — check.mjs가 멈추라는 신호를 받으면 이 프로세스 그룹들을 함께 멈춘다
+const running = new Set()
+
+const killGroup = (child) => {
+  try {
+    process.kill(-child.pid, 'SIGKILL')
+  } catch {
+    child.kill('SIGKILL')
+  }
+}
+
+/** 돌고 있는 명령을 모두 멈춘다 — 신호 처리기에서 부른다 */
+export const stopRunning = () => {
+  for (const child of running) killGroup(child)
+  running.clear()
+}
 
 const count = (pattern, text) => Number(text.match(pattern)?.[1] ?? 0)
 const fromLine = (line) => ({ passed: count(/(\d+) passed/, line), failed: count(/(\d+) failed/, line), skipped: count(/(\d+) skipped/, line) })
@@ -74,6 +90,7 @@ export const runCheck = ({ root, check }) =>
     }
     const finish = ({ exitCode, error }) => {
       clearTimeout(timer)
+      running.delete(child)
       if (error) keep(`\n${error.message}`)
       const tail = output.replace(ANSI, '').split('\n').map((line) => line.trimEnd()).filter(Boolean).slice(-TAIL_LINES)
       resolve({
@@ -95,15 +112,12 @@ export const runCheck = ({ root, check }) =>
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
     })
+    running.add(child)
     child.stdout.setEncoding('utf8').on('data', keep)
     child.stderr.setEncoding('utf8').on('data', keep)
     const timer = setTimeout(() => {
       timedOut = true
-      try {
-        process.kill(-child.pid, 'SIGKILL')
-      } catch {
-        child.kill('SIGKILL')
-      }
+      killGroup(child)
     }, check.timeoutMs ?? DEFAULT_TIMEOUT_MS)
     child.on('error', (error) => finish({ exitCode: null, error }))
     child.on('close', (code) => finish({ exitCode: code }))

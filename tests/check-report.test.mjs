@@ -47,7 +47,7 @@ describe('renderCheckReport', () => {
   it('건너뛴 검사와 이유, 합계, 보고할 때 지킬 것을 쓴다', () => {
     assert.match(text, /^건너뜀 {4}lint — lint 스크립트가 없다$/m)
     assert.match(text, /^결과 {6}통과 1 · 실패 1 · 시간 초과 1 · 건너뜀 1$/m)
-    assert.match(text, /^보고 {6}.*명령·종료 코드·결과 수.*기본 브랜치에서 같은 명령/m)
+    assert.match(text, /^보고 {6}.*명령·종료 코드·결과 수.*--baseline으로 기준\(갈림점\)에서 같은 명령/m)
   })
 
   it('돌린 명령이 없으면 그렇다고 쓴다', () => {
@@ -109,5 +109,38 @@ describe('renderCheckReport — 슬롭 검사', () => {
     assert.match(long, /^error {5}test\/only-left {2}src\/z\.test\.ts:1/m)
     assert.match(long, /^ {10}warn 5줄 더 — --json으로 모두 본다$/m)
     assert.doesNotMatch(long, /src\/f44\.ts/)
+  })
+})
+
+describe('renderCheckReport — 기준 비교(--baseline)', () => {
+  const failing = report().runs[1]
+  const withBaseline = (base, extra = {}) => ({ ...report(), runs: [report().runs[0], { ...failing, baseline: base }], baseline: { mergeBase: 'e'.repeat(40), ...extra } })
+
+  it('실패한 명령 아래에 기준 결과를 쓴다 — 기준에서 통과하면 이 변경에서 생긴 실패다', () => {
+    const text = renderCheckReport({ report: withBaseline({ verdict: 'new', message: '기준에서는 통과한다 — 이 변경에서 생긴 실패다', status: 'pass', exitCode: 0, durationMs: 2100, counts: { passed: 3, failed: 0, skipped: 0, unit: '테스트' }, outputTail: [] }) })
+    assert.match(text, /^ {10}src\/a\.ts\(3,5\): error TS2322.*\n기준 {6}기준에서는 통과한다 — 이 변경에서 생긴 실패다 {2}\(2\.1초 · 통과 3 · 실패 0 · 건너뜀 0\)$/m)
+  })
+
+  it('기준에서도 실패하면 기준 출력 끝도 붙여 비교하게 한다', () => {
+    const text = renderCheckReport({ report: withBaseline({ verdict: 'preexisting', message: '기준에서도 실패한다 — 원래 있던 실패일 수 있다', status: 'fail', exitCode: 2, durationMs: 4000, counts: null, outputTail: ['base-1', "src/a.ts(9,1): error TS1005"] }) })
+    assert.match(text, /^기준 {6}기준에서도 실패한다 — 원래 있던 실패일 수 있다 {2}\(4\.0초 · 종료 코드 2\)\n {10}base-1\n {10}src\/a\.ts\(9,1\): error TS1005$/m)
+  })
+
+  it('기준에서 돌리지 않은 이유(볼 파일 없음·준비 실패)는 시간 없이 쓴다', () => {
+    const text = renderCheckReport({ report: withBaseline({ verdict: 'new', message: '기준에는 이 검사가 볼 파일이 없다 — 이 변경에서 생긴 실패다' }) })
+    assert.match(text, /^기준 {6}기준에는 이 검사가 볼 파일이 없다 — 이 변경에서 생긴 실패다$/m)
+  })
+
+  it('실패가 없으면 기준에서 돌리지 않았다고 쓰고, 의존성 파일이 바뀌었으면 그 한계를 쓴다', () => {
+    const passing = { ...report(), runs: [report().runs[0]], baseline: { mergeBase: 'e'.repeat(40), dependenciesChanged: true } }
+    const text = renderCheckReport({ report: passing })
+    assert.match(text, /^기준 {6}실패한 명령이 없어 기준\(갈림점 eeeeeee\)에서 돌리지 않았다$/m)
+    assert.doesNotMatch(text, /의존성 파일/)
+    assert.match(renderCheckReport({ report: withBaseline({ verdict: 'new', message: 'x', status: 'pass', exitCode: 0, durationMs: 1, counts: null, outputTail: [] }, { dependenciesChanged: true }) }), /^기준 {6}의존성 파일\(package\.json·잠금 파일\)이 바뀌었다 — 기준도 지금의 node_modules로 돌렸다$/m)
+  })
+
+  it('기준을 돌렸으면 보고에서 기본 브랜치에서 돌려 보라는 말 대신 기준 줄을 붙이라고 쓴다', () => {
+    const text = renderCheckReport({ report: withBaseline({ verdict: 'new', message: 'x', status: 'pass', exitCode: 0, durationMs: 1, counts: null, outputTail: [] }) })
+    assert.match(text, /^보고 {6}.*"원래 있던 실패"라고 하려면 기준 줄을 그대로 붙인다/m)
   })
 })
