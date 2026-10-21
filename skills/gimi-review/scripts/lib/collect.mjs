@@ -9,6 +9,17 @@ import { collectIntent } from './intent.mjs'
 import { resolveScope } from './scope.mjs'
 
 const PR_FIELDS = 'number,title,body,url,baseRefName,headRefOid,closingIssuesReferences'
+const MAX_LINE_TEXT = 300
+
+// 맥락 묶음에는 지운 줄의 내용(파일에서 사라졌다)과 더한 줄의 번호만 담는다 — 더한 줄은 파일을 열면 있다
+const slim = (file) => ({
+  ...file,
+  hunks: file.hunks.map((hunk) => ({
+    ...hunk,
+    removed: hunk.removed.map(({ line, text }) => ({ line, text: text.length > MAX_LINE_TEXT ? `${text.slice(0, MAX_LINE_TEXT)}…` : text })),
+    added: hunk.added.map(({ line }) => line),
+  })),
+})
 
 /**
  * @param {{
@@ -43,5 +54,5 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   if (scope.dirty) notes.push('작업 트리에 커밋하지 않은 변경이 있다 — 맥락에 넣지 않았다')
 
   const prRef = prInfo ? { number: prInfo.number, url: prInfo.url } : pr != null ? { number: pr, url: null } : null
-  return { version: 1, generatedAt: now.toISOString(), scope: { ...scope, pr: prRef }, files, intent, history, impact: null, skipped, notes }
+  return { version: 1, generatedAt: now.toISOString(), scope: { ...scope, pr: prRef }, files: files.map(slim), intent, history, impact: null, skipped, notes }
 }

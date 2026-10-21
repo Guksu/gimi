@@ -47,12 +47,20 @@ export const extractTicketRefs = ({ texts, keyPatterns = [] }) => {
 }
 
 /**
+ * 요구사항 번호를 찾을 글 — 커밋 제목 끝의 "(#36)"은 그 커밋을 만든 스쿼시 PR 번호라 이슈 후보에서 뺀다
+ * @param {{ branch: string | null, prInfo: { title?: string, body?: string } | null, commits: { subject: string, body: string }[] }} args
+ * @returns {string[]}
+ */
+export const intentTexts = ({ branch, prInfo, commits }) =>
+  [branch, prInfo?.title, prInfo?.body, ...commits.flatMap((commit) => [commit.subject.replace(/\s*\(#\d+\)\s*$/, ''), commit.body])].filter(Boolean)
+
+/**
  * 의도 맥락을 모은다 — gh가 없으면(null) PR·이슈 본문 없이 git에 있는 것만 모은다
  * @param {{ exec: { git: (args: string[]) => string }, gh: ((args: string[]) => string) | null, scope: { mergeBase: string, branch: string | null }, prInfo: any, keyPatterns: { source: string, pattern: string }[] }} args
  */
 export const collectIntent = ({ exec, gh, scope, prInfo, keyPatterns }) => {
   const commits = parseLog(exec.git(['log', `--format=${LOG_FORMAT}`, `${scope.mergeBase}..HEAD`]))
-  const refs = extractTicketRefs({ texts: [scope.branch, prInfo?.title, prInfo?.body, ...commits.flatMap((c) => [c.subject, c.body])], keyPatterns })
+  const refs = extractTicketRefs({ texts: intentTexts({ branch: scope.branch, prInfo, commits }), keyPatterns })
   const issueNumbers = new Set([...(prInfo?.closingIssuesReferences ?? []).map((issue) => issue.number), ...refs.issueNumbers])
   if (prInfo) issueNumbers.delete(prInfo.number)
   const wanted = [...issueNumbers].slice(0, MAX_ISSUES)

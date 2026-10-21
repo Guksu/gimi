@@ -11,6 +11,14 @@ describe('classifyCommit', () => {
     assert.deepEqual(classifyCommit({ subject: '결제 오류 수정' }), ['fix'])
   })
 
+  it('제목에 수정이 아닌 유형(feat·docs 등)이 있으면 본문은 보지 않는다 — 큰 기능 커밋 본문의 "버그 수정" 항목으로 표시하지 않는다', () => {
+    assert.deepEqual(classifyCommit({ subject: 'feat(ux): 사진 뷰어 (#27)', body: '- 지도 버그 수정\n- 임시 처리 제거' }), [])
+  })
+
+  it('제목에 유형이 없으면 본문까지 본다', () => {
+    assert.deepEqual(classifyCommit({ subject: '스크롤 복원', body: 'iOS 버그 수정' }), ['fix'])
+  })
+
   it('평범한 기능 커밋에는 표시가 없다 — "버그"·"prefix"처럼 낱말만 겹치는 것도', () => {
     assert.deepEqual(classifyCommit({ subject: 'feat: 장바구니 수량 변경' }), [])
     assert.deepEqual(classifyCommit({ subject: 'refactor: prefix 정리' }), [])

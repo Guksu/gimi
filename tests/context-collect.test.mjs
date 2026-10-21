@@ -59,6 +59,13 @@ describe('collectContext — gh 없이', () => {
     )
   })
 
+  it('지운 줄은 내용까지, 더한 줄은 줄 번호만 담는다 — 더한 줄은 파일을 열면 있다', () => {
+    const order = context.files.find((f) => f.newPath === 'src/order.ts')
+    const removed = order.hunks.flatMap((h) => h.removed)
+    assert.deepEqual(removed.map((r) => r.text), ['line3 fixed', 'line8 '])
+    assert.deepEqual(order.hunks.flatMap((h) => h.added), [7])
+  })
+
   it('바꾸거나 지운 줄을 마지막으로 바꾼 커밋과, 그 커밋의 표시를 담는다', () => {
     const order = context.history.files.find((f) => f.path === 'src/order.ts')
     const blamed = new Map(order.blamed.map((b) => [b.sha, b.lines]))

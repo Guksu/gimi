@@ -20,9 +20,17 @@ const FORMATTING = [
   /서식 ?정리|포맷 ?정리|코드 ?정렬/,
 ]
 
-/** @param {{ subject: string, body?: string }} commit @returns {('fix' | 'revert' | 'hotfix' | 'workaround')[]} */
+const CONVENTIONAL = /^(\w+)(\([^)]*\))?!?\s*:/
+const NON_FIX_TYPES = new Set(['feat', 'docs', 'chore', 'refactor', 'test', 'style', 'perf', 'build', 'ci'])
+
+/**
+ * 제목에 수정이 아닌 유형(feat·docs…)이 있으면 제목만 본다 — 큰 기능 커밋 본문에 섞인 "버그 수정" 항목으로 표시하지 않는다.
+ * 유형이 없으면 본문까지 본다.
+ * @param {{ subject: string, body?: string }} commit @returns {('fix' | 'revert' | 'hotfix' | 'workaround')[]}
+ */
 export const classifyCommit = ({ subject, body = '' }) => {
-  const text = `${subject}\n${body}`
+  const type = subject.match(CONVENTIONAL)?.[1]?.toLowerCase()
+  const text = type && NON_FIX_TYPES.has(type) ? subject : `${subject}\n${body}`
   const tags = []
   if (FIX.test(text)) tags.push('fix')
   if (REVERT.test(text)) tags.push('revert')

@@ -1,6 +1,18 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { extractTicketRefs } from '../skills/gimi-review/scripts/lib/intent.mjs'
+import { extractTicketRefs, intentTexts } from '../skills/gimi-review/scripts/lib/intent.mjs'
+
+describe('intentTexts', () => {
+  it('브랜치·PR 제목·본문·커밋 제목·본문을 모으되, 커밋 제목 끝의 스쿼시 PR 번호 "(#36)"는 뗀다', () => {
+    const texts = intentTexts({
+      branch: 'feat/SHOP-9',
+      prInfo: { title: '주문 상태', body: 'closes #38' },
+      commits: [{ subject: 'feat: 위시 라벨 (#36)', body: 'refs #40' }],
+    })
+    assert.deepEqual(texts, ['feat/SHOP-9', '주문 상태', 'closes #38', 'feat: 위시 라벨', 'refs #40'])
+    assert.deepEqual(extractTicketRefs({ texts }).issueNumbers, [38, 40])
+  })
+})
 
 describe('extractTicketRefs', () => {
   it('브랜치 이름·커밋에서 티켓 번호를 뽑고, 흔한 표준 이름(UTF-8 등)은 빼고, 겹치면 하나로 둔다', () => {
