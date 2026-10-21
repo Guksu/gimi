@@ -1,0 +1,10 @@
+{
+  "name": "gimi",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "validate": "node scripts/validateSkills.mjs && node scripts/evalSelection.mjs"
+  }
+}
