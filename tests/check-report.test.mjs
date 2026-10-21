@@ -55,3 +55,59 @@ describe('renderCheckReport', () => {
     assert.match(renderCheckReport({ report: empty }), /^결과 {6}돌린 명령 없음 · 건너뜀 1$/m)
   })
 })
+
+describe('renderCheckReport — 슬롭 검사', () => {
+  const finding = (id, severity, path, line, message, extra = {}) => ({ id, severity, path, line, message, excerpt: '', ...extra })
+  const withSlop = (slop) => ({ ...report(), slop })
+  const slop = {
+    checked: { test: 2, code: 3, snapshot: 0 },
+    findings: [
+      finding('test/only-left', 'error', 'src/cart.test.ts', 12, '.only가 남아 있다 — 지운다'),
+      finding('test/real-wait', 'warn', 'src/cart.test.ts', 48, '고정하지 않은 현재 시각에 기댄다 — setSystemTime으로 고정한다'),
+      finding('test/real-wait', 'warn', 'src/cart.test.ts', 60, '고정하지 않은 현재 시각에 기댄다 — setSystemTime으로 고정한다'),
+      finding('test/real-wait', 'warn', 'src/cart.test.ts', 71, '고정하지 않은 현재 시각에 기댄다 — setSystemTime으로 고정한다'),
+      finding('code/debug-leftover', 'warn', 'src/pay.ts', 3, 'console.log가 남았다 — 지운다', { note: '무시 주석에 이유가 없어 무시하지 않았다' }),
+      finding('done/test-bent', 'warn', 'src/pay.test.ts', 9, '이 변경에서 테스트를 건너뛰게 했다 — 보고에 밝힌다', { disclose: true }),
+    ],
+    ignored: [{ ...finding('code/type-escape', 'warn', 'src/api.ts', 40, 'as any'), reason: 'SDK 타입이 틀렸다(#40)' }],
+  }
+  const text = renderCheckReport({ report: withSlop(slop) })
+
+  it('본 파일 수와 error·warn·무시 수를 머리에 쓴다', () => {
+    assert.match(text, /^슬롭 검사 {2}바뀐 파일 5개\(테스트 2 · 코드 3\) — error 1 · warn 5 · 무시 1$/m)
+  })
+
+  it('지적마다 등급·ID·위치·내용을 한 줄로 쓰고, 같은 파일의 같은 지적은 첫 줄에 묶어 "외 N곳"으로 쓴다', () => {
+    assert.match(text, /^error {5}test\/only-left {2}src\/cart\.test\.ts:12 {2}\.only가 남아 있다 — 지운다$/m)
+    assert.match(text, /^warn {6}test\/real-wait {2}src\/cart\.test\.ts:48 외 2곳 {2}고정하지 않은 현재 시각/m)
+    assert.doesNotMatch(text, /cart\.test\.ts:60/)
+  })
+
+  it('error를 warn보다 먼저 쓰고, 이유 없는 무시 주석은 지적 아래에 밝힌다', () => {
+    assert.ok(text.indexOf('error     test/only-left') < text.indexOf('warn      test/real-wait'))
+    assert.match(text, /^warn {6}code\/debug-leftover {2}src\/pay\.ts:3 {2}console\.log가 남았다 — 지운다\n {10}무시 주석에 이유가 없어 무시하지 않았다$/m)
+  })
+
+  it('무시한 지적은 이유와 함께 쓴다', () => {
+    assert.match(text, /^무시 {6}code\/type-escape {2}src\/api\.ts:40 — SDK 타입이 틀렸다\(#40\)$/m)
+  })
+
+  it('결과 줄에 슬롭 수를 더하고, 보고에서 error는 고치고 건너뛰게 한 테스트·바꾼 기대값은 밝히라고 쓴다', () => {
+    assert.match(text, /^결과 {6}통과 1 · 실패 1 · 시간 초과 1 · 건너뜀 1 · 슬롭 error 1 · warn 5$/m)
+    assert.match(text, /^보고 {6}.*슬롭 error는 고친 뒤 다시 돌린다/m)
+    assert.match(text, /^보고 {6}.*건너뛰게 한 테스트·바꾼 기대값·갱신한 스냅샷/m)
+  })
+
+  it('지적이 없으면 그렇다고 쓰고, 볼 파일이 없으면 그것도 쓴다', () => {
+    assert.match(renderCheckReport({ report: withSlop({ ...slop, findings: [], ignored: [] }) }), /^슬롭 검사 {2}바뀐 파일 5개\(테스트 2 · 코드 3\) — 지적 없음$/m)
+    assert.match(renderCheckReport({ report: withSlop({ checked: { test: 0, code: 0, snapshot: 0 }, findings: [], ignored: [] }) }), /^슬롭 검사 {2}바뀐 JS·TS 파일 없음$/m)
+  })
+
+  it('warn이 많으면 앞의 40줄만 쓰고 나머지 수와 --json을 안내한다 — error는 모두 쓴다', () => {
+    const many = Array.from({ length: 45 }, (_, i) => finding('code/debug-leftover', 'warn', `src/f${i}.ts`, 1, 'console.log가 남았다'))
+    const long = renderCheckReport({ report: withSlop({ ...slop, findings: [...many, finding('test/only-left', 'error', 'src/z.test.ts', 1, '.only')] }) })
+    assert.match(long, /^error {5}test\/only-left {2}src\/z\.test\.ts:1/m)
+    assert.match(long, /^ {10}warn 5줄 더 — --json으로 모두 본다$/m)
+    assert.doesNotMatch(long, /src\/f44\.ts/)
+  })
+})
