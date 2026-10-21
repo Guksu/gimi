@@ -13,6 +13,7 @@ gimi — 코드 리뷰·테스트 스킬 두 개를 담은 설치형 플러그�
 | 끝내기 전 검사 | `skills/gimi-test/scripts/check.mjs` + `lib/` | 바뀐 범위의 테스트·타입 검사·린트 명령을 찾아 돌리고 명령·종료 코드·결과 수로 보고한다. 바뀐 JS·TS 줄에서 테스트·코드 슬롭(설계 7절의 검사 error·warn 줄)을 찾는다. `--baseline`은 실패를 기준(갈림점)에서 다시 돌린다. `--hook`(Stop 훅)·`--verifier`(guksu-harness 항목)는 옵트인 연결이 부른다 |
 | 옵트인 연결 | `skills/gimi-test/scripts/connect.mjs` + `lib/connect.mjs` | 프로젝트에 check.mjs를 복사하고 guksu-harness verifier 또는 Stop 훅에 등록한다. `--remove`로 되돌린다 |
 | 맥락 수집 | `skills/gimi-review/scripts/context.mjs` + `lib/` | 리뷰 전에 범위·바뀐 파일·의도·이력·영향 범위를 모은다. 계약 파일(OpenAPI·GraphQL)이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾는다. 스킬과 함께 설치되는 스크립트이고, 영향 범위는 리뷰하는 프로젝트의 `typescript`, YAML은 프로젝트의 `yaml`·`js-yaml`(없으면 내장 파서)을 쓴다 |
+| 규칙 | `skills/*/shared/rules/{test,code,review,done}.md`, `skills/*/shared/domains/{commerce,kr-commerce-law}/rules.md`, `scripts/rules.mjs` | 공통 금지선 61줄과 분야 프리셋(COM 29·KCL 14). 원본은 영역 주인(test·done은 gimi-test, code·review·프리셋은 gimi-review)이고 다른 스킬에 복사본. `rules.mjs`가 설정의 stacks·presets와 회사 규칙의 끈 규칙으로 걸러 보인다 |
 | 트리거 평가 | `evals/trigger/` | 두 스킬이 맞는 요청에 걸리고, 서로·다른 스킬의 요청에는 걸리지 않는지 |
 | 저장소 스크립트 | `scripts/` | 구조 검사(`validateSkills.mjs`), 트리거 평가(`evalSelection.mjs`), 순수 로직(`lib/`) |
 | 테스트 | `tests/` | `scripts/lib/`·`skills/*/scripts/lib/`의 단위 테스트와 임시 git 저장소 통합 테스트(`node:test`, `tests/helpers/repo.mjs`) |
@@ -36,7 +37,7 @@ node scripts/evalSelection.mjs --margins   # 1위와 2위 점수 차가 작은 s
 3. **평가 먼저.** 스킬 description을 쓰거나 고치기 전에 `evals/trigger/{스킬}.json`을 먼저 고친다(Red). 그다음 description을 고쳐 통과시킨다(Green). description은 3인칭으로 "무엇을 하는가 + 언제 쓰는가"만 적고, 1,024바이트 이하이며 `": "`를 쓰지 않는다(YAML이 깨진다). 요청의 단어가 경쟁 스킬(예: 내장 `/code-review`)의 설명과 같아 단어 겹침으로는 동점을 깰 수 없는 질의는 `contested`에 둔다. 질의를 바꿔 동점을 숨기지 않는다.
 4. **코드는 TDD.** `scripts/lib/`의 로직은 `tests/`에 테스트를 먼저 쓴다(Red → Green). 입출력(파일 읽기·종료 코드)은 CLI(`scripts/*.mjs`)가 맡고, 판단은 `lib/`의 순수 함수에 둔다.
 5. **스크립트는 `.mjs`, 런타임 의존성 0, Node 22 이상.** `.ts`를 그대로 실행하지 않는다(Node 22.18 미만에서 돌지 않는다 — 설계 결정 23). TypeScript가 필요하면 리뷰하는 프로젝트의 것을 불러오고, 없거나 언어 서비스 API가 없는 버전이면 문자열 검색으로 내려간다. gimi 저장소의 `typescript`는 테스트 전용 개발 의존성이다.
-6. **스킬은 설치된 프로젝트에서 단독으로 완결된다.** `SKILL.md`는 저장소의 `docs/`·`evals/`·`scripts/`를 가리키지 않는다(설치하면 없다). 두 스킬이 함께 쓰는 파일은 원본 첫 줄에 `// @shared {파일} origin: {스킬}` 머리를 달고 다른 스킬의 같은 경로에 그대로 복사한다. 구조 검사가 원본과 바이트 단위로 같은지 본다. 고칠 때는 원본을 고치고 다시 복사한다.
+6. **스킬은 설치된 프로젝트에서 단독으로 완결된다.** `SKILL.md`는 저장소의 `docs/`·`evals/`·`scripts/`를 가리키지 않는다(설치하면 없다). 두 스킬이 함께 쓰는 파일은 원본 첫 줄에 `// @shared {파일} origin: {스킬}`(Markdown은 `<!-- @shared {파일} origin: {스킬} -->`) 머리를 달고 다른 스킬의 같은 경로에 그대로 복사한다. 구조 검사가 원본과 바이트 단위로 같은지 본다. 규칙 파일의 "검사 error·warn" 줄을 바꾸면 `check.mjs`의 `RULE_SEVERITY`와 규칙 코드도 함께 바꾼다(구조 검사가 대조한다). 고칠 때는 원본을 고치고 다시 복사한다.
 7. **시크릿은 읽지도 기록하지도 않는다.** `.env`·키 파일을 열지 않는다.
 8. **출력은 읽는 사람이 이해할 수 있게.** 전문용어는 처음 나올 때 한 줄로 풀이하고, 한 문장에 하나의 내용만 담는다.
 
