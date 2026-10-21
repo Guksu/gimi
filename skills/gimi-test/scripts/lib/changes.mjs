@@ -2,6 +2,9 @@
  * 끝내기 전 검사의 바뀐 범위 — 기준 브랜치와의 갈림점부터 지금 작업 트리까지다.
  * 끝내기 직전에는 보통 아직 커밋하지 않았으므로 커밋한 변경, 작업 트리 변경(스테이지 여부와 상관없이), 새 파일을 모두 넣는다.
  */
+import { createHash } from 'node:crypto'
+import { statSync } from 'node:fs'
+import { join } from 'node:path'
 import { parseDiff } from './diff.mjs'
 import { ContextError, attempt } from './exec.mjs'
 import { defaultBranch } from './scope.mjs'
@@ -74,4 +77,18 @@ export const collectLineChanges = ({ exec, mergeBase, files }) => {
     if (file.status !== 'D' && file.sources.includes('untracked') && !out.has(file.path)) out.set(file.path, { all: true, added: new Set(), hunks: [] })
   }
   return out
+}
+
+/**
+ * 바뀐 상태의 지문 — Stop 훅이 "마지막 검사 뒤로 바뀐 것이 있는지" 볼 때 쓴다.
+ * 추적하는 파일은 갈림점과의 diff, 추적하지 않는 새 파일은 경로·크기·수정 시각으로 본다(내용을 다 읽지 않는다).
+ * @param {{ exec: { git: (args: string[]) => string }, root: string, mergeBase: string, files: { path: string, sources: string[] }[] }} args
+ */
+export const changeDigest = ({ exec, root, mergeBase, files }) => {
+  const hash = createHash('sha256').update(exec.git(['diff', '--no-color', '--no-ext-diff', '--binary', mergeBase]))
+  for (const file of files.filter((f) => f.sources.includes('untracked'))) {
+    const stat = attempt(() => statSync(join(root, file.path)))
+    hash.update(`\0${file.path}\0${stat?.size ?? -1}\0${stat?.mtimeMs ?? -1}`)
+  }
+  return hash.digest('hex')
 }
