@@ -33,6 +33,11 @@ describe('test/skip-without-reason (warn) · done/test-bent (warn)', () => {
     assert.deepEqual(one("// 결제 샌드박스 점검 중 — SHOP-12\nit.skip('a', () => { expect(f()).toBe(1) })\nit.skip('b', () => { expect(f()).toBe(1) }) // #34 고칠 때까지\n"), ['done/test-bent:2', 'done/test-bent:3'])
   })
 
+  it('건너뛰게 한 테스트는 보고에 밝힐 지적으로 표시한다(disclose)', () => {
+    const result = run({ 'src/a.test.ts': "it.skip('a', () => { expect(f()).toBe(1) })\n// #1 대기\nit.skip('b', () => { expect(f()).toBe(1) })\n" })
+    assert.deepEqual(result.findings.map((f) => [f.id, f.disclose]), [['test/skip-without-reason', true], ['done/test-bent', true]])
+  })
+
   it('Playwright의 조건부 test.skip(조건, 이유)는 이유가 있는 것으로 본다', () => {
     assert.deepEqual(one("test('a', async ({ page, browserName }) => {\n  test.skip(browserName === 'webkit', '사파리는 결제 위젯 미지원')\n  await expect(page).toHaveTitle('x')\n})\n", 'e2e/pay.spec.ts'), ['done/test-bent:2'])
   })

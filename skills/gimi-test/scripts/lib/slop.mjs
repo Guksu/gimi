@@ -88,6 +88,8 @@ export const checkSlop = ({ files, changedPaths = [], stacks = ['frontend-ts'] }
         line: found.line,
         message: found.message,
         excerpt: source.lineText(found.line).trim().slice(0, 160),
+        // 끝내기 전 보고에 밝혀야 하는 변경(건너뛰게 한 테스트·바꾼 기대값·갱신한 스냅샷 — done/test-bent)
+        ...(found.disclose ? { disclose: true } : {}),
       }
       const ignore = (ignores.get(found.line) ?? []).find((entry) => entry.ids.includes(found.id))
       if (ignore && /[\p{L}\p{N}]/u.test(ignore.reason)) ignored.push({ ...finding, reason: ignore.reason })

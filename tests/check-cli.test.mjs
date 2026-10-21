@@ -102,3 +102,48 @@ describe('check.mjs', () => {
     assert.match(result.stderr, /사용/)
   })
 })
+
+describe('check.mjs — 슬롭 검사', () => {
+  let repo
+  before(() => {
+    repo = makeRepo()
+    repo.write({ 'src/cart.js': 'export const total = (items) => items.length\n', 'src/cart.test.js': "it('a', () => {\n  expect(total([])).toBe(0)\n})\n" })
+    repo.commit('feat: 처음')
+    repo.git('switch', '-q', '-c', 'feat/x')
+    withCommands(repo, [{ name: 'test', command: node('process.exit(0)') }])
+    repo.commit('chore: 설정')
+  })
+  after(() => repo.cleanup())
+
+  it('바뀐 줄의 슬롭 error가 있으면 명령이 통과해도 종료 코드 1이다 — 바뀌지 않은 줄은 보지 않는다', () => {
+    repo.write({ 'src/cart.test.js': "it('a', () => {\n  expect(total([])).toBe(0)\n})\nit.only('b', () => {\n  expect(total([1])).toBe(1)\n})\n" })
+    const result = run({ cwd: repo.dir })
+    assert.equal(result.status, 1, result.stdout)
+    assert.match(result.stdout, /^통과 {6}test/m)
+    assert.match(result.stdout, /^슬롭 검사 {2}바뀐 파일 1개\(테스트 1\) — error 1 · warn 0 · 무시 0$/m)
+    assert.match(result.stdout, /^error {5}test\/only-left {2}src\/cart\.test\.js:4 {2}/m)
+  })
+
+  it('warn만 있으면 종료 코드 0이다. 새 파일은 모든 줄을 본다', () => {
+    repo.write({ 'src/cart.test.js': "it('a', () => {\n  expect(total([])).toBe(0)\n})\n", 'src/pay.js': 'export const pay = (order) => {\n  console.log(order)\n}\n' })
+    const result = run({ cwd: repo.dir })
+    assert.equal(result.status, 0, result.stdout)
+    assert.match(result.stdout, /^warn {6}code\/debug-leftover {2}src\/pay\.js:2 {2}console\.log/m)
+  })
+
+  it('--json에 슬롭 지적·무시·본 파일 수를 담는다', () => {
+    repo.write({ 'src/pay.js': 'export const pay = (order) => {\n  // gimi-ignore: code/debug-leftover — 결제 추적 로그(#7)\n  console.log(order)\n  debugger\n}\n' })
+    const result = run({ cwd: repo.dir, args: ['--json'] })
+    assert.equal(result.status, 1, result.stdout)
+    const { slop } = JSON.parse(result.stdout)
+    assert.deepEqual(slop.checked, { test: 0, code: 1, snapshot: 0 })
+    assert.deepEqual(slop.findings.map((f) => [f.id, f.severity, f.line]), [['code/debug-leftover', 'error', 4]])
+    assert.deepEqual(slop.ignored.map((f) => [f.id, f.reason]), [['code/debug-leftover', '결제 추적 로그(#7)']])
+  })
+
+  it('--dry-run은 슬롭 검사로 볼 파일 수를 보인다', () => {
+    const result = run({ cwd: repo.dir, args: ['--dry-run'] })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /^슬롭 검사 {2}바뀐 파일 1개\(코드 1\)의 바뀐 줄을 본다$/m)
+  })
+})

@@ -3,6 +3,7 @@
  * gimi-test 끝내기 전 검사 — 바뀐 범위의 테스트·타입 검사·린트를 실제로 돌리고, 실행한 명령·종료 코드·결과 수로 보고한다(설계 결정 9·50).
  * 바뀐 범위는 기준 브랜치와의 갈림점부터 지금 작업 트리까지다(커밋하지 않은 변경·새 파일 포함).
  * 명령은 설정 finishCheck.commands → guksu-harness verifier 설정 → 프로젝트 파일 감지 순서로 찾는다.
+ * 바뀐 JS·TS 파일의 바뀐 줄에서 테스트·코드 슬롭도 찾는다(설계 7절). 슬롭 error가 있으면 실패로 끝낸다.
  *
  *   node check.mjs                 # 찾은 명령을 돌리고 보고한다
  *   node check.mjs --dry-run       # 돌릴 명령만 보인다
@@ -10,18 +11,21 @@
  *   node check.mjs --base develop  # 기준 브랜치를 정한다
  *   node check.mjs --timeout 300   # 명령마다 시간 상한(초, 기본 600). 설정의 timeoutMs가 있으면 그것을 쓴다
  *
- * 종료 코드: 0 모두 통과(건너뛴 것이 있어도), 1 실패·시간 초과가 있음, 2 사용법·환경 오류. 의존성 없음, Node 22 이상.
+ * 종료 코드: 0 모두 통과(건너뛴 것·슬롭 warn이 있어도), 1 실패·시간 초과·슬롭 error가 있음, 2 사용법·환경 오류. 의존성 없음, Node 22 이상.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { collectChanges } from './lib/changes.mjs'
+import { collectChanges, collectLineChanges } from './lib/changes.mjs'
 import { ContextError, attempt, createExec } from './lib/exec.mjs'
 import { planChecks } from './lib/plan.mjs'
 import { renderCheckReport } from './lib/report.mjs'
 import { DEFAULT_TIMEOUT_MS, runCheck } from './lib/run.mjs'
+import { checkSlop, slopTargetOf } from './lib/slop.mjs'
 
 const USAGE = '사용: node check.mjs [--base 브랜치] [--dry-run] [--json] [--timeout 초]'
 const SCOPE = { related: '관련 테스트만', all: '전체', module: '모듈', config: '설정대로', harness: '설정대로' }
+// 이보다 큰 파일(번들·생성 파일)은 슬롭 검사에서 뺀다
+const MAX_SLOP_BYTES = 1024 * 1024
 
 const parseArgs = (argv) => {
   const args = { dryRun: false, json: false, help: false }
@@ -91,21 +95,38 @@ const main = async () => {
   const checks = plan.checks.map((check) => ({ ...check, timeoutMs: check.timeoutMs ?? args.timeoutMs ?? DEFAULT_TIMEOUT_MS }))
   const scope = { baseRef: changes.baseRef, mergeBase: changes.mergeBase, head: changes.head, branch: changes.branch, files: changes.files }
 
+  // 슬롭 검사 대상 — 바뀐 줄이 있는 JS·TS 파일과 스냅샷
+  const lineChanges = collectLineChanges({ exec, mergeBase: changes.mergeBase, files: changes.files })
+  const slopTargets = [...lineChanges.keys()].filter((path) => slopTargetOf(path) && existsSync(join(root, path)) && statSync(join(root, path)).size <= MAX_SLOP_BYTES).sort()
+
   if (args.dryRun) {
-    if (args.json) process.stdout.write(`${JSON.stringify({ version: 1, scope, source: plan.source, checks, skipped: plan.skipped }, null, 2)}\n`)
+    const counts = { test: 0, code: 0, snapshot: 0 }
+    for (const path of slopTargets) counts[slopTargetOf(path)] += 1
+    if (args.json) process.stdout.write(`${JSON.stringify({ version: 1, scope, source: plan.source, checks, skipped: plan.skipped, slopTargets }, null, 2)}\n`)
     else {
-      const rows = [...checks.map((check) => `돌릴 명령  ${check.name}(${SCOPE[check.scope] ?? check.scope})  ${check.cwd ? `[${check.cwd}] ` : ''}${check.command}`), ...plan.skipped.map((skip) => `건너뜀    ${skip.cwd ? `[${skip.cwd}] ` : ''}${skip.name} — ${skip.reason}`)]
+      const parts = [['테스트', counts.test], ['코드', counts.code], ['스냅샷', counts.snapshot]].filter(([, n]) => n > 0).map(([label, n]) => `${label} ${n}`)
+      const rows = [
+        ...checks.map((check) => `돌릴 명령  ${check.name}(${SCOPE[check.scope] ?? check.scope})  ${check.cwd ? `[${check.cwd}] ` : ''}${check.command}`),
+        ...plan.skipped.map((skip) => `건너뜀    ${skip.cwd ? `[${skip.cwd}] ` : ''}${skip.name} — ${skip.reason}`),
+        slopTargets.length > 0 ? `슬롭 검사  바뀐 파일 ${slopTargets.length}개(${parts.join(' · ')})의 바뀐 줄을 본다` : '슬롭 검사  바뀐 JS·TS 파일 없음',
+      ]
       process.stdout.write(`${rows.join('\n')}\n`)
     }
     return 0
   }
 
+  const slop = checkSlop({
+    files: slopTargets.map((path) => ({ path, text: readFileSync(join(root, path), 'utf8'), lines: lineChanges.get(path) })),
+    changedPaths: changes.files.map((file) => file.path),
+    stacks: Array.isArray(config.stacks) ? config.stacks : undefined,
+  })
+
   // 명령은 하나씩 돌린다 — 테스트·타입 검사가 같은 파일을 동시에 쓰거나 CPU를 다투지 않게
   const runs = []
   for (const check of checks) runs.push(await runCheck({ root, check }))
-  const report = { version: 1, generatedAt: new Date().toISOString(), scope, source: plan.source, runs, skipped: plan.skipped }
+  const report = { version: 1, generatedAt: new Date().toISOString(), scope, source: plan.source, runs, skipped: plan.skipped, slop }
   process.stdout.write(args.json ? `${JSON.stringify(report, null, 2)}\n` : renderCheckReport({ report }))
-  return runs.some((run) => run.status !== 'pass') ? 1 : 0
+  return runs.some((run) => run.status !== 'pass') || slop.findings.some((finding) => finding.severity === 'error') ? 1 : 0
 }
 
 // process.exit()는 파이프로 나가는 큰 출력을 자를 수 있어 종료 코드만 정한다

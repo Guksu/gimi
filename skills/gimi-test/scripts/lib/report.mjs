@@ -11,6 +11,10 @@ const SOURCE = {
 const SCOPE = { related: '관련 테스트만', all: '전체', module: '모듈', config: '설정대로', harness: '설정대로' }
 const LABEL = { pass: '통과      ', fail: '실패      ', timeout: '시간 초과  ' }
 const FAIL_TAIL = 5
+const SLOP_LABEL = { error: 'error     ', warn: 'warn      ' }
+// warn은 이만큼만 글로 쓴다 — 나머지는 --json으로 본다. error는 모두 쓴다
+const MAX_WARN_ROWS = 40
+const INDENT = '          '
 
 const seconds = (ms) => `${(ms / 1000).toFixed(1)}초`
 
@@ -23,6 +27,39 @@ const detailOf = (run) => {
 }
 
 const where = (cwd) => (cwd ? `[${cwd}] ` : '')
+
+/** 같은 파일의 같은 지적(같은 ID·내용)을 첫 줄로 묶는다 */
+const groupFindings = (findings) => {
+  const groups = new Map()
+  for (const finding of findings) {
+    const key = `${finding.id}\0${finding.path}\0${finding.message}\0${finding.note ?? ''}`
+    const group = groups.get(key)
+    if (group) group.more += 1
+    else groups.set(key, { ...finding, more: 0 })
+  }
+  return [...groups.values()]
+}
+
+const slopRows = (slop) => {
+  const { test, code, snapshot } = slop.checked
+  const total = test + code + snapshot
+  if (total === 0) return ['슬롭 검사  바뀐 JS·TS 파일 없음']
+  const parts = [['테스트', test], ['코드', code], ['스냅샷', snapshot]].filter(([, n]) => n > 0).map(([label, n]) => `${label} ${n}`)
+  const errors = slop.findings.filter((f) => f.severity === 'error')
+  const warns = slop.findings.filter((f) => f.severity !== 'error')
+  const tally = slop.findings.length + slop.ignored.length === 0 ? '지적 없음' : `error ${errors.length} · warn ${warns.length} · 무시 ${slop.ignored.length}`
+  const rows = [`슬롭 검사  바뀐 파일 ${total}개(${parts.join(' · ')}) — ${tally}`]
+  const row = (f) => {
+    rows.push(`${SLOP_LABEL[f.severity] ?? SLOP_LABEL.warn}${f.id}  ${f.path}:${f.line}${f.more > 0 ? ` 외 ${f.more}곳` : ''}  ${f.message}`)
+    if (f.note) rows.push(`${INDENT}${f.note}`)
+  }
+  groupFindings(errors).forEach(row)
+  const warnRows = groupFindings(warns)
+  warnRows.slice(0, MAX_WARN_ROWS).forEach(row)
+  if (warnRows.length > MAX_WARN_ROWS) rows.push(`${INDENT}warn ${warnRows.length - MAX_WARN_ROWS}줄 더 — --json으로 모두 본다`)
+  for (const f of slop.ignored) rows.push(`무시      ${f.id}  ${f.path}:${f.line} — ${f.reason}`)
+  return rows
+}
 
 /** @param {{ report: any }} args @returns {string} */
 export const renderCheckReport = ({ report }) => {
@@ -38,9 +75,17 @@ export const renderCheckReport = ({ report }) => {
     if (run.status !== 'pass') for (const line of run.outputTail.slice(-FAIL_TAIL)) rows.push(`          ${line}`)
   }
   for (const skip of skipped) rows.push(`건너뜀    ${where(skip.cwd)}${skip.name} — ${skip.reason}`)
+  const { slop } = report
+  if (slop) rows.push(...slopRows(slop))
 
   const tally = (status) => runs.filter((run) => run.status === status).length
-  rows.push(runs.length === 0 ? `결과      돌린 명령 없음 · 건너뜀 ${skipped.length}` : `결과      통과 ${tally('pass')} · 실패 ${tally('fail')} · 시간 초과 ${tally('timeout')} · 건너뜀 ${skipped.length}`)
-  rows.push('보고      실행한 명령·종료 코드·결과 수를 그대로 붙인다. 건너뛴 검사는 이유와 함께 적는다. 실패를 "원래 있던 실패"라고 하려면 기본 브랜치에서 같은 명령을 돌려 본다.')
+  const slopErrors = slop ? slop.findings.filter((f) => f.severity === 'error').length : 0
+  const slopTally = slop && slop.findings.length > 0 ? ` · 슬롭 error ${slopErrors} · warn ${slop.findings.length - slopErrors}` : ''
+  rows.push(runs.length === 0 ? `결과      돌린 명령 없음 · 건너뜀 ${skipped.length}${slopTally}` : `결과      통과 ${tally('pass')} · 실패 ${tally('fail')} · 시간 초과 ${tally('timeout')} · 건너뜀 ${skipped.length}${slopTally}`)
+  const advice = ['실행한 명령·종료 코드·결과 수를 그대로 붙인다.', '건너뛴 검사는 이유와 함께 적는다.', '실패를 "원래 있던 실패"라고 하려면 기본 브랜치에서 같은 명령을 돌려 본다.']
+  if (slopErrors > 0) advice.push('슬롭 error는 고친 뒤 다시 돌린다.')
+  if (slop && slop.findings.some((f) => f.severity !== 'error')) advice.push('슬롭 warn은 고치거나, 그대로 두면 이유를 적는다.')
+  if (slop && slop.findings.some((f) => f.disclose)) advice.push('건너뛰게 한 테스트·바꾼 기대값·갱신한 스냅샷은 이유와 함께 밝힌다.')
+  rows.push(`보고      ${advice.join(' ')}`)
   return `${rows.join('\n')}\n`
 }

@@ -112,8 +112,8 @@ export const testRules = ({ source, path, hunks, implementationChanged, front })
     if (!call.skip) continue
     // Playwright의 test.skip(조건, 이유)는 함수 없이 이유 문자열을 받는다
     const reasoned = reasonComment(source, call.line) || (!call.hasFn && !call.todo && call.hasString)
-    if (reasoned) add('done/test-bent', call.line, '이 변경에서 테스트를 건너뛰게 했다 — 건너뛴 테스트와 이유를 보고에 밝힌다')
-    else add('test/skip-without-reason', call.line, '이유 없이 건너뛰는 테스트다 — 이유와 이슈 번호를 주석으로 달거나 지운다. 이 변경에서 건너뛰게 했다면 보고에 밝힌다')
+    if (reasoned) add('done/test-bent', call.line, '이 변경에서 테스트를 건너뛰게 했다 — 건너뛴 테스트와 이유를 보고에 밝힌다', { disclose: true })
+    else add('test/skip-without-reason', call.line, '이유 없이 건너뛰는 테스트다 — 이유와 이슈 번호를 주석으로 달거나 지운다. 이 변경에서 건너뛰게 했다면 보고에 밝힌다', { disclose: true })
   }
 
   // 단언 없음 — 같은 파일의 도우미는 안을 보고, 다른 파일의 도우미는 판단하지 않는다
@@ -258,7 +258,7 @@ export const testRules = ({ source, path, hunks, implementationChanged, front })
         const now = lineExpectation(added.text)
         const was = now && before.find((b) => b.key === now.key && b.expected !== now.expected)
         if (was) {
-          add('test/rewritten-expectation', added.line, `구현과 함께 기대값을 바꿨다(${short(was.expected)} → ${short(now.expected)}) — 실패 원인을 코드에서 찾았는지 확인한다. 요구사항이 바뀌었다면 그 출처를 보고에 적는다`)
+          add('test/rewritten-expectation', added.line, `구현과 함께 기대값을 바꿨다(${short(was.expected)} → ${short(now.expected)}) — 실패 원인을 코드에서 찾았는지 확인한다. 요구사항이 바뀌었다면 그 출처를 보고에 적는다`, { disclose: true })
         }
       }
     }
@@ -271,7 +271,7 @@ export const testRules = ({ source, path, hunks, implementationChanged, front })
     else if (e.matcher === 'toMatchInlineSnapshot') {
       const last = source.lineOf(e.end)
       if (hunks.some((h) => h.removed.length > 0 && h.added.some((a) => a.line >= e.line && a.line <= last))) {
-        add('test/snapshot-dump', e.line, '같은 변경에서 인라인 스냅샷을 갱신했다 — 바뀐 값이 의도한 것인지 확인하고 이유를 보고에 적는다')
+        add('test/snapshot-dump', e.line, '같은 변경에서 인라인 스냅샷을 갱신했다 — 바뀐 값이 의도한 것인지 확인하고 이유를 보고에 적는다', { disclose: true })
       }
     }
   }
@@ -363,4 +363,4 @@ export const snapshotRules = ({ hunks }) =>
   hunks
     .filter((hunk) => hunk.removed.length > 0)
     .slice(0, 1)
-    .map((hunk) => ({ id: 'test/snapshot-dump', line: hunk.added[0]?.line ?? Math.max(1, hunk.newStart), message: '같은 변경에서 스냅샷 파일을 갱신했다 — 바뀐 화면이 의도한 것인지 확인하고 이유를 보고에 적는다' }))
+    .map((hunk) => ({ id: 'test/snapshot-dump', line: hunk.added[0]?.line ?? Math.max(1, hunk.newStart), message: '같은 변경에서 스냅샷 파일을 갱신했다 — 바뀐 화면이 의도한 것인지 확인하고 이유를 보고에 적는다', disclose: true }))
