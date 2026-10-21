@@ -7,7 +7,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SKILLS, checkAgentDocs, checkManifests, checkRoot, checkSharedCopies, checkSkillDoc, checkSkillSet } from './lib/skills.mjs'
+import { RULE_SEVERITY } from '../skills/gimi-test/scripts/lib/slop.mjs'
+import { PRESET_PREFIX, SHARED_FILES, SKILLS, checkAgentDocs, checkManifests, checkRoot, checkRules, checkSharedCopies, checkSkillDoc, checkSkillSet } from './lib/skills.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const errors = []
@@ -35,20 +36,38 @@ for (const name of SKILLS) {
   errors.push(...checkSkillDoc({ name, md, exists: (ref) => existsSync(join(skillsDir, name, ref)) }))
 }
 
-// 두 스킬이 함께 쓰는 파일의 복사본 — 스킬의 스크립트 폴더 아래 .mjs 전부
-const scriptFiles = (dir, base = dir) =>
+// 두 스킬이 함께 쓰는 파일의 복사본 — 스크립트 폴더의 .mjs와 shared/ 폴더의 .md 전부
+const filesUnder = (dir, ext, base = dir) =>
   existsSync(dir)
     ? readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
         const path = join(dir, entry.name)
-        if (entry.isDirectory()) return scriptFiles(path, base)
-        return entry.name.endsWith('.mjs') ? [relative(base, path)] : []
+        if (entry.isDirectory()) return filesUnder(path, ext, base)
+        return entry.name.endsWith(ext) ? [relative(base, path)] : []
       })
     : []
-errors.push(
-  ...checkSharedCopies({
-    files: SKILLS.flatMap((skill) => scriptFiles(join(skillsDir, skill, 'scripts'), join(skillsDir, skill)).map((path) => ({ skill, path, text: readFileSync(join(skillsDir, skill, path), 'utf8') }))),
-  }),
-)
+const skillFiles = (skill) =>
+  [...filesUnder(join(skillsDir, skill, 'scripts'), '.mjs', join(skillsDir, skill)), ...filesUnder(join(skillsDir, skill, 'shared'), '.md', join(skillsDir, skill))].map((path) => ({
+    skill,
+    path,
+    text: readFileSync(join(skillsDir, skill, path), 'utf8'),
+  }))
+errors.push(...checkSharedCopies({ files: SKILLS.flatMap(skillFiles) }))
+
+// 규칙 파일 — 두 스킬 모두 공통 금지선 네 영역과 분야 프리셋을 갖는다. 형식과 check.mjs와의 대조는 원본만 본다(복사본은 바이트가 같다)
+const ruleFiles = []
+for (const skill of SKILLS) {
+  for (const path of SHARED_FILES) if (!existsSync(join(skillsDir, skill, path))) errors.push(`skills/${skill}/${path} 없음`)
+}
+for (const skill of SKILLS) {
+  for (const path of SHARED_FILES) {
+    const text = readText(`skills/${skill}/${path}`)
+    if (text == null || !text.startsWith(`<!-- @shared ${path.split('/').at(-1)} origin: ${skill} -->`)) continue
+    const area = path.match(/^shared\/rules\/(\w+)\.md$/)?.[1]
+    const preset = path.match(/^shared\/domains\/([\w-]+)\/rules\.md$/)?.[1]
+    ruleFiles.push(area ? { path: `skills/${skill}/${path}`, text, kind: 'slop', area } : { path: `skills/${skill}/${path}`, text, kind: 'preset', prefix: PRESET_PREFIX[preset] })
+  }
+}
+errors.push(...checkRules({ files: ruleFiles, slopSeverity: RULE_SEVERITY }))
 
 errors.push(
   ...checkManifests({
