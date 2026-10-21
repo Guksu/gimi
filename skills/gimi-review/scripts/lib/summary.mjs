@@ -1,12 +1,15 @@
 /**
  * 맥락 묶음 요약 — 에이전트가 먼저 읽는 짧은 글. 전체는 JSON 파일에 있고, 요약은 줄 수 상한을 지킨다(설계 결정 19).
- * 순서: 범위 → 바뀐 파일 → 의도 → 이력 → 건너뜀 → 참고 → 전체 경로
+ * 순서: 범위 → 바뀐 파일 → 의도 → 이력 → 영향 범위 → 건너뜀 → 참고 → 전체 경로
  */
 
 const STATUS = { added: 'A', deleted: 'D', modified: 'M', renamed: 'R' }
 const TAG_LABEL = { fix: '수정', revert: '되돌리기', hotfix: '긴급', workaround: '우회' }
+const CHANGE_LABEL = { signature: '시그니처 변경', removed: '삭제', body: '본문만 변경' }
+const CHANGE_ORDER = { signature: 0, removed: 1, body: 2 }
 const MAX_FILES = 30
 const MAX_COMMITS = 10
+const MAX_USAGES = 20
 
 const capped = ({ rows, max, unit }) => (rows.length > max ? [...rows.slice(0, max), `  … 외 ${rows.length - max}${unit}`] : rows)
 
@@ -54,6 +57,39 @@ const historyRows = (history) => {
   return rows
 }
 
+const usageRows = (item) => {
+  const shown = item.usages.slice(0, MAX_USAGES).map((usage) => `    ${usage.path}:${usage.line}  ${usage.changedInPr ? '이 변경에서 바뀜' : '이 변경에서 안 바뀜'}`)
+  if (item.total > shown.length) shown.push(`    … 외 ${item.total - shown.length}곳`)
+  return shown
+}
+
+const usageSummary = ({ item, marker }) => {
+  if (item.searched === false) return '사용처를 찾지 않음(이름 없는 default export)'
+  if (item.total === 0) return '사용처 없음'
+  return `사용처 ${item.total}(이 변경에서 안 바뀜 ${item.unchanged}${marker ? ' · 문자열 검색' : ''})`
+}
+
+const impactRows = (impact) => {
+  const { symbols, literals, added } = impact
+  if (symbols.length === 0 && literals.length === 0) return [`영향 범위  바뀐 export·문자열 없음${added.length > 0 ? ` / 새 export ${added.length}개` : ''}`]
+  const method = impact.method === 'typescript' ? 'TypeScript 참조' : '문자열 검색'
+  const rows = [`영향 범위  바뀐 export ${symbols.length}개(${method}) / 바뀐 문자열 ${literals.length}개 / 새 export ${added.length}개`]
+  // 시그니처 변경·삭제가 먼저다 — 쓰는 쪽이 깨질 수 있다. 같은 종류 안에서는 이 변경에서 안 바뀐 사용처가 많은 것부터
+  const ordered = [...symbols].sort((a, b) => CHANGE_ORDER[a.change] - CHANGE_ORDER[b.change] || b.unchanged - a.unchanged)
+  for (const symbol of ordered) {
+    const marker = symbol.method === 'text' && impact.method === 'typescript'
+    rows.push(`  ${symbol.name} (${CHANGE_LABEL[symbol.change]}) — ${symbol.path}  ${usageSummary({ item: symbol, marker })}`, ...usageRows(symbol))
+  }
+  for (const literal of literals) rows.push(`  "${literal.value}" (바뀐 문자열) — ${literal.path}  ${usageSummary({ item: literal, marker: false })}`, ...usageRows(literal))
+  return rows
+}
+
+const impactNotes = (impact) => {
+  if (!impact) return []
+  const fallback = impact.method === 'text' ? [`영향 범위는 문자열 검색으로 찾았다(정확도 낮음) — ${impact.reason}`] : []
+  return [...fallback, ...impact.notes]
+}
+
 /**
  * @param {{ context: any, outPath: string | null, maxLines?: number }} args
  * @returns {string}
@@ -64,8 +100,9 @@ export const renderSummary = ({ context, outPath, maxLines = 300 }) => {
   rows.push('바뀐 파일', ...(files.length > 0 ? capped({ rows: files.map(fileRow), max: MAX_FILES, unit: '개' }) : ['  없음']))
   rows.push(...intentRows(intent))
   if (history) rows.push(...historyRows(history))
+  if (context.impact) rows.push(...impactRows(context.impact))
   rows.push(...(context.skipped.length > 0 ? context.skipped.map((skip) => `건너뜀  ${skip.context} — ${skip.reason}`) : ['건너뜀  없음']))
-  for (const note of [...context.notes, ...(history?.notes ?? [])]) rows.push(`참고    ${note}`)
+  for (const note of [...context.notes, ...(history?.notes ?? []), ...impactNotes(context.impact)]) rows.push(`참고    ${note}`)
   const last = `전체    ${outPath ?? '(JSON을 표준 출력으로 냈다)'}`
 
   // 상한을 넘으면 중간을 줄인다 — 마지막 줄(전체 경로)은 남겨 JSON을 열 수 있게 한다

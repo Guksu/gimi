@@ -56,7 +56,7 @@ const usageAt = ({ readLines, path, line, changedPaths }) => {
 const finalize = (usages) => {
   const unique = [...new Map(usages.map((u) => [`${u.path}:${u.line}`, u])).values()]
   unique.sort((a, b) => Number(a.changedInPr) - Number(b.changedInPr) || a.path.localeCompare(b.path) || a.line - b.line)
-  return { total: unique.length, usages: unique.slice(0, MAX_USAGES) }
+  return { total: unique.length, unchanged: unique.filter((u) => !u.changedInPr).length, usages: unique.slice(0, MAX_USAGES) }
 }
 
 const grep = ({ exec, args }) => {

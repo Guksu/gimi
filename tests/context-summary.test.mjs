@@ -33,15 +33,40 @@ const context = () => ({
     },
     notes: [],
   },
-  impact: null,
-  skipped: [{ context: '영향 범위', reason: '아직 구현 전' }],
+  impact: {
+    method: 'typescript',
+    reason: null,
+    symbols: [
+      { name: 'stable', kind: 'function', change: 'body', path: 'src/order.ts', method: 'typescript', searched: true, total: 0, unchanged: 0, usages: [] },
+      {
+        name: 'getStatus',
+        kind: 'function',
+        change: 'signature',
+        path: 'src/order.ts',
+        method: 'typescript',
+        searched: true,
+        total: 2,
+        unchanged: 1,
+        usages: [
+          { path: 'src/badge.ts', line: 2, text: '', context: [], changedInPr: false },
+          { path: 'src/list.ts', line: 2, text: '', context: [], changedInPr: true },
+        ],
+      },
+      { name: 'legacy', kind: 'function', change: 'removed', path: 'src/order.ts', method: 'text', searched: true, total: 1, unchanged: 1, usages: [{ path: 'src/legacy-user.ts', line: 2, text: '', context: [], changedInPr: false }] },
+      { name: 'default', kind: 'default', change: 'body', path: 'src/page.tsx', method: 'text', searched: false, total: 0, unchanged: 0, usages: [] },
+    ],
+    added: [{ name: 'fresh', path: 'src/order.ts' }],
+    literals: [{ value: 'orders/list', path: 'src/keys.ts', total: 1, unchanged: 1, usages: [{ path: 'src/cache.ts', line: 1, text: '', context: [], changedInPr: false }] }],
+    notes: [],
+  },
+  skipped: [{ context: '의도', reason: 'gh 없음' }],
   notes: [],
 })
 
 describe('renderSummary', () => {
-  it('범위·바뀐 파일·의도·이력·건너뜀·전체 경로를 차례로 보인다', () => {
+  it('범위·바뀐 파일·의도·이력·영향 범위·건너뜀·전체 경로를 차례로 보인다', () => {
     const text = renderSummary({ context: context(), outPath: 'docs/gimi/reviews/x.context.json' })
-    const order = ['범위', '바뀐 파일', '의도', '이력', '건너뜀', '전체'].map((label) => text.indexOf(label))
+    const order = ['범위', '바뀐 파일', '의도', '이력', '영향 범위', '건너뜀', '전체'].map((label) => text.indexOf(label))
     assert.ok(order.every((index, i) => index >= 0 && (i === 0 || index > order[i - 1])), text)
     assert.match(text, /main\.\.\.feat\/SHOP-9-status/)
     assert.match(text, /M src\/order\.ts {2}\+3 −1/)
@@ -49,8 +74,46 @@ describe('renderSummary', () => {
     assert.match(text, /PR #42 "주문 상태 표시"/)
     assert.match(text, /이슈 #38 "배지 색"/)
     assert.match(text, /SHOP-9\(jira — 에이전트가 읽음\)/)
-    assert.match(text, /영향 범위 — 아직 구현 전/)
     assert.match(text, /docs\/gimi\/reviews\/x\.context\.json/)
+  })
+
+  it('영향 범위 머리에 바뀐 export·바뀐 문자열·새 export 수와 찾은 방법을 쓴다', () => {
+    const text = renderSummary({ context: context(), outPath: 'x.json' })
+    assert.match(text, /^영향 범위 {2}바뀐 export 4개\(TypeScript 참조\) \/ 바뀐 문자열 1개 \/ 새 export 1개$/m)
+  })
+
+  it('시그니처 변경·삭제를 본문만 변경보다 먼저 보이고, 사용처마다 이 변경에서 함께 바뀌었는지 적는다', () => {
+    const text = renderSummary({ context: context(), outPath: 'x.json' })
+    assert.match(text, /^ {2}getStatus \(시그니처 변경\) — src\/order\.ts {2}사용처 2\(이 변경에서 안 바뀜 1\)$/m)
+    assert.match(text, /^ {4}src\/badge\.ts:2 {2}이 변경에서 안 바뀜$/m)
+    assert.match(text, /^ {4}src\/list\.ts:2 {2}이 변경에서 바뀜$/m)
+    assert.match(text, /^ {2}legacy \(삭제\) — src\/order\.ts {2}사용처 1\(이 변경에서 안 바뀜 1 · 문자열 검색\)$/m)
+    assert.match(text, /^ {2}stable \(본문만 변경\) — src\/order\.ts {2}사용처 없음$/m)
+    assert.ok(text.indexOf('legacy (삭제)') < text.indexOf('stable (본문만 변경)'), text)
+  })
+
+  it('이름 없는 default export는 사용처를 찾지 않았다고 쓰고, 바뀐 문자열과 그 사용처를 보인다', () => {
+    const text = renderSummary({ context: context(), outPath: 'x.json' })
+    assert.match(text, /^ {2}default \(본문만 변경\) — src\/page\.tsx {2}사용처를 찾지 않음\(이름 없는 default export\)$/m)
+    assert.match(text, /^ {2}"orders\/list" \(바뀐 문자열\) — src\/keys\.ts {2}사용처 1\(이 변경에서 안 바뀜 1\)$/m)
+    assert.match(text, /^ {4}src\/cache\.ts:1 {2}이 변경에서 안 바뀜$/m)
+  })
+
+  it('사용처는 20곳까지만 보이고 나머지 수를 적는다', () => {
+    const ctx = context()
+    const usages = Array.from({ length: 25 }, (_, i) => ({ path: `src/u${i}.ts`, line: 1, text: '', context: [], changedInPr: false }))
+    ctx.impact.symbols = [{ name: 'formatPrice', kind: 'function', change: 'signature', path: 'src/price.ts', method: 'typescript', searched: true, total: 40, unchanged: 40, usages }]
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.match(text, /^ {4}… 외 20곳$/m)
+  })
+
+  it('문자열 검색으로 내려갔으면 이유와 정확도를 참고로 적는다', () => {
+    const ctx = context()
+    ctx.impact.method = 'text'
+    ctx.impact.reason = '이 프로젝트에 typescript가 없다'
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.match(text, /^영향 범위 {2}바뀐 export 4개\(문자열 검색\)/m)
+    assert.match(text, /^참고 {4}영향 범위는 문자열 검색으로 찾았다\(정확도 낮음\) — 이 프로젝트에 typescript가 없다$/m)
   })
 
   it('바뀐 줄을 넣은 커밋은 수정·되돌리기 표시가 있는 것부터 보이고, 서식 정리 커밋은 뺀다', () => {
