@@ -1,0 +1,435 @@
+openapi: 3.0.3
+info:
+  title: 국수집 주문 API
+  version: 1.0.0
+  description: |
+    gimi 평가용 예제 저장소의 server API. web은 이 계약에서 만든 타입(web/src/api/schema.d.ts)을 쓴다.
+    금액은 모두 원 단위 정수다. 사용자는 x-user-id 머리로 정한다(예제라 로그인이 없다).
+paths:
+  /products:
+    get:
+      operationId: listProducts
+      responses:
+        '200':
+          description: 상품 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+  /orders/quote:
+    post:
+      operationId: quoteOrder
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        '200':
+          description: 서버가 계산한 결제 금액
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /orders:
+    get:
+      operationId: listOrders
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: 내 주문 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderSummary'
+    post:
+      operationId: createOrder
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        '200':
+          description: 같은 멱등 키로 이미 만든 주문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '201':
+          description: 새 주문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: 주문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/Error'
+  /orders/{id}/checkout:
+    post:
+      operationId: openCheckout
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '201':
+          description: 결제창 — 금액은 서버에 저장한 주문 금액이다
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Checkout'
+        '409':
+          $ref: '#/components/responses/Error'
+  /orders/{id}/cancel:
+    post:
+      operationId: cancelOrder
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: integer
+                  description: 부분 취소 금액. 없으면 남은 금액 전부
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: 취소 뒤 주문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /orders/{id}/returns:
+    post:
+      operationId: requestReturn
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  enum: [change_of_mind, defective]
+      responses:
+        '201':
+          description: 반품 접수
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, deadline]
+                properties:
+                  id:
+                    type: integer
+                  deadline:
+                    type: string
+                    format: date-time
+        '409':
+          $ref: '#/components/responses/Error'
+  /payments/confirm:
+    post:
+      operationId: confirmPayment
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, paymentKey, amount]
+              properties:
+                orderId:
+                  type: integer
+                paymentKey:
+                  type: string
+                amount:
+                  type: integer
+                  description: 결제창에서 돌아온 금액 — 서버가 저장한 금액과 대조한다
+      responses:
+        '200':
+          description: 결제 완료(또는 가상계좌 입금 대기) 주문
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '202':
+          description: 결과를 확인하는 중
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message]
+                properties:
+                  status:
+                    type: string
+                    enum: [checking]
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/Error'
+        '402':
+          $ref: '#/components/responses/Error'
+        '502':
+          $ref: '#/components/responses/Error'
+components:
+  parameters:
+    UserId:
+      name: x-user-id
+      in: header
+      required: true
+      schema:
+        type: integer
+    OrderId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+  responses:
+    Error:
+      description: 오류 — 화면은 code로 문구를 고른다
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    Method:
+      type: string
+      enum: [card, transfer, virtual_account]
+    OrderStatus:
+      type: string
+      enum: [pending_payment, waiting_for_deposit, payment_failed, paid, preparing, shipped, delivered, partially_refunded, cancelled]
+    Product:
+      type: object
+      required: [id, name, price, stock, soldOut, returnable, maxPerOrder]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: integer
+        stock:
+          type: integer
+        soldOut:
+          type: boolean
+        returnable:
+          type: boolean
+          description: false면 "단순 변심으로 반품할 수 없다"를 상품 화면에 표시한다
+        maxPerOrder:
+          type: integer
+    OrderRequest:
+      type: object
+      required: [items, method]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [productId, quantity]
+            properties:
+              productId:
+                type: integer
+              quantity:
+                type: integer
+        couponCode:
+          type: string
+        points:
+          type: integer
+        method:
+          $ref: '#/components/schemas/Method'
+    QuoteLine:
+      type: object
+      required: [productId, name, unitPrice, quantity, lineTotal]
+      properties:
+        productId:
+          type: integer
+        name:
+          type: string
+        unitPrice:
+          type: integer
+        quantity:
+          type: integer
+        lineTotal:
+          type: integer
+    Quote:
+      type: object
+      required: [lines, subtotal, couponCode, couponDiscount, pointsUsed, shippingFee, total, freeShippingThreshold, method]
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuoteLine'
+        subtotal:
+          type: integer
+        couponCode:
+          type: string
+          nullable: true
+        couponDiscount:
+          type: integer
+        pointsUsed:
+          type: integer
+        shippingFee:
+          type: integer
+        total:
+          type: integer
+        freeShippingThreshold:
+          type: integer
+        method:
+          $ref: '#/components/schemas/Method'
+    OrderItem:
+      type: object
+      required: [productId, name, unitPrice, quantity, returnable]
+      properties:
+        productId:
+          type: integer
+        name:
+          type: string
+        unitPrice:
+          type: integer
+        quantity:
+          type: integer
+        returnable:
+          type: boolean
+    Order:
+      type: object
+      required: [id, status, method, items, subtotal, couponDiscount, pointsUsed, shippingFee, total, pointsEarned, refundedAmount, refundableAmount, canCancel, canReturn, returnDeadline, createdAt, paidAt, deliveredAt]
+      properties:
+        id:
+          type: integer
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        method:
+          $ref: '#/components/schemas/Method'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        subtotal:
+          type: integer
+        couponDiscount:
+          type: integer
+        pointsUsed:
+          type: integer
+        shippingFee:
+          type: integer
+        total:
+          type: integer
+        pointsEarned:
+          type: integer
+        refundedAmount:
+          type: integer
+        refundableAmount:
+          type: integer
+          description: 지금 환불할 수 있는 금액
+        canCancel:
+          type: boolean
+          description: 화면은 이 값으로 취소 버튼을 보인다
+        canReturn:
+          type: boolean
+        returnDeadline:
+          type: string
+          format: date-time
+          nullable: true
+          description: 이 시각부터 반품을 받지 않는다
+        createdAt:
+          type: string
+          format: date-time
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+        deliveredAt:
+          type: string
+          format: date-time
+          nullable: true
+    OrderSummary:
+      type: object
+      required: [id, status, total, createdAt]
+      properties:
+        id:
+          type: integer
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        total:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    Checkout:
+      type: object
+      required: [paymentKey, checkoutUrl]
+      properties:
+        paymentKey:
+          type: string
+        checkoutUrl:
+          type: string
