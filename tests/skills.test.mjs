@@ -1,6 +1,37 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkAgentDocs, checkManifests, checkRoot, checkSkillDoc, checkSkillSet } from '../scripts/lib/skills.mjs'
+import { checkAgentDocs, checkManifests, checkRoot, checkSharedCopies, checkSkillDoc, checkSkillSet } from '../scripts/lib/skills.mjs'
+
+describe('checkSharedCopies', () => {
+  const header = '// @shared exec.mjs origin: gimi-review\n'
+  const origin = { skill: 'gimi-review', path: 'scripts/lib/exec.mjs', text: `${header}export const a = 1\n` }
+
+  it('원본과 내용이 같은 복사본은 통과한다', () => {
+    const copy = { skill: 'gimi-test', path: 'scripts/lib/exec.mjs', text: origin.text }
+    assert.deepEqual(checkSharedCopies({ files: [origin, copy] }), [])
+  })
+
+  it('복사본이 원본과 다르면 오류', () => {
+    const copy = { skill: 'gimi-test', path: 'scripts/lib/exec.mjs', text: `${header}export const a = 2\n` }
+    const errors = checkSharedCopies({ files: [origin, copy] })
+    assert.equal(errors.length, 1)
+    assert.match(errors[0], /skills\/gimi-test\/scripts\/lib\/exec\.mjs.*원본.*다름/)
+  })
+
+  it('원본이 없으면 오류', () => {
+    const copy = { skill: 'gimi-test', path: 'scripts/lib/exec.mjs', text: origin.text }
+    assert.equal(checkSharedCopies({ files: [copy] }).length, 1)
+  })
+
+  it('머리의 파일 이름이 실제 파일 이름과 다르면 오류', () => {
+    const wrong = { skill: 'gimi-review', path: 'scripts/lib/other.mjs', text: origin.text }
+    assert.ok(checkSharedCopies({ files: [wrong] }).some((e) => /파일 이름/.test(e)))
+  })
+
+  it('머리가 없는 파일은 보지 않는다', () => {
+    assert.deepEqual(checkSharedCopies({ files: [{ skill: 'gimi-test', path: 'scripts/lib/run.mjs', text: '/** 그냥 파일 */\n' }] }), [])
+  })
+})
 
 const longDescription = '코드 리뷰를 diff 안에서 끝내지 않고 바뀐 코드를 쓰는 곳과 요구사항과 변경 이력까지 모아 근거가 있는 지적만 남기며 "PR 리뷰해줘" 요청과 code review 작업에 쓴다.'
 const docOf = ({ name = 'gimi-review', description = longDescription, body = '\n# 본문\n' } = {}) => `---\nname: ${name}\ndescription: ${description}\n---\n${body}`

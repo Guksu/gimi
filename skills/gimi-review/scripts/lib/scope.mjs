@@ -1,3 +1,4 @@
+// @shared scope.mjs origin: gimi-review
 /**
  * 리뷰 범위 — 기준 브랜치와 HEAD의 갈림점(merge-base)부터 HEAD까지다.
  * 기준은 --base → PR의 기준 브랜치 → 원격 기본 브랜치(origin/HEAD) → origin/main·origin/master → main·master 순서로 정한다.

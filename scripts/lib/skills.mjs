@@ -93,6 +93,30 @@ export const checkManifests = ({ claudePlugin, claudeMarketplace, codexPlugin, a
   return errors
 }
 
+const SHARED_HEADER = /^\/\/ @shared (\S+) origin: ([\w-]+)\s*$/
+
+/**
+ * 두 스킬이 함께 쓰는 파일 — 각 스킬에 복사본을 두고(스킬 하나만 설치해도 돈다), 첫 줄 머리로 원본을 가리킨다.
+ * 복사본은 원본과 바이트 단위로 같아야 한다. 한쪽만 고치면 두 스킬이 다르게 동작한다.
+ * @param {{ files: { skill: string, path: string, text: string }[] }} args path는 스킬 폴더 기준
+ */
+export const checkSharedCopies = ({ files }) => {
+  const errors = []
+  const byKey = new Map(files.map((file) => [`${file.skill}/${file.path}`, file]))
+  for (const file of files) {
+    const header = file.text.split('\n')[0].match(SHARED_HEADER)
+    if (!header) continue
+    const [, name, origin] = header
+    const label = `skills/${file.skill}/${file.path}`
+    if (!file.path.endsWith(`/${name}`)) errors.push(`${label}: @shared 머리의 파일 이름(${name})이 실제 파일 이름과 다름`)
+    if (origin === file.skill) continue
+    const source = byKey.get(`${origin}/${file.path}`)
+    if (!source) errors.push(`${label}: 원본 skills/${origin}/${file.path} 없음`)
+    else if (source.text !== file.text) errors.push(`${label}: 원본 skills/${origin}/${file.path}과 다름 — 원본을 다시 복사한다`)
+  }
+  return errors
+}
+
 /** @param {{ entries: string[] }} args 저장소 루트의 파일·폴더 이름 */
 export const checkRoot = ({ entries }) =>
   ROOT_COMPONENTS.filter((component) => entries.includes(component)).map((component) => `루트에 ${component}이(가) 있음 — 플러그인 구성으로 사용자 환경에 로드된다`)

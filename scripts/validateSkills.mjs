@@ -7,7 +7,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SKILLS, checkAgentDocs, checkManifests, checkRoot, checkSkillDoc, checkSkillSet } from './lib/skills.mjs'
+import { SKILLS, checkAgentDocs, checkManifests, checkRoot, checkSharedCopies, checkSkillDoc, checkSkillSet } from './lib/skills.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const errors = []
@@ -34,6 +34,21 @@ for (const name of SKILLS) {
   if (md == null) continue
   errors.push(...checkSkillDoc({ name, md, exists: (ref) => existsSync(join(skillsDir, name, ref)) }))
 }
+
+// 두 스킬이 함께 쓰는 파일의 복사본 — 스킬의 스크립트 폴더 아래 .mjs 전부
+const scriptFiles = (dir, base = dir) =>
+  existsSync(dir)
+    ? readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const path = join(dir, entry.name)
+        if (entry.isDirectory()) return scriptFiles(path, base)
+        return entry.name.endsWith('.mjs') ? [relative(base, path)] : []
+      })
+    : []
+errors.push(
+  ...checkSharedCopies({
+    files: SKILLS.flatMap((skill) => scriptFiles(join(skillsDir, skill, 'scripts'), join(skillsDir, skill)).map((path) => ({ skill, path, text: readFileSync(join(skillsDir, skill, path), 'utf8') }))),
+  }),
+)
 
 errors.push(
   ...checkManifests({
