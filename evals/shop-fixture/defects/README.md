@@ -49,13 +49,23 @@ defects/{ID}/
 gimi 저장소 루트에서 돌린다.
 
 ```bash
-node scripts/defects.mjs check [ID…]           # 패치가 붙는지, defect.json 형식·정답 위치, 잡는 테스트
+node scripts/defects.mjs check [ID…]           # 패치가 붙는지, defect.json 형식·정답 위치, 잡는 테스트, 패턴 예시
 node scripts/defects.mjs check --no-tests      # 잡는 테스트를 빼고(PostgreSQL 없이)
 node scripts/defects.mjs materialize <ID> <폴더> # 평가용 저장소 — main = 정상 버전, defect/<ID> = 결함 PR
 node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 결함을 만들 때
 ```
 
-잡는 테스트는 예제 저장소의 의존성(`npm ci`)과 PostgreSQL(`npm run db:up`)이 있어야 돌린다. 커밋 작성자와 시각을 고정해, 같은 결함은 언제 만들어도 커밋 해시가 같다.
+잡는 테스트와 패턴 예시는 예제 저장소의 의존성(`npm ci`)과 PostgreSQL(`npm run db:up`)이 있어야 돌린다. 커밋 작성자와 시각을 고정해, 같은 결함은 언제 만들어도 커밋 해시가 같다.
+
+## 패턴 예시
+
+gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결함 버전에서 돌려 본다. `evals/patterns/{패턴}.json`에 예시마다 두는 자리(`at`)와 대는 결함(`defect`)을 적는다.
+
+```json
+{ "pattern": "concurrency", "assets": [{ "file": "stock-race.test.ts", "at": "server/test/stock-race.test.ts", "defect": "COM-007" }] }
+```
+
+`check`는 그 결함의 정상·결함 버전에 예시를 복사한다. 정상 버전에서 워크스페이스 타입 검사와 예시가 통과해야 하고, 결함 버전에서 좋은 예시(`*.test.ts(x)`)는 실패·슬롭 예시(`*.slop.test.ts(x)`)는 통과해야 한다. `at`은 정상 버전에 없는 새 테스트 파일이어야 한다.
 
 ## 새 결함 만들기
 
@@ -69,8 +79,8 @@ node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 �
 
 ## 지금 있는 결함
 
-| ID | 층 | 무엇을 심었나 | 잡는 테스트 |
+| ID | 층 | 무엇을 심었나 | 잡는 테스트 · 패턴 예시 |
 |---|---|---|---|
-| COM-007 | 백엔드 | 남은 수량을 알려 주려고 재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다 — 동시 주문이 모두 통과한다 | `server/test/orders.test.ts` 동시 주문 |
-| COM-016 | 프론트 | 결제하기를 누를 때마다 새 멱등 키를 만든다 — 응답이 끊긴 뒤 다시 누르면 주문이 하나 더 생긴다 | `web/src/pages/checkout.test.tsx` 응답이 끊긴 뒤 재시도 |
-| KCL-001 | 백엔드 | 반품 기한을 배송 시각 + 7×24시간으로 따로 계산한다 — 화면이 보이는 마감(7일째 23:59)보다 일찍 막는다 | `server/test/refunds-returns.test.ts` 7일째 경계 |
+| COM-007 | 백엔드 | 남은 수량을 알려 주려고 재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다 — 동시 주문이 모두 통과한다 | `server/test/orders.test.ts` 동시 주문 · `concurrency` |
+| COM-016 | 프론트 | 결제하기를 누를 때마다 새 멱등 키를 만든다 — 응답이 끊긴 뒤 다시 누르면 주문이 하나 더 생긴다 | `web/src/pages/checkout.test.tsx` 응답이 끊긴 뒤 재시도 · `api-boundary` |
+| KCL-001 | 백엔드 | 반품 기한을 배송 시각 + 7×24시간으로 따로 계산한다 — 화면이 보이는 마감(7일째 23:59)보다 일찍 막는다 | `server/test/refunds-returns.test.ts` 7일째 경계 · `domain-boundaries` |
