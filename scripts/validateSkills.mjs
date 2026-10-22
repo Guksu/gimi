@@ -8,6 +8,8 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { RULE_SEVERITY } from '../skills/gimi-test/scripts/lib/slop.mjs'
+import { expectedSkillDocument, readPatterns } from './buildCatalog.mjs'
+import { checkPatternDoc } from './lib/patterns.mjs'
 import { PRESET_PREFIX, SHARED_FILES, SKILLS, checkAgentDocs, checkManifests, checkRoot, checkRules, checkSharedCopies, checkSkillDoc, checkSkillSet } from './lib/skills.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -53,6 +55,13 @@ const skillFiles = (skill) =>
   }))
 errors.push(...checkSharedCopies({ files: SKILLS.flatMap(skillFiles) }))
 
+// 테스트 패턴 — PATTERN.md 형식과, SKILL.md 카탈로그가 PATTERN.md에서 만든 것과 같은지
+const patterns = readPatterns()
+for (const pattern of patterns) errors.push(...checkPatternDoc(pattern))
+const expectedTestSkill = expectedSkillDocument()
+if (expectedTestSkill === null) errors.push('skills/gimi-test/SKILL.md: 패턴 카탈로그 표시(<!-- catalog:start --> … <!-- catalog:end -->)가 없다')
+else if (expectedTestSkill !== readText('skills/gimi-test/SKILL.md')) errors.push('skills/gimi-test/SKILL.md: 패턴 카탈로그가 PATTERN.md와 어긋남 — npm run catalog로 다시 만든다')
+
 // 규칙 파일 — 두 스킬 모두 공통 금지선 네 영역과 분야 프리셋을 갖는다. 형식과 check.mjs와의 대조는 원본만 본다(복사본은 바이트가 같다)
 const ruleFiles = []
 for (const skill of SKILLS) {
@@ -85,4 +94,4 @@ if (errors.length > 0) {
   errors.forEach((error) => console.error(`  - ${error}`))
   process.exit(1)
 }
-console.log(`스킬 구조 검사 통과 (스킬 ${SKILLS.join('·')}, 매니페스트 4개)`)
+console.log(`스킬 구조 검사 통과 (스킬 ${SKILLS.join('·')}, 패턴 ${patterns.length}개, 매니페스트 4개)`)

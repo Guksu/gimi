@@ -8,6 +8,8 @@
  *
  * 평가 파일: evals/trigger/{스킬}.json — { "skill": "…", "should": [...8개 이상], "shouldNot": [...6개 이상], "contested": [...선택] }
  *   contested — 단어 겹침으로는 경쟁 스킬과 동점을 깰 수 없는 질의. 대상이 1위 동점 안이면 통과하고, 동점은 경고로 출력한다
+ * 패턴 선택: evals/selection/{패턴}.json — { "pattern": "…", "should": [...3개 이상], "shouldNot": [...3개 이상] }
+ *   gimi-test의 PATTERN.md description끼리 겨뤄 should는 그 패턴이 혼자 1위, shouldNot은 1위가 아니어야 한다(scripts/lib/patterns.mjs)
  * 실행: node scripts/evalSelection.mjs [--verbose] [--margins]
  *   --verbose  질의마다 상위 3개 점수
  *   --margins  통과한 should 중 2위와 점수 차가 가장 작은 10개 — description이 흔들리기 쉬운 곳
@@ -16,7 +18,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readPatterns } from './buildCatalog.mjs'
 import { fieldOf, frontmatterOf } from './lib/frontmatter.mjs'
+import { evaluatePatternSelection } from './lib/patterns.mjs'
 import { evaluateTrigger, validateSpec } from './lib/trigger.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -65,6 +69,18 @@ for (const file of specFiles) {
 // 평가 파일이 없는 스킬 — 스킬을 더하면 평가도 같이 더해야 한다
 for (const name of skillNames) if (!covered.has(name)) errors.push(`${name}: evals/trigger/${name}.json 없음`)
 
+// 패턴 선택 — gimi-test 안에서 요청에 맞는 패턴이 1위인가(카탈로그의 description끼리 겨룬다)
+const selectionDir = join(root, 'evals', 'selection')
+const patterns = readPatterns()
+const selectionSpecs = (existsSync(selectionDir) ? readdirSync(selectionDir).filter((file) => file.endsWith('.json')).sort() : []).map((file) => ({
+  file: `evals/selection/${file}`,
+  spec: JSON.parse(readFileSync(join(selectionDir, file), 'utf8')),
+}))
+const selection = evaluatePatternSelection({ patterns, specs: selectionSpecs })
+errors.push(...selection.errors)
+for (const margin of selection.margins) margins.push({ skill: `패턴 ${margin.pattern}`, ...margin })
+if (verbose) for (const line of selection.lines) console.log(`  패턴 ${line}`)
+
 if (showMargins) {
   console.log('2위와 점수 차가 가장 작은 should 질의 10개:')
   margins
@@ -79,8 +95,9 @@ if (warnings.length > 0) {
 }
 
 if (errors.length > 0) {
-  console.error(`트리거 평가 실패 ${errors.length}건 (통과 ${passed}/${total}):`)
+  console.error(`트리거·패턴 선택 평가 실패 ${errors.length}건 (트리거 통과 ${passed}/${total}, 패턴 통과 ${selection.passed}/${selection.total}):`)
   errors.forEach((error) => console.error(`  - ${error}`))
   process.exit(1)
 }
 console.log(`트리거 평가 통과 ${passed}/${total} (스킬 ${skills.length}개, decoy ${decoys.length}개)`)
+console.log(`패턴 선택 평가 통과 ${selection.passed}/${selection.total} (패턴 ${patterns.length}개)`)
