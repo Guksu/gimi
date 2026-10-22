@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { formatCheck, patchedPaths, runCatches, validateDefect } from '../scripts/lib/defects.mjs'
+import { assetsFor, formatCheck, patchedPaths, runAssets, runCatches, validateDefect, validatePatternAssets } from '../scripts/lib/defects.mjs'
 
 const good = () => ({
   id: 'COM-007',
@@ -138,7 +138,110 @@ describe('formatCheck — 보고', () => {
 
   it('문제가 없으면 그렇게 적고, 잡는 테스트를 돌리지 않았으면 그것도 적는다', () => {
     const text = formatCheck([{ id: 'COM-007', defect: good(), errors: [], catches: null }], { tests: false })
-    assert.equal(text, ['결함 PR 1개 — 문제 없음', '  COM-007  백엔드 · 도메인 규칙 · 정답 1', '잡는 테스트는 돌리지 않았다(--no-tests)'].join('\n'))
+    assert.equal(text, ['결함 PR 1개 — 문제 없음', '  COM-007  백엔드 · 도메인 규칙 · 정답 1', '잡는 테스트와 패턴 예시는 돌리지 않았다(--no-tests)'].join('\n'))
     assert.match(formatCheck([{ id: 'X-001', defect: { ...good(), clean: true, findings: [], catches: [] }, errors: [], catches: [] }], { tests: true }), /X-001 {2}백엔드 · 도메인 규칙 · 결함 없음/)
+  })
+})
+
+describe('validatePatternAssets — 패턴 예시 검증 설정(evals/patterns/{패턴}.json)', () => {
+  const spec = () => ({
+    pattern: 'concurrency',
+    assets: [
+      { file: 'stock-race.test.ts', at: 'server/test/stock-race.test.ts', defect: 'COM-007' },
+      { file: 'stock-race.slop.test.ts', at: 'server/test/stock-race.slop.test.ts', defect: 'COM-007' },
+    ],
+  })
+  const check = (json, overrides = {}) =>
+    validatePatternAssets({
+      file: 'evals/patterns/concurrency.json',
+      spec: json,
+      assetsOf: (name) => (name === 'concurrency' ? ['stock-race.test.ts', 'stock-race.slop.test.ts'] : null),
+      defectIds: new Set(['COM-007']),
+      workspaces: ['fake-pg', 'server', 'web'],
+      baseHas: (path) => path === 'server/test/orders.test.ts',
+      ...overrides,
+    })
+
+  it('형식이 맞으면 오류가 없다', () => {
+    assert.deepEqual(check(spec()), [])
+  })
+
+  it('패턴·예시 파일·결함이 있어야 하고, 두는 곳(at)은 워크스페이스 안의 새 테스트 파일이어야 한다', () => {
+    assert.ok(check({ ...spec(), pattern: 'nope' }).some((e) => /nope.*패턴이 없다/.test(e)))
+    const json = spec()
+    json.assets[0] = { file: 'missing.test.ts', at: 'mobile/test/a.test.ts', defect: 'COM-999' }
+    json.assets[1] = { ...json.assets[1], at: 'server/test/orders.test.ts' }
+    const errors = check(json)
+    for (const pattern of [/missing\.test\.ts.*assets에 없다/, /mobile.*워크스페이스/, /COM-999.*없는 결함/, /orders\.test\.ts.*정상 버전에 이미 있다/]) assert.ok(errors.some((e) => pattern.test(e)), `${pattern} — ${errors.join(' / ')}`)
+  })
+
+  it('assets의 테스트 예시는 모두 검증하고, 좋은 예시와 슬롭 예시가 하나 이상씩이다', () => {
+    const errors = check({ ...spec(), assets: [spec().assets[0]] })
+    assert.ok(errors.some((e) => /stock-race\.slop\.test\.ts.*검증하지 않는다/.test(e)), errors.join(' / '))
+    assert.ok(errors.some((e) => /슬롭 예시가 없다/.test(e)), errors.join(' / '))
+  })
+})
+
+describe('assetsFor — 결함 하나에 돌릴 패턴 예시', () => {
+  it('그 결함을 가리키는 예시만, 좋은 예시·슬롭 예시를 파일 이름으로 가른다', () => {
+    const specs = [
+      { pattern: 'concurrency', assets: [{ file: 'a.test.ts', at: 'server/test/a.test.ts', defect: 'COM-007' }, { file: 'a.slop.test.ts', at: 'server/test/a.slop.test.ts', defect: 'COM-007' }] },
+      { pattern: 'api-boundary', assets: [{ file: 'b.test.tsx', at: 'web/src/b.test.tsx', defect: 'COM-016' }] },
+    ]
+    assert.deepEqual(assetsFor(specs, 'COM-007'), [
+      { pattern: 'concurrency', file: 'a.test.ts', at: 'server/test/a.test.ts', kind: 'good' },
+      { pattern: 'concurrency', file: 'a.slop.test.ts', at: 'server/test/a.slop.test.ts', kind: 'slop' },
+    ])
+    assert.deepEqual(assetsFor(specs, 'KCL-001'), [])
+  })
+})
+
+describe('runAssets — 좋은 예시는 결함을 잡고, 슬롭 예시는 놓친다', () => {
+  const assets = [
+    { pattern: 'concurrency', file: 'a.test.ts', at: 'server/test/a.test.ts', kind: 'good' },
+    { pattern: 'concurrency', file: 'a.slop.test.ts', at: 'server/test/a.slop.test.ts', kind: 'slop' },
+  ]
+
+  it('정상 버전에서 타입 검사·둘 다 통과, 결함 버전에서 좋은 예시는 실패·슬롭 예시는 통과해야 한다', async () => {
+    const calls = []
+    const run = async ({ cwd, file }) => (calls.push([cwd, file]), cwd.startsWith('/patched') && file === 'test/a.test.ts' ? 1 : 0)
+    const typecheck = async ({ cwd }) => (calls.push([cwd, 'tsc']), 0)
+    const results = await runAssets({ base: '/base', patched: '/patched', assets, run, typecheck })
+    assert.deepEqual(results.map((r) => r.ok), [true, true, true])
+    assert.deepEqual(calls, [
+      ['/base/server', 'tsc'],
+      ['/base/server', 'test/a.test.ts'],
+      ['/patched/server', 'test/a.test.ts'],
+      ['/base/server', 'test/a.slop.test.ts'],
+      ['/patched/server', 'test/a.slop.test.ts'],
+    ])
+  })
+
+  it('좋은 예시가 결함 버전에서 통과하거나 슬롭 예시가 결함 버전에서 실패하면 패턴이 틀린 것이다', async () => {
+    const run = async ({ cwd, file }) => (cwd.startsWith('/patched') && file === 'test/a.slop.test.ts' ? 1 : 0)
+    const results = await runAssets({ base: '/base', patched: '/patched', assets, run, typecheck: async () => 0 })
+    assert.match(results[1].error, /좋은 예시 concurrency\/a\.test\.ts — 결함 버전에서도 통과한다/)
+    assert.match(results[2].error, /슬롭 예시 concurrency\/a\.slop\.test\.ts — 결함 버전에서 실패한다/)
+  })
+
+  it('정상 버전에서 타입 검사나 예시가 실패하면 알린다', async () => {
+    const results = await runAssets({ base: '/base', patched: '/patched', assets: [assets[0]], run: async () => 1, typecheck: async () => 2 })
+    assert.match(results[0].error, /server 타입 검사가 정상 버전에서 실패한다/)
+    assert.match(results[1].error, /좋은 예시 concurrency\/a\.test\.ts — 정상 버전에서 실패한다/)
+    assert.equal(results[1].patched, null)
+  })
+})
+
+describe('formatCheck — 패턴 예시', () => {
+  it('결함 줄에 검증한 예시 수를 적고, 결함에 묶이지 않은 설정 오류는 따로 적는다', () => {
+    const text = formatCheck(
+      [{ id: 'COM-007', defect: good(), errors: [], catches: [], assets: [{ kind: 'typecheck', ok: true }, { kind: 'good', ok: true }, { kind: 'slop', ok: true }] }],
+      { tests: true, setupErrors: ['evals/patterns/x.json: nope — 패턴이 없다'] },
+    )
+    const lines = text.split('\n')
+    assert.equal(lines[0], '결함 PR 1개 — 문제 1개')
+    assert.equal(lines[1], '  COM-007  백엔드 · 도메인 규칙 · 정답 1 · 패턴 예시 2개(좋은 예시 결함 실패, 슬롭 예시 결함 통과)')
+    assert.equal(lines[2], '  패턴 예시 설정')
+    assert.equal(lines[3], '    ✗ evals/patterns/x.json: nope — 패턴이 없다')
   })
 })
