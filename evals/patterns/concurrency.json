@@ -1,0 +1,7 @@
+{
+  "pattern": "concurrency",
+  "assets": [
+    { "file": "stock-race.test.ts", "at": "server/test/stock-race.test.ts", "defect": "COM-007" },
+    { "file": "stock-race.slop.test.ts", "at": "server/test/stock-race.slop.test.ts", "defect": "COM-007" }
+  ]
+}
