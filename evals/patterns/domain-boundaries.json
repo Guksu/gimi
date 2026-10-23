@@ -1,0 +1,7 @@
+{
+  "pattern": "domain-boundaries",
+  "assets": [
+    { "file": "return-window.test.ts", "at": "server/test/return-window.test.ts", "defect": "KCL-001" },
+    { "file": "return-window.slop.test.ts", "at": "server/test/return-window.slop.test.ts", "defect": "KCL-001" }
+  ]
+}

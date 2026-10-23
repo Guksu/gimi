@@ -71,16 +71,17 @@ export const evaluateTrigger = ({ target, docs, should, shouldNot, contested = [
 
 /**
  * 평가 파일의 모양을 검사한다 — 질의가 너무 적으면 통과해도 믿을 수 없고, 같은 질의가 양쪽에 있으면 모순이다.
- * @param {{ spec: { skill?: string, should?: string[], shouldNot?: string[] } }} args
+ * 패턴 선택 평가도 같은 검사를 쓴다(이름은 spec.pattern, 질의 수 하한은 3개씩).
+ * @param {{ spec: { skill?: string, pattern?: string, should?: string[], shouldNot?: string[] }, minShould?: number, minShouldNot?: number }} args
  * @returns {string[]}
  */
-export const validateSpec = ({ spec }) => {
+export const validateSpec = ({ spec, minShould = MIN_SHOULD, minShouldNot = MIN_SHOULD_NOT }) => {
   const errors = []
-  const name = spec.skill ?? '(skill 없음)'
+  const name = spec.skill ?? spec.pattern ?? '(skill 없음)'
   const should = Array.isArray(spec.should) ? spec.should : []
   const shouldNot = Array.isArray(spec.shouldNot) ? spec.shouldNot : []
-  if (should.length < MIN_SHOULD) errors.push(`${name}: should 질의 ${MIN_SHOULD}개 이상 필요 — 지금 ${should.length}개`)
-  if (shouldNot.length < MIN_SHOULD_NOT) errors.push(`${name}: shouldNot 질의 ${MIN_SHOULD_NOT}개 이상 필요 — 지금 ${shouldNot.length}개`)
+  if (should.length < minShould) errors.push(`${name}: should 질의 ${minShould}개 이상 필요 — 지금 ${should.length}개`)
+  if (shouldNot.length < minShouldNot) errors.push(`${name}: shouldNot 질의 ${minShouldNot}개 이상 필요 — 지금 ${shouldNot.length}개`)
   const contested = Array.isArray(spec.contested) ? spec.contested : []
   for (const query of should) if (shouldNot.includes(query)) errors.push(`${name}: "${query}"가 should와 shouldNot에 모두 있음`)
   for (const query of contested) if (should.includes(query) || shouldNot.includes(query)) errors.push(`${name}: contested "${query}"가 should·shouldNot에도 있음`)

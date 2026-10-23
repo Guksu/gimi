@@ -65,6 +65,22 @@ describe('defects.mjs check', () => {
     assert.match(result.stdout, /COM-016 .*\n {4}✗ 패치가 정상 버전에 붙지 않는다 — /)
   })
 
+  it('패턴 예시 설정이 틀리면 결함과 따로 알린다(exit 1)', () => {
+    const patterns = join(out, 'patterns')
+    const specs = join(out, 'pattern-specs')
+    mkdirSync(join(patterns, 'concurrency/assets'), { recursive: true })
+    writeFileSync(join(patterns, 'concurrency/PATTERN.md'), '---\nname: concurrency\n---\n')
+    writeFileSync(join(patterns, 'concurrency/assets/a.test.ts'), '')
+    writeFileSync(join(patterns, 'concurrency/assets/a.slop.test.ts'), '')
+    mkdirSync(specs)
+    const asset = (file, defect) => ({ file, at: `app/test/${file}`, defect })
+    writeFileSync(join(specs, 'concurrency.json'), JSON.stringify({ pattern: 'concurrency', assets: [asset('a.test.ts', 'COM-007'), asset('a.slop.test.ts', 'COM-404')] }))
+    const result = run(['check', 'COM-007', '--fixture', repo.dir, '--no-tests', '--patterns', patterns, '--pattern-specs', specs])
+    assert.equal(result.status, 1, result.stdout + result.stderr)
+    assert.match(result.stdout, /^결함 PR 1개 — 문제 1개/)
+    assert.match(result.stdout, /패턴 예시 설정\n {4}✗ .*COM-404 — 없는 결함이다/)
+  })
+
   it('모르는 결함 ID는 오류다', () => {
     const result = run(['check', 'COM-999', '--fixture', repo.dir, '--no-tests'])
     assert.equal(result.status, 1)

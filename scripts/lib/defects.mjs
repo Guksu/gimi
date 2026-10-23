@@ -106,26 +106,100 @@ export const runCatches = async ({ base, patched, catches, run }) => {
   return results
 }
 
+const isSlopAsset = (file) => /\.slop\.test\.tsx?$/.test(file)
+const isTestAsset = (file) => /\.test\.tsx?$/.test(file)
+
 /**
- * 검사 결과 보고 — 맨 위에 결함 수와 문제 수, 결함마다 한 줄(층 · 맥락 · 정답 수 · 잡는 테스트), 문제는 그 아래에 적는다
- * @param {{ id: string, defect: any, errors: string[], catches: { ok: boolean }[] | null }[]} results catches가 null이면 돌리지 않았다
- * @param {{ tests: boolean }} options
+ * 패턴 예시 검증 설정(evals/patterns/{패턴}.json) 하나 — 오류 문장 목록. 예시(설계 결정 30)는 검사할 때 정상·결함 버전의 at 자리에
+ * 복사해 돌린다. 좋은 예시(*.test.ts(x))는 결함 버전에서 실패해야 하고, 슬롭 예시(*.slop.test.ts(x))는 결함 버전에서도 통과해야 한다.
+ * @param {{ file: string, spec: any, assetsOf: (pattern: string) => string[] | null, defectIds: Set<string>, workspaces: string[], baseHas: (path: string) => boolean }} args
+ *   설정 파일 경로, 내용, 패턴의 assets/ 파일 이름(패턴이 없으면 null), 있는 결함 ID, 예제 저장소 워크스페이스, 정상 버전에 그 파일이 있는지
  */
-export const formatCheck = (results, { tests }) => {
-  const problems = results.reduce((sum, result) => sum + result.errors.length, 0)
+export const validatePatternAssets = ({ file, spec, assetsOf, defectIds, workspaces, baseHas }) => {
+  const files = assetsOf(spec?.pattern)
+  if (files === null) return [`${file}: ${spec?.pattern} — 패턴이 없다(skills/gimi-test/patterns/${spec?.pattern}/PATTERN.md)`]
+  const errors = []
+  const assets = Array.isArray(spec.assets) ? spec.assets : []
+  const ats = new Set()
+  assets.forEach((asset, index) => {
+    const label = `${file} 예시 ${index + 1}`
+    if (!files.includes(asset?.file)) errors.push(`${label}: ${asset?.file} — 패턴의 assets에 없다`)
+    if (!isTestAsset(asset?.at ?? '')) errors.push(`${label}: at은 테스트 파일(*.test.ts·*.test.tsx)이다 — ${asset?.at}`)
+    else if (!workspaces.includes(asset.at.split('/')[0])) errors.push(`${label}: at(${asset.at})은 워크스페이스(${workspaces.join('·')}) 안이어야 한다`)
+    else if (baseHas(asset.at)) errors.push(`${label}: ${asset.at} — 정상 버전에 이미 있다. 앱의 파일을 덮어쓰게 된다`)
+    if (ats.has(asset?.at)) errors.push(`${label}: at(${asset.at})이 겹친다`)
+    ats.add(asset?.at)
+    if (!defectIds.has(asset?.defect)) errors.push(`${label}: ${asset?.defect} — 없는 결함이다(evals/shop-fixture/defects/)`)
+  })
+  const listed = new Set(assets.map((asset) => asset?.file))
+  for (const name of files.filter(isTestAsset)) if (!listed.has(name)) errors.push(`${file}: assets/${name} — 검증하지 않는다. 예시는 모두 결함 버전에서 돌려 본다`)
+  if (!assets.some((asset) => isTestAsset(asset?.file ?? '') && !isSlopAsset(asset.file))) errors.push(`${file}: 좋은 예시가 없다`)
+  if (!assets.some((asset) => isSlopAsset(asset?.file ?? ''))) errors.push(`${file}: 슬롭 예시가 없다`)
+  return errors
+}
+
+/** 결함 하나에 돌릴 패턴 예시 — 그 결함을 가리키는 것만, 좋은 예시(good)·슬롭 예시(slop)는 파일 이름으로 가른다 */
+export const assetsFor = (specs, defectId) =>
+  specs.flatMap((spec) =>
+    (spec.assets ?? []).filter((asset) => asset.defect === defectId).map((asset) => ({ pattern: spec.pattern, file: asset.file, at: asset.at, kind: isSlopAsset(asset.file) ? 'slop' : 'good' })),
+  )
+
+/**
+ * 패턴 예시를 정상·결함 버전에서 돌린다 — 예시는 이미 at 자리에 복사돼 있다.
+ * 먼저 정상 버전에서 예시가 든 워크스페이스마다 타입 검사를 한다(사용자가 복사해 쓸 정본이다). 그다음 예시마다 정상 버전에서 통과해야 하고,
+ * 결함 버전에서 좋은 예시는 실패·슬롭 예시는 통과해야 한다. 이 표가 깨지면 패턴이 틀린 것이다.
+ * @param {{ base: string, patched: string, assets: { pattern: string, file: string, at: string, kind: 'good' | 'slop' }[], run: (args: { cwd: string, file: string }) => Promise<number>, typecheck: (args: { cwd: string }) => Promise<number> }} args
+ */
+export const runAssets = async ({ base, patched, assets, run, typecheck }) => {
+  const results = []
+  for (const workspace of [...new Set(assets.map((asset) => asset.at.split('/')[0]))]) {
+    const code = await typecheck({ cwd: `${base}/${workspace}` })
+    results.push(code === 0 ? { kind: 'typecheck', path: workspace, base: 0, patched: null, ok: true } : { kind: 'typecheck', path: workspace, base: code, patched: null, ok: false, error: `${workspace} 타입 검사가 정상 버전에서 실패한다(종료 코드 ${code}) — 예시의 타입이 틀렸다` })
+  }
+  for (const asset of assets) {
+    const [workspace, ...rest] = asset.at.split('/')
+    const file = rest.join('/')
+    const name = `${asset.kind === 'good' ? '좋은 예시' : '슬롭 예시'} ${asset.pattern}/${asset.file}`
+    const result = { kind: asset.kind, path: asset.at, base: await run({ cwd: `${base}/${workspace}`, file }), patched: null, ok: false }
+    if (result.base !== 0) {
+      results.push({ ...result, error: `${name} — 정상 버전에서 실패한다(종료 코드 ${result.base}). 예시나 앱이 먼저 틀렸다` })
+      continue
+    }
+    result.patched = await run({ cwd: `${patched}/${workspace}`, file })
+    if (asset.kind === 'good' && result.patched === 0) results.push({ ...result, error: `${name} — 결함 버전에서도 통과한다. 결함을 잡지 못하는 예시다` })
+    else if (asset.kind === 'slop' && result.patched !== 0) results.push({ ...result, error: `${name} — 결함 버전에서 실패한다. 결함을 잡으니 슬롭이라고 부를 근거가 없다` })
+    else results.push({ ...result, ok: true })
+  }
+  return results
+}
+
+/**
+ * 검사 결과 보고 — 맨 위에 결함 수와 문제 수, 결함마다 한 줄(층 · 맥락 · 정답 수 · 잡는 테스트 · 패턴 예시), 문제는 그 아래에 적는다.
+ * 결함에 묶이지 않은 패턴 예시 설정 오류는 맨 끝에 따로 적는다
+ * @param {{ id: string, defect: any, errors: string[], catches: { ok: boolean }[] | null, assets?: { kind: string, ok: boolean }[] | null }[]} results catches·assets가 null이면 돌리지 않았다
+ * @param {{ tests: boolean, setupErrors?: string[] }} options
+ */
+export const formatCheck = (results, { tests, setupErrors = [] }) => {
+  const problems = results.reduce((sum, result) => sum + result.errors.length, 0) + setupErrors.length
   const width = Math.max(...results.map((result) => result.id.length))
   const lines = [`결함 PR ${results.length}개 — ${problems === 0 ? '문제 없음' : `문제 ${problems}개`}`]
-  for (const { id, defect, errors, catches } of results) {
+  for (const { id, defect, errors, catches, assets } of results) {
     const parts = []
     if (defect) {
       parts.push(defect.layer, defect.context)
       parts.push(defect.clean === true ? '결함 없음' : `정답 ${defect.findings?.length ?? 0}`)
       const passed = (catches ?? []).filter((result) => result.ok).length
       if (catches && passed > 0) parts.push(`잡는 테스트 ${passed}개(정상 통과, 결함 실패)`)
+      const examples = (assets ?? []).filter((result) => result.kind !== 'typecheck' && result.ok).length
+      if (examples > 0) parts.push(`패턴 예시 ${examples}개(좋은 예시 결함 실패, 슬롭 예시 결함 통과)`)
     }
     lines.push(parts.length > 0 ? `  ${id.padEnd(width)}  ${parts.join(' · ')}` : `  ${id}`)
     for (const error of errors) lines.push(`    ✗ ${error}`)
   }
-  if (!tests) lines.push('잡는 테스트는 돌리지 않았다(--no-tests)')
+  if (setupErrors.length > 0) {
+    lines.push('  패턴 예시 설정')
+    for (const error of setupErrors) lines.push(`    ✗ ${error}`)
+  }
+  if (!tests) lines.push('잡는 테스트와 패턴 예시는 돌리지 않았다(--no-tests)')
   return lines.join('\n')
 }
