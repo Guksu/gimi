@@ -1,0 +1,7 @@
+{
+  "pattern": "webhook-contract",
+  "assets": [
+    { "file": "pg-webhook.test.ts", "at": "server/test/pg-webhook.test.ts", "defect": "COM-021" },
+    { "file": "pg-webhook.slop.test.ts", "at": "server/test/pg-webhook.slop.test.ts", "defect": "COM-021" }
+  ]
+}

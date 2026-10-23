@@ -1,0 +1,14 @@
+diff --git a/server/src/payments/payments.service.ts b/server/src/payments/payments.service.ts
+index c6428fd..4de9937 100644
+--- a/server/src/payments/payments.service.ts
++++ b/server/src/payments/payments.service.ts
+@@ -47,7 +47,8 @@ export class PaymentsService {
+     try {
+       payment = await this.pg.confirm({ paymentKey, orderId: String(order.id), amount: order.total })
+     } catch (error) {
+-      const uncertain = error instanceof PgUnavailable || (error instanceof PgError && (error.status >= 500 || error.code === 'ALREADY_PROCESSED_PAYMENT'))
++      // PG가 제때 답하지 않으면 실패로 보고 손님이 바로 다시 결제하게 한다 — 확인 중 화면에서 오래 기다리지 않게
++      const uncertain = error instanceof PgError && (error.status >= 500 || error.code === 'ALREADY_PROCESSED_PAYMENT')
+       if (!uncertain) {
+         // 확실한 거절 — 결제 실패로 두고 다시 결제할 수 있게 한다
+         await transition(this.db.pool, orderId, order.status, 'payment_failed')

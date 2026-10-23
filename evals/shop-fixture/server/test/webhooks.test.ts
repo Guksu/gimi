@@ -51,6 +51,15 @@ describe('POST /webhooks/pg', () => {
     expect((await t.db.query("SELECT count(*)::int AS n FROM webhook_events WHERE event_id = 'evt-repeat'")).rows[0].n).toBe(1)
   })
 
+  it('결제를 확정한 뒤 같은 결제의 웹훅이 와도 포인트는 한 번만 쌓인다', async () => {
+    const { order, paymentKey } = await orderWithCheckout(t)
+    await t.as(1).post('/payments/confirm').send({ orderId: order.id, paymentKey, amount: 15000 })
+    // PG는 승인하면서 상태 변경 웹훅을 보낸다 — 그 웹훅까지 처리된 뒤에 본다
+    await t.pg.flushWebhooks()
+    expect(await statusOf(order.id)).toBe('paid')
+    expect((await t.db.query('SELECT points FROM users WHERE id = 1')).rows[0].points).toBe(5150)
+  })
+
   it('순서가 바뀌어 옛 이벤트가 늦게 와도 지금 상태(PG 조회)를 지킨다', async () => {
     const { order, paymentKey } = await orderWithCheckout(t)
     await t.as(1).post('/payments/confirm').send({ orderId: order.id, paymentKey, amount: 15000 })
