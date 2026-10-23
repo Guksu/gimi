@@ -1,0 +1,47 @@
+diff --git a/server/src/payments/payments.service.ts b/server/src/payments/payments.service.ts
+index c6428fd..3744f31 100644
+--- a/server/src/payments/payments.service.ts
++++ b/server/src/payments/payments.service.ts
+@@ -69,6 +69,14 @@ export class PaymentsService {
+     return this.apply(order, payment)
+   }
+ 
++  /** 웹훅 — 서명을 확인한 본문의 상태로 주문을 맞춘다. PG를 다시 조회하지 않는다 */
++  async applyFromWebhook(data: { paymentKey: string; orderId: string; status: string }): Promise<ApplyResult> {
++    const order = (await this.db.pool.query<OrderRow>('SELECT * FROM orders WHERE id = $1', [Number(data.orderId)])).rows[0]
++    if (!order) return `held:UNKNOWN_ORDER`
++    const approvedAt = data.status === 'DONE' ? this.clock.now().toISOString() : null
++    return this.apply(order, { paymentKey: data.paymentKey, orderId: data.orderId, method: order.method, status: data.status, totalAmount: order.total, balanceAmount: order.total, approvedAt })
++  }
++
+   /** PG의 지금 상태를 주문에 반영한다 — 결제 기록은 결제 키로 하나, 상태는 전이표가 허락할 때만, 포인트 적립은 결제 완료로 바뀔 때 한 번 */
+   private async apply(order: OrderRow, payment: PgPayment): Promise<ApplyResult> {
+     const target = PG_TO_ORDER[payment.status]
+diff --git a/server/src/webhooks/webhooks.controller.ts b/server/src/webhooks/webhooks.controller.ts
+index 0c5db19..232cc2a 100644
+--- a/server/src/webhooks/webhooks.controller.ts
++++ b/server/src/webhooks/webhooks.controller.ts
+@@ -9,7 +9,7 @@ import { verifySignature } from './signature'
+ interface Event {
+   eventId?: string
+   type?: string
+-  data?: { paymentKey?: string }
++  data?: { paymentKey?: string; orderId?: string; status?: string }
+ }
+ 
+ @Controller('webhooks')
+@@ -33,11 +33,12 @@ export class WebhooksController {
+     if (!event.eventId || !event.type) throw fail(400, 'INVALID_EVENT', '이벤트 형식이 틀렸다')
+     const inserted = await this.db.pool.query('INSERT INTO webhook_events (event_id, type, handled) VALUES ($1, $2, $3) ON CONFLICT (event_id) DO NOTHING', [event.eventId, event.type, 'received'])
+     if (inserted.rowCount === 0) return { ok: true, duplicate: true }
+-    if (event.type !== 'PAYMENT_STATUS_CHANGED' || !event.data?.paymentKey) {
++    if (event.type !== 'PAYMENT_STATUS_CHANGED' || !event.data?.paymentKey || !event.data.orderId || !event.data.status) {
+       await this.db.pool.query('UPDATE webhook_events SET handled = $2 WHERE event_id = $1', [event.eventId, 'ignored'])
+       return { ok: true }
+     }
+-    const handled = await this.payments.syncFromPg(event.data.paymentKey)
++    // 서명을 검증했으니 본문의 상태를 그대로 쓴다 — 웹훅마다 PG를 조회하지 않는다
++    const handled = await this.payments.applyFromWebhook({ paymentKey: event.data.paymentKey, orderId: event.data.orderId, status: event.data.status })
+     await this.db.pool.query('UPDATE webhook_events SET handled = $2 WHERE event_id = $1', [event.eventId, handled])
+     return { ok: true }
+   }

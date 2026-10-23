@@ -1,0 +1,24 @@
+{
+  "id": "COM-021",
+  "rules": ["COM-021"],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "perf: 웹훅마다 PG를 다시 조회하지 않는다",
+    "body": "## 배경\n결제가 몰리는 시간에 웹훅마다 PG 조회 API를 불러 처리가 밀리고, 조회 한도에 걸린 적이 있다.\n\n## 변경\n- 서명을 검증한 웹훅은 본문의 상태(data.status)로 바로 반영한다\n- 웹훅 처리에서 PG 조회를 뺀다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "웹훅 본문의 상태로 바로 반영하고 PG에 다시 조회하지 않는다. 금액도 대조하지 않고 주문 금액으로 채운다. 본문만 결제 완료인 웹훅(PG에서는 아직 승인 전)으로 주문이 결제 완료가 된다",
+      "path": "server/src/webhooks/webhooks.controller.ts",
+      "line": 41,
+      "evidence": [
+        { "path": "server/src/payments/payments.service.ts", "line": 77 },
+        { "path": "server/src/payments/payments.service.ts", "line": 64 },
+        { "path": "server/src/webhooks/webhooks.controller.ts", "line": 24 }
+      ]
+    }
+  ],
+  "catches": ["server/test/webhooks.test.ts"]
+}
