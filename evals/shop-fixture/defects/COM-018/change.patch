@@ -1,0 +1,20 @@
+diff --git a/server/src/payments/payments.service.ts b/server/src/payments/payments.service.ts
+index c6428fd..bc02dea 100644
+--- a/server/src/payments/payments.service.ts
++++ b/server/src/payments/payments.service.ts
+@@ -79,12 +79,13 @@ export class PaymentsService {
+          ON CONFLICT (payment_key) DO UPDATE SET pg_status = EXCLUDED.pg_status, approved_at = COALESCE(EXCLUDED.approved_at, payments.approved_at)`,
+         [payment.paymentKey, order.id, payment.method, payment.totalAmount, payment.status, payment.approvedAt],
+       )
++      const earned = target === 'paid' ? pointsToEarn(order.total) : 0
++      // 결제 완료를 반영할 때 적립한다 — 웹훅으로만 확정된 주문도 포인트가 쌓이게
++      if (earned > 0) await tx.query('UPDATE users SET points = points + $2 WHERE id = $1', [order.user_id, earned])
+       const current = (await tx.query<{ status: OrderStatus }>('SELECT status FROM orders WHERE id = $1', [order.id])).rows[0]?.status
+       if (!current || current === target || !canTransition(current, target)) return 'unchanged'
+-      const earned = target === 'paid' ? pointsToEarn(order.total) : 0
+       const set = target === 'paid' ? { paid_at: this.clock.now(), points_earned: earned } : {}
+       if (!(await transition(tx, Number(order.id), current, target, set))) return 'unchanged'
+-      if (earned > 0) await tx.query('UPDATE users SET points = points + $2 WHERE id = $1', [order.user_id, earned])
+       return 'applied'
+     })
+   }
