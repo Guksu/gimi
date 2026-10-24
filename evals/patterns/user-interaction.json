@@ -1,0 +1,7 @@
+{
+  "pattern": "user-interaction",
+  "assets": [
+    { "file": "checkout-consent.test.tsx", "at": "web/src/pages/checkout-consent.test.tsx", "defect": "KCL-005" },
+    { "file": "checkout-consent.slop.test.tsx", "at": "web/src/pages/checkout-consent.slop.test.tsx", "defect": "KCL-005" }
+  ]
+}

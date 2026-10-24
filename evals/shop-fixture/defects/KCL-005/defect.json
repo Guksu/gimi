@@ -1,0 +1,20 @@
+{
+  "id": "KCL-005",
+  "rules": ["KCL-005"],
+  "context": "도메인 규칙",
+  "layer": "프론트",
+  "pr": {
+    "title": "feat: 결제 단계를 줄인다 — 결제 동의를 기본으로 켠다",
+    "body": "## 배경\n주문 확인 화면에서 동의 체크를 놓쳐 결제하기가 안 눌린다는 문의가 많다. 결제 전환율도 떨어졌다.\n\n## 변경\n- 결제 동의를 기본으로 켜 둔다. 손님은 원하면 끌 수 있다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "결제 동의 체크를 처음부터 켜 둔다. 손님이 고르지 않은 동의로 결제하게 되는 원클릭 구매가 된다(전자상거래법 제8조②의 확인 절차)",
+      "path": "web/src/pages/CheckoutPage.tsx",
+      "line": 20,
+      "evidence": [{ "path": "web/src/pages/CheckoutPage.tsx", "line": 75 }]
+    }
+  ],
+  "catches": ["web/src/pages/checkout.test.tsx"]
+}
