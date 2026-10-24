@@ -1,0 +1,24 @@
+{
+  "id": "COM-024",
+  "rules": ["COM-024"],
+  "context": "영향 범위",
+  "layer": "둘 다",
+  "pr": {
+    "title": "refactor: 주문 응답에서 화면 전용 값을 뺀다",
+    "body": "## 배경\nAPI가 화면 사정(버튼을 보일지)까지 알 필요가 없다는 리뷰 의견이 있었다.\n\n## 변경\n- 주문 응답에서 canCancel·canReturn을 뺀다. 버튼을 보일지는 화면이 주문 상태로 정한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "계약(openapi.yaml)은 canCancel·canReturn을 필수로 두고, web은 이 값으로 취소·반품 버튼을 보인다. 이 PR은 계약도 web도 바꾸지 않아 두 버튼이 사라진다. 상태 이름으로 버튼을 정하는 것은 COM-024가 막는 방식이다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 143,
+      "evidence": [
+        { "path": "contracts/openapi.yaml", "line": 365 },
+        { "path": "web/src/pages/OrderPage.tsx", "line": 72 },
+        { "path": "web/src/pages/OrderPage.tsx", "line": 77 }
+      ]
+    }
+  ],
+  "catches": ["server/test/refunds-returns.test.ts"]
+}

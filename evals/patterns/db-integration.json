@@ -1,0 +1,7 @@
+{
+  "pattern": "db-integration",
+  "assets": [
+    { "file": "order-store.test.ts", "at": "server/test/order-store.test.ts", "defect": "missing-ownership" },
+    { "file": "order-store.slop.test.ts", "at": "server/test/order-store.slop.test.ts", "defect": "missing-ownership" }
+  ]
+}
