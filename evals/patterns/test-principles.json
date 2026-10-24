@@ -1,0 +1,7 @@
+{
+  "pattern": "test-principles",
+  "assets": [
+    { "file": "order-amount.test.ts", "at": "server/test/order-amount.test.ts", "defect": "COM-003" },
+    { "file": "order-amount.slop.test.ts", "at": "server/test/order-amount.slop.test.ts", "defect": "COM-003" }
+  ]
+}
