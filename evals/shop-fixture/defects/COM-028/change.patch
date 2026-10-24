@@ -1,0 +1,32 @@
+diff --git a/web/src/analytics.ts b/web/src/analytics.ts
+index bc0c38c..a966899 100644
+--- a/web/src/analytics.ts
++++ b/web/src/analytics.ts
+@@ -1,25 +1,6 @@
+ /**
+- * 구매 이벤트 — 주문번호를 거래 ID로, 주문마다 한 번만 보낸다(결과 화면을 새로 고쳐도)
++ * 구매 이벤트 — 주문번호를 거래 ID로 보낸다. 같은 거래 ID는 분석 도구가 하나로 거른다
+  */
+-const SENT = 'shop:purchase-sent'
+-
+-const sentIds = (): string[] => {
+-  try {
+-    const parsed = JSON.parse(localStorage.getItem(SENT) ?? '[]') as unknown
+-    return Array.isArray(parsed) ? (parsed as string[]) : []
+-  } catch {
+-    return []
+-  }
+-}
+-
+ export const trackPurchase = (order: { id: number; total: number }) => {
+-  const id = String(order.id)
+-  const sent = sentIds()
+-  if (sent.includes(id)) return
+-  window.dispatchEvent(new CustomEvent('shop:purchase', { detail: { transactionId: id, value: order.total, currency: 'KRW' } }))
+-  try {
+-    localStorage.setItem(SENT, JSON.stringify([...sent, id]))
+-  } catch {
+-    // 기록하지 못하면 새로 고칠 때 다시 보낼 수 있다 — 분석 도구가 거래 ID로 거른다
+-  }
++  window.dispatchEvent(new CustomEvent('shop:purchase', { detail: { transactionId: String(order.id), value: order.total, currency: 'KRW' } }))
+ }
