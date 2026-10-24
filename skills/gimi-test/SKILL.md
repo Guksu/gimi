@@ -9,7 +9,7 @@ AI가 쓴 테스트는 통과하지만 아무것도 지키지 않는 경우가 �
 
 ## 지금 상태 (0.0.1)
 
-끝내기 전 검사 스크립트(`scripts/check.mjs`)는 바뀐 범위의 테스트·타입 검사·린트를 찾아 돌리고, 바뀐 JS·TS 줄에서 테스트·코드 슬롭을 찾아 보고한다. `--baseline`으로 실패를 기준에서 다시 돌려 보고, `scripts/connect.mjs`로 프로젝트별로 자동 실행을 연결한다. 테스트 금지선(`shared/rules/test.md`·`done.md`)과 분야 프리셋(`shared/domains/`)이 들어 있고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 테스트 패턴은 1차 가운데 6개(프론트 `api-boundary`, 백엔드 `concurrency`·`idempotency`·`webhook-contract`·`external-api-fake`, 둘 다 `domain-boundaries`)가 들어 있다. 나머지는 차례로 더한다. 슬롭 검사는 정규식 수준이라 놓치는 것이 있으니 아래 "쓰지 않을 테스트"도 직접 확인한다.
+끝내기 전 검사 스크립트(`scripts/check.mjs`)는 바뀐 범위의 테스트·타입 검사·린트를 찾아 돌리고, 바뀐 JS·TS 줄에서 테스트·코드 슬롭을 찾아 보고한다. `--baseline`으로 실패를 기준에서 다시 돌려 보고, `scripts/connect.mjs`로 프로젝트별로 자동 실행을 연결한다. 테스트 금지선(`shared/rules/test.md`·`done.md`)과 분야 프리셋(`shared/domains/`)이 들어 있고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 테스트 패턴은 1차 가운데 8개(프론트 `api-boundary`, 백엔드 `concurrency`·`idempotency`·`webhook-contract`·`external-api-fake`·`db-integration`·`api-contract`, 둘 다 `domain-boundaries`)가 들어 있다. 나머지는 차례로 더한다. 슬롭 검사는 정규식 수준이라 놓치는 것이 있으니 아래 "쓰지 않을 테스트"도 직접 확인한다.
 
 ## 테스트를 쓸 때
 
@@ -29,7 +29,9 @@ AI가 쓴 테스트는 통과하지만 아무것도 지키지 않는 경우가 �
 |---|---|---|
 | [`domain-boundaries`](patterns/domain-boundaries/PATTERN.md) | 둘 다 | 회사 규칙·분야 프리셋의 경계값(최소 주문 금액, 0원, 재고 0·1, 반품 기한 마지막 날 23:59와 다음 날 00:00, 쿠폰 기간 끝)을 표(it.each)로 만들어 경계 바로 안과 바로 밖을 짝지어 테스트한다. 정상값 하나만 넣지 않는다. "경계값 테스트, 경계 조건, 엣지 케이스, 기한 마지막 날, 유효기간, 최소 금액, 0원, 도메인 규칙 테스트, it.each 표" 요청에 쓴다. |
 | [`api-boundary`](patterns/api-boundary/PATTERN.md) | 프론트 | 화면 테스트에서 API를 네트워크 경계(MSW)에서 바꿔 성공·4xx·5xx·네트워크 끊김·느린 응답마다 사용자가 보는 결과(안내 문구·버튼 상태)와 보낸 요청(본문·멱등 키)을 단언한다. fetch·axios·api 모듈을 mock하지 않는다. "MSW, API mocking, 서버 오류 화면, 500 에러, 409 응답, 네트워크 끊김, 재시도 화면, 응답 mock, 컴포넌트 API 테스트" 요청에 쓴다. |
+| [`api-contract`](patterns/api-contract/PATTERN.md) | 백엔드 | API 응답을 계약 파일(OpenAPI 스키마)과 대조해 테스트한다 — 엔드포인트마다 실제 응답을 계약의 스키마로 검사해 필수 필드가 빠지거나 형이 바뀌면 어느 필드가 왜 틀렸는지 실패로 보인다. 오류 응답도 계약의 오류 형식과 맞춘다. 상태 코드와 눈에 띄는 필드 두어 개만 보지 않는다. "API 계약 테스트, OpenAPI 대조, 응답 스키마 검증, 필수 필드, 계약과 응답 비교, openapi.yaml, 프론트 타입과 서버 응답, JSON 스키마" 요청에 쓴다. |
 | [`concurrency`](patterns/concurrency/PATTERN.md) | 백엔드 | 동시에 들어온 요청이 수량이 한정된 자원(재고·1회용 쿠폰·포인트 잔액)을 두 번 쓰지 않는지 실제 DB로 테스트한다 — 같은 요청 N건을 한꺼번에(Promise.all) 보내 성공 1건, 남은 수량, 진 요청의 충돌 응답(409)을 단언한다. 순차 호출 두 번으로 대신하지 않는다. "동시성 테스트, 동시 주문, 동시에 여러 건, 하나만 성공, 재고 초과 판매, 쿠폰 동시 사용, 포인트 동시 차감, 경쟁 상태, race condition" 요청에 쓴다. |
+| [`db-integration`](patterns/db-integration/PATTERN.md) | 백엔드 | 저장소·SQL을 쓰는 백엔드 코드를 실제 DB(테스트 전용 데이터베이스·컨테이너)로 테스트한다 — 조회 조건(남의 데이터가 안 보이는지), 유니크·CHECK·외래키 제약이 막는지를 DB에 직접 써 보고 단언하며, 테스트마다 데이터를 비워 격리한다. 저장소·ORM·쿼리 함수를 mock하지 않는다. "DB 테스트, 실제 DB로 테스트, 저장소 테스트, 통합 테스트, 유니크 제약, CHECK 제약, 외래키, 테스트 격리, PostgreSQL 테스트, Testcontainers" 요청에 쓴다. |
 | [`external-api-fake`](patterns/external-api-fake/PATTERN.md) | 백엔드 | PG·배송·알림 같은 외부 API를 부르는 백엔드 코드를 HTTP 가짜 서버(fake)로 테스트한다 — 승인·4xx 거절·5xx·타임아웃(늦은 응답)을 가짜 서버의 동작으로 만들고, 주문 상태와 다시 시도할 수 있는지를 단언한다. HTTP 클라이언트 모듈을 mock하지 않는다. "외부 API 테스트, PG 연동 테스트, 결제사 연동, 가짜 서버, fake server, 타임아웃 테스트, 응답 지연, 5xx 처리, 외부 연동 실패" 요청에 쓴다. |
 | [`idempotency`](patterns/idempotency/PATTERN.md) | 백엔드 | 같은 요청이 다시 오거나(재시도·새로고침·같은 멱등 키) 결제 확정이 확정 요청과 웹훅으로 겹쳐 와도 부수효과(주문 생성·재고 차감·포인트 적립·결제 기록)가 한 번인지 테스트한다 — 응답 코드가 아니라 부수효과를 센다. "멱등성 테스트, 같은 멱등 키, 재시도, 새로고침, 중복 처리, 두 번 불려도 한 번, 결제 확정 두 번, 웹훅과 승인이 겹침, 포인트 두 번 적립" 요청에 쓴다. |
 | [`webhook-contract`](patterns/webhook-contract/PATTERN.md) | 백엔드 | PG·외부 서비스가 보내는 웹훅을 받는 핸들러를 계약대로 테스트한다 — 서명이 틀린 요청, 본문과 실제 상태가 다른 요청(위조), 같은 이벤트 두 번, 순서가 바뀐 이벤트, 모르는 type을 테스트가 직접 만들어 보내고 주문 상태와 처리 기록을 단언한다. 정상 이벤트 하나만 보내지 않는다. "웹훅 테스트, 웹훅 서명 검증, 위조 웹훅, 중복 이벤트, 순서가 바뀐 이벤트, 모르는 이벤트 type, 웹훅 본문을 믿지 않음" 요청에 쓴다. |

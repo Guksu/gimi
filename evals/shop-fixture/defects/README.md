@@ -35,7 +35,7 @@ defects/{ID}/
 
 | 필드 | 뜻 |
 |---|---|
-| `id` | 폴더 이름과 같다. 프리셋 규칙의 결함이면 규칙 ID를 쓴다 |
+| `id` | 폴더 이름과 같다. 프리셋 규칙의 결함이면 규칙 ID를 쓴다. 공통 금지선(`code/…`·`test/…`)의 결함이면 `/` 뒤의 이름을 쓴다 |
 | `rules` | 어긴 규칙 ID. `슬롭`·`도메인 규칙` 결함은 하나 이상 적는다. `영향 범위`·`의도`·`이력` 결함은 비워도 된다 |
 | `context` | 맥락 종류 — 영향 범위·의도·이력·슬롭·도메인 규칙 |
 | `layer` | 프론트·백엔드·둘 다 |
@@ -86,4 +86,6 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 | COM-018 | 백엔드 | 결제 완료를 반영할 때마다 포인트를 쌓는다(이미 반영했는지 확인보다 앞) — 확정 요청과 웹훅이 겹치면 두 번 쌓인다 | `server/test/webhooks.test.ts` 확정 뒤 웹훅 · `idempotency` |
 | COM-019 | 백엔드 | 승인 요청의 타임아웃을 확실한 거절로 처리한다 — PG는 승인했는데 주문은 결제 실패 | `server/test/payments.test.ts` 늦은 응답 · `external-api-fake` |
 | COM-021 | 백엔드 | 웹훅 본문의 상태로 바로 반영하고 PG를 다시 조회하지 않는다 — 본문만 결제 완료인 웹훅으로 주문이 확정된다 | `server/test/webhooks.test.ts` 본문을 믿지 않음 · `webhook-contract` |
+| COM-024 | 둘 다 | 주문 응답에서 canCancel·canReturn을 뺀다(계약·web은 그대로) — web의 취소·반품 버튼이 사라진다 | `server/test/refunds-returns.test.ts` canCancel · `api-contract` |
 | KCL-001 | 백엔드 | 반품 기한을 배송 시각 + 7×24시간으로 따로 계산한다 — 화면이 보이는 마감(7일째 23:59)보다 일찍 막는다 | `server/test/refunds-returns.test.ts` 7일째 경계 · `domain-boundaries` |
+| missing-ownership | 백엔드 | 주문을 기본 키로만 조회한다(요청자 조건을 뺌) — 남의 주문을 조회·취소할 수 있다 | `server/test/orders.test.ts` 남의 주문 · `db-integration` |
