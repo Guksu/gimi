@@ -79,6 +79,15 @@ describe('POST /orders/:id/returns — 청약철회(반품)', () => {
     expect((await ret(order.id)).status).toBe(201)
   })
 
+  it('새벽에 받은 주문도 받은 날을 한국 날짜로 센다 — 10월 22일 01:00(KST) 배송이면 10월 29일 23:59까지', async () => {
+    const { order } = await paid()
+    // 한국 날짜는 22일이지만 UTC 날짜는 21일이다 — 날짜 경계를 UTC로 잡으면 마감이 하루 이르다
+    await t.db.query("UPDATE orders SET status = 'delivered', delivered_at = '2026-10-21T16:00:00Z' WHERE id = $1", [order.id])
+    expect((await detail(order.id)).returnDeadline).toBe('2026-10-29T15:00:00.000Z')
+    t.clock.set('2026-10-29T14:59:59.999Z')
+    expect((await ret(order.id)).status).toBe(201)
+  })
+
   it('반품 불가로 표시한 상품만 있는 주문은 단순 변심 반품을 막고, 상품 하자는 받는다', async () => {
     const order = await delivered({ items: [{ productId: 4, quantity: 1 }] })
     expect((await detail(order.id)).items[0].returnable).toBe(false)

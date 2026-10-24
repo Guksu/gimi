@@ -1,0 +1,14 @@
+diff --git a/server/src/orders/returns-policy.ts b/server/src/orders/returns-policy.ts
+index 5f9b4f2..4fd1758 100644
+--- a/server/src/orders/returns-policy.ts
++++ b/server/src/orders/returns-policy.ts
+@@ -10,7 +10,7 @@ export const DEFECTIVE_DAYS = 90
+ 
+ /** 그 시각이 되면 반품을 받지 않는다 — 받은 날(한국 시간)의 다음 날부터 days일이 지난 자정 */
+ export const returnDeadline = (deliveredAt: Date, days = CHANGE_OF_MIND_DAYS) => {
+-  const kst = new Date(deliveredAt.getTime() + KST_OFFSET_MS)
+-  const startOfDeliveryDay = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - KST_OFFSET_MS
++  // 받은 날 0시(한국 시간)를 한 줄로 구한다
++  const startOfDeliveryDay = Date.UTC(deliveredAt.getUTCFullYear(), deliveredAt.getUTCMonth(), deliveredAt.getUTCDate()) - KST_OFFSET_MS
+   return new Date(startOfDeliveryDay + (days + 1) * DAY_MS)
+ }
