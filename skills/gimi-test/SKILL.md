@@ -9,7 +9,7 @@ AI가 쓴 테스트는 통과하지만 아무것도 지키지 않는 경우가 �
 
 ## 지금 상태 (0.0.1)
 
-끝내기 전 검사 스크립트(`scripts/check.mjs`)는 바뀐 범위의 테스트·타입 검사·린트를 찾아 돌리고, 바뀐 JS·TS 줄에서 테스트·코드 슬롭을 찾아 보고한다. `--baseline`으로 실패를 기준에서 다시 돌려 보고, `scripts/connect.mjs`로 프로젝트별로 자동 실행을 연결한다. 테스트 금지선(`shared/rules/test.md`·`done.md`)과 분야 프리셋(`shared/domains/`)이 들어 있고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 테스트 패턴은 1차 가운데 12개(프론트 `api-boundary`·`async-ui-states`·`user-interaction`·`race-and-duplicate`·`fake-time`, 백엔드 `concurrency`·`idempotency`·`webhook-contract`·`external-api-fake`·`db-integration`·`api-contract`, 둘 다 `domain-boundaries`)가 들어 있다. 나머지는 차례로 더한다. 슬롭 검사는 정규식 수준이라 놓치는 것이 있으니 아래 "쓰지 않을 테스트"도 직접 확인한다.
+끝내기 전 검사 스크립트(`scripts/check.mjs`)는 바뀐 범위의 테스트·타입 검사·린트를 찾아 돌리고, 바뀐 JS·TS 줄에서 테스트·코드 슬롭을 찾아 보고한다. `--baseline`으로 실패를 기준에서 다시 돌려 보고, `scripts/connect.mjs`로 프로젝트별로 자동 실행을 연결한다. 테스트 금지선(`shared/rules/test.md`·`done.md`)과 분야 프리셋(`shared/domains/`)이 들어 있고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 테스트 패턴은 1차 가운데 14개(프론트 `api-boundary`·`async-ui-states`·`user-interaction`·`race-and-duplicate`·`fake-time`, 백엔드 `concurrency`·`idempotency`·`webhook-contract`·`external-api-fake`·`db-integration`·`api-contract`, 둘 다 `requirement-cases`·`domain-boundaries`·`regression-first`)가 들어 있다. 나머지는 차례로 더한다. 슬롭 검사는 정규식 수준이라 놓치는 것이 있으니 아래 "쓰지 않을 테스트"도 직접 확인한다.
 
 ## 테스트를 쓸 때
 
@@ -28,6 +28,8 @@ AI가 쓴 테스트는 통과하지만 아무것도 지키지 않는 경우가 �
 | 패턴 | 대상 | 무엇을·언제 |
 |---|---|---|
 | [`domain-boundaries`](patterns/domain-boundaries/PATTERN.md) | 둘 다 | 회사 규칙·분야 프리셋의 경계값(최소 주문 금액, 0원, 재고 0·1, 반품 기한 마지막 날 23:59와 다음 날 00:00, 쿠폰 기간 끝)을 표(it.each)로 만들어 경계 바로 안과 바로 밖을 짝지어 테스트한다. 정상값 하나만 넣지 않는다. "경계값 테스트, 경계 조건, 엣지 케이스, 기한 마지막 날, 유효기간, 최소 금액, 0원, 도메인 규칙 테스트, it.each 표" 요청에 쓴다. |
+| [`regression-first`](patterns/regression-first/PATTERN.md) | 둘 다 | 버그를 고칠 때 재현 테스트부터 쓴다 — 신고된 조건(새벽 배송·특정 시간대·경계값)을 그대로 넣은 테스트를 먼저 쓰고, 고치기 전 코드에서 실패하는 것을 확인한 뒤 고친다. 버그가 없던 조건도 함께 넣어 고친 코드가 다른 경우를 깨지 않았는지 본다. 고친 뒤에 통과하는 테스트만 쓰지 않는다. "회귀 테스트, 재현 테스트, 버그 재현, 버그 수정 테스트, 고치기 전에 실패 확인, 예전에 고친 버그, regression test" 요청에 쓴다. |
+| [`requirement-cases`](patterns/requirement-cases/PATTERN.md) | 둘 다 | 티켓·PR·기획 문서의 요구사항을 항목마다 테스트 하나로 옮긴다 — 테스트 이름이 요구사항 문장이고, 항목의 경계(기준 바로 아래)도 함께 넣으며, 문서에 없는 경우는 테스트로 굳히지 않고 묻는다. 구현(함수·변수 이름)을 보고 테스트를 쓰지 않는다. "요구사항 테스트, 티켓대로 테스트, 기획서 항목마다 테스트, 요구사항 빠진 테스트, 테스트 이름, 수용 기준, acceptance criteria, PR 본문의 요구사항" 요청에 쓴다. |
 | [`api-boundary`](patterns/api-boundary/PATTERN.md) | 프론트 | 화면 테스트에서 API를 네트워크 경계(MSW)에서 바꿔 성공·4xx·5xx·네트워크 끊김·느린 응답마다 사용자가 보는 결과(안내 문구·버튼 상태)와 보낸 요청(본문·멱등 키)을 단언한다. fetch·axios·api 모듈을 mock하지 않는다. "MSW, API mocking, 서버 오류 화면, 500 에러, 409 응답, 네트워크 끊김, 재시도 화면, 응답 mock, 컴포넌트 API 테스트" 요청에 쓴다. |
 | [`async-ui-states`](patterns/async-ui-states/PATTERN.md) | 프론트 | 비동기로 데이터를 받는 화면(목록·결제 결과·주문 상세)을 상태마다 테스트한다 — 로딩·성공·빈 상태·처리 중(확인 중·입금 대기)·오류마다 보여야 할 것과 보이면 안 되는 것을 함께 단언하고, 기다리는 동안의 상태는 응답을 손으로 놓아주며 확인한다. "로딩 상태 테스트, 비동기 화면, 로딩 스피너, 빈 상태, 오류 화면, 처리 중 화면, 확인 중, 입금 대기, waitFor, 상태별 화면" 요청에 쓴다. |
 | [`fake-time`](patterns/fake-time/PATTERN.md) | 프론트 | 시간에 기대는 프론트 코드(debounce·폴링·만료·카운트다운·날짜 표시)를 가짜 시계와 고정한 시간대로 테스트한다 — vi.useFakeTimers·setSystemTime으로 시간을 앞으로 돌리고, 기기 시간대를 한국과 다른 곳으로 바꿔 날짜 표시가 흔들리지 않는지 단언한다. 실제 시간을 기다리거나 현재 시각에 기대지 않는다. "가짜 타이머, fake timers, debounce 테스트, 폴링 테스트, 카운트다운, 만료, 현재 시각 고정, setSystemTime, 시간대, 타임존, 날짜 표시" 요청에 쓴다. |

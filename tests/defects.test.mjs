@@ -66,6 +66,20 @@ describe('validateDefect — defect.json 형식', () => {
   })
 })
 
+describe('validateDefect — 이력(history)', () => {
+  it('이력은 예전 커밋 목록이다 — 커밋마다 메시지와 history/ 아래의 패치 파일', () => {
+    const json = { ...good(), context: '이력', history: [{ message: 'fix: 새벽에 받은 주문의 반품 기한', patch: 'history/01-kst.patch' }] }
+    assert.deepEqual(validate(json), [])
+  })
+
+  it('비었거나 목록이 아니면, 메시지·패치가 없거나 패치가 history/ 밖이면 오류다', () => {
+    assert.ok(validate({ ...good(), history: [] }).some((e) => /history.*목록/.test(e)))
+    assert.ok(validate({ ...good(), history: 'x' }).some((e) => /history.*목록/.test(e)))
+    const errors = validate({ ...good(), history: [{ message: '', patch: 'history/a.patch' }, { message: 'fix: x' }, { message: 'fix: y', patch: '../change.patch' }] })
+    for (const pattern of [/history 1.*메시지/, /history 2.*패치 파일/, /history 3.*history\//]) assert.ok(errors.some((e) => pattern.test(e)), `${pattern} — ${errors.join(' / ')}`)
+  })
+})
+
 describe('patchedPaths', () => {
   it('패치가 고치는 파일 — 새 파일·지운 파일·이름 바꿈을 담는다', () => {
     const patch = [

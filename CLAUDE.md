@@ -23,3 +23,4 @@
 | 2026-10-24 | 테스트 패턴 3단계 — 프론트 화면 묶음 async-ui-states↔COM-015·user-interaction↔KCL-005·race-and-duplicate↔COM-028(결함 PR·PATTERN.md·예시·선택 평가). external-api-fake description 보완 | skills/gimi-test/patterns·evals·evals/shop-fixture | 제안한 프론트 화면 묶음에 사용자가 "진행". 커밋은 2단계와 같이 짝마다 |
 | 2026-10-24 | 테스트 패턴 — 백엔드 나머지 db-integration↔missing-ownership·api-contract↔COM-024(결함 PR·PATTERN.md·예시·선택 평가). 예제 저장소 server에 개발 의존성 ajv·yaml | skills/gimi-test/patterns·evals·evals/shop-fixture | 사용자 요청 — "남은것들도 각각 진행해서 pr올려줘" |
 | 2026-10-24 | 테스트 패턴 — fake-time↔COM-012(결함 PR·PATTERN.md·예시·선택 평가). 정상 버전의 테스트가 못 잡는 결함이라 패턴 예시로만 확인 | skills/gimi-test/patterns·evals·evals/shop-fixture | 사용자 요청 — "남은것들도 각각 진행해서 pr올려줘" |
+| 2026-10-24 | 테스트 패턴 — 맥락 결함 requirement-cases↔COM-029(의도)·regression-first↔HIST-001(이력). 결함 PR의 history(평가용 저장소 main에 예전 커밋), 정상 버전에 새벽 배송 재현 테스트 | scripts·skills/gimi-test/patterns·evals·evals/shop-fixture·tests | 사용자 요청 — "남은것들도 각각 진행해서 pr올려줘". history 형식은 제가 정했다 |

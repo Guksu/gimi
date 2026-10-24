@@ -1,0 +1,14 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..375b576 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -89,7 +89,8 @@ export class PricingService {
+     const couponCode = typeof input.couponCode === 'string' && input.couponCode.trim() !== '' ? input.couponCode.trim() : null
+     const couponDiscount = couponCode ? await this.couponDiscount({ q, userId, code: couponCode, subtotal }) : 0
+     const afterCoupon = subtotal - couponDiscount
+-    const shippingFee = afterCoupon >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE
++    // 배송비는 상품 금액으로 바로 정한다
++    const shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE
+ 
+     const pointsUsed = await this.points({ q, userId, points: input.points, payable: afterCoupon + shippingFee })
+     const total = afterCoupon + shippingFee - pointsUsed
