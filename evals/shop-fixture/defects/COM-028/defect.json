@@ -1,0 +1,24 @@
+{
+  "id": "COM-028",
+  "rules": ["COM-028"],
+  "context": "도메인 규칙",
+  "layer": "프론트",
+  "pr": {
+    "title": "refactor: 구매 이벤트 전송 기록을 뺀다",
+    "body": "## 배경\n사파리 개인 정보 보호 모드에서 브라우저 저장소 쓰기가 오류를 낸다는 보고가 있었다. 분석 도구가 거래 ID로 중복을 거른다고 들었다.\n\n## 변경\n- 보낸 구매 이벤트를 브라우저 저장소에 기록하지 않는다\n- 구매 이벤트는 결제 결과 화면이 열릴 때 보낸다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "보낸 주문을 기록하지 않아, 결제 결과 화면을 새로 고치거나 뒤로 갔다 다시 열 때마다 구매 이벤트가 다시 나간다. 매출이 두 번 잡힌다. 분석 도구의 거래 ID 거르기는 보장되지 않는다",
+      "path": "web/src/analytics.ts",
+      "line": 4,
+      "endLine": 6,
+      "evidence": [
+        { "path": "web/src/pages/PaymentPages.tsx", "line": 28 },
+        { "path": "web/src/pages/PaymentPages.tsx", "line": 20 }
+      ]
+    }
+  ],
+  "catches": ["web/src/pages/payment.test.tsx"]
+}

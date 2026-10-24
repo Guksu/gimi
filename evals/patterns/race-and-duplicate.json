@@ -1,0 +1,7 @@
+{
+  "pattern": "race-and-duplicate",
+  "assets": [
+    { "file": "purchase-once.test.tsx", "at": "web/src/pages/purchase-once.test.tsx", "defect": "COM-028" },
+    { "file": "purchase-once.slop.test.tsx", "at": "web/src/pages/purchase-once.slop.test.tsx", "defect": "COM-028" }
+  ]
+}

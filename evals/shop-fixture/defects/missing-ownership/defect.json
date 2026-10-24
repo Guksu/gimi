@@ -1,0 +1,24 @@
+{
+  "id": "missing-ownership",
+  "rules": ["code/missing-ownership"],
+  "context": "슬롭",
+  "layer": "백엔드",
+  "pr": {
+    "title": "perf: 주문 조회를 기본 키로만 한다",
+    "body": "## 배경\n주문 상세 조회가 느리다는 모니터링 알림이 있었다. `user_id` 조건 때문에 기본 키 인덱스를 못 타는 것으로 보인다.\n\n## 변경\n- 주문을 기본 키(id)로만 조회한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "주문을 id로만 찾고 요청한 사람의 주문인지 보지 않는다. 남의 주문을 조회·취소·반품·결제 확정할 수 있다. 이 함수를 주문 상세·취소·반품·결제가 모두 쓴다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 110,
+      "evidence": [
+        { "path": "server/src/orders/orders.service.ts", "line": 106 },
+        { "path": "server/src/orders/orders.service.ts", "line": 173 },
+        { "path": "server/src/payments/payments.service.ts", "line": 36 }
+      ]
+    }
+  ],
+  "catches": ["server/test/orders.test.ts"]
+}
