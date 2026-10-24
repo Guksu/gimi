@@ -1,0 +1,21 @@
+diff --git a/web/src/pages/PaymentPages.tsx b/web/src/pages/PaymentPages.tsx
+index 697e925..226a137 100644
+--- a/web/src/pages/PaymentPages.tsx
++++ b/web/src/pages/PaymentPages.tsx
+@@ -23,11 +23,12 @@ export const PaymentSuccessPage = ({ search }: { search: string }) => {
+     const orderId = Number(params.get('orderId'))
+     api
+       .confirm({ orderId, paymentKey: params.get('paymentKey') ?? '', amount: Number(params.get('amount')) })
+-      .then(({ status, data }) => {
+-        if (status === 202 || !('id' in data)) return setResult({ kind: 'checking' })
+-        trackPurchase(data)
++      .then(async ({ status, data }) => {
++        // 확인 중이어도 PG는 대부분 승인한 상태다 — 손님이 멈춰 있지 않게 주문을 불러와 결과를 보인다
++        const order = status === 202 || !('id' in data) ? (await api.order(orderId)).data : data
++        trackPurchase(order)
+         cart.clear()
+-        setResult({ kind: 'done', order: data })
++        setResult({ kind: 'done', order })
+       })
+       .catch((e: unknown) => setResult({ kind: 'failed', message: messageOf(e instanceof ApiError ? e.code : 'UNKNOWN'), orderId }))
+   }, [search, cart])

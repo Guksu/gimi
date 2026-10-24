@@ -1,0 +1,33 @@
+diff --git b/server/src/orders/returns-policy.ts a/server/src/orders/returns-policy.ts
+index 85bde04..5f9b4f2 100644
+--- b/server/src/orders/returns-policy.ts
++++ a/server/src/orders/returns-policy.ts
+@@ -10,6 +10,7 @@ export const DEFECTIVE_DAYS = 90
+ 
+ /** 그 시각이 되면 반품을 받지 않는다 — 받은 날(한국 시간)의 다음 날부터 days일이 지난 자정 */
+ export const returnDeadline = (deliveredAt: Date, days = CHANGE_OF_MIND_DAYS) => {
+-  const startOfDeliveryDay = Date.UTC(deliveredAt.getUTCFullYear(), deliveredAt.getUTCMonth(), deliveredAt.getUTCDate()) - KST_OFFSET_MS
++  const kst = new Date(deliveredAt.getTime() + KST_OFFSET_MS)
++  const startOfDeliveryDay = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - KST_OFFSET_MS
+   return new Date(startOfDeliveryDay + (days + 1) * DAY_MS)
+ }
+diff --git b/server/test/refunds-returns.test.ts a/server/test/refunds-returns.test.ts
+index bc9e7f1..a3769a0 100644
+--- b/server/test/refunds-returns.test.ts
++++ a/server/test/refunds-returns.test.ts
+@@ -79,6 +79,15 @@ describe('POST /orders/:id/returns — 청약철회(반품)', () => {
+     expect((await ret(order.id)).status).toBe(201)
+   })
+ 
++  it('새벽에 받은 주문도 받은 날을 한국 날짜로 센다 — 10월 22일 01:00(KST) 배송이면 10월 29일 23:59까지', async () => {
++    const { order } = await paid()
++    // 한국 날짜는 22일이지만 UTC 날짜는 21일이다 — 날짜 경계를 UTC로 잡으면 마감이 하루 이르다
++    await t.db.query("UPDATE orders SET status = 'delivered', delivered_at = '2026-10-21T16:00:00Z' WHERE id = $1", [order.id])
++    expect((await detail(order.id)).returnDeadline).toBe('2026-10-29T15:00:00.000Z')
++    t.clock.set('2026-10-29T14:59:59.999Z')
++    expect((await ret(order.id)).status).toBe(201)
++  })
++
+   it('반품 불가로 표시한 상품만 있는 주문은 단순 변심 반품을 막고, 상품 하자는 받는다', async () => {
+     const order = await delivered({ items: [{ productId: 4, quantity: 1 }] })
+     expect((await detail(order.id)).items[0].returnable).toBe(false)

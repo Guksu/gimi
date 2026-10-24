@@ -35,13 +35,14 @@ defects/{ID}/
 
 | 필드 | 뜻 |
 |---|---|
-| `id` | 폴더 이름과 같다. 프리셋 규칙의 결함이면 규칙 ID를 쓴다 |
+| `id` | 폴더 이름과 같다. 프리셋 규칙의 결함이면 규칙 ID를 쓴다. 공통 금지선(`code/…`·`test/…`)의 결함이면 `/` 뒤의 이름을 쓴다 |
 | `rules` | 어긴 규칙 ID. `슬롭`·`도메인 규칙` 결함은 하나 이상 적는다. `영향 범위`·`의도`·`이력` 결함은 비워도 된다 |
 | `context` | 맥락 종류 — 영향 범위·의도·이력·슬롭·도메인 규칙 |
 | `layer` | 프론트·백엔드·둘 다 |
 | `pr` | 결함 커밋의 메시지가 된다. 제목은 첫 줄, 본문은 그 아래 |
 | `findings` | 정답. 단계(고쳐야 함·고치면 좋음·확인 질문) + 결함 버전의 `path:line`(범위면 `endLine`까지). `evidence`는 지적에 필요한 맥락의 위치다. 채점에서 맥락 묶음에 이 위치가 없으면 "수집 실패", 있는데 지적하지 못하면 "판단 실패"로 나눈다 |
 | `clean` | `true`면 결함이 없는 PR이다(오탐을 잰다). `findings`·`catches`를 비운다 |
+| `history` | 이력 결함만(선택). 평가용 저장소의 `main`에 쌓을 예전 커밋 목록 — `{ "message": "fix: …", "patch": "history/01-….patch" }`. 패치는 그 커밋 앞의 상태 → 뒤의 상태이고, 마지막 커밋 뒤가 정상 버전이다 |
 | `catches` | 결함을 잡는 테스트 파일(선택). 정상 버전에 있고 패치가 고치지 않는 파일이어야 한다. 정상 버전에서 통과하고 결함 버전에서 실패해야 한다 |
 
 ## 명령
@@ -75,6 +76,8 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 4. 결함을 잡는 테스트가 정상 버전에 없으면 예제 저장소에 먼저 더한다(정상 버전에서 통과해야 한다).
 5. `node scripts/defects.mjs check {ID}`가 통과하는지 본다. 정답 줄은 `materialize`로 만든 저장소에서 확인한다.
 
+이력 결함(예전 수정을 되돌리는 PR)은 그 수정 커밋도 만든다. 정상 버전 저장소에서 수정 전 상태로 되돌린 뒤 `git diff -R > defects/{ID}/history/01-….patch`로 저장한다(수정 전 → 정상 버전). `materialize`는 이 패치를 거꾸로 풀어 처음 상태를 커밋하고, 다시 올려 수정 커밋을 쌓는다. 수정 커밋에 재현 테스트가 있으면 정상 버전에도 그 테스트가 있어야 한다.
+
 정상 버전을 고쳐 패치가 붙지 않게 되면 `check`가 실패한다. 그 결함의 패치를 새 정상 버전에서 다시 만든다.
 
 ## 지금 있는 결함
@@ -83,8 +86,16 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 |---|---|---|---|
 | COM-003 | 백엔드 | 요청 본문의 total을 주문 금액으로 저장한다 — 요청을 바꾸면 그 금액으로 결제된다 | `server/test/orders.test.ts` 요청의 금액 무시 · `test-principles` |
 | COM-007 | 백엔드 | 남은 수량을 알려 주려고 재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다 — 동시 주문이 모두 통과한다 | `server/test/orders.test.ts` 동시 주문 · `concurrency` |
+| COM-015 | 프론트 | 서버가 확인 중(202)이라고 해도 주문을 불러와 완료 화면을 보인다 — 결제 대기 주문이 '결제가 끝났어요'로 보인다 | `web/src/pages/payment.test.tsx` 확인 중 · `async-ui-states` |
+| COM-012 | 프론트 | 반품 마감 날짜를 기기 시간대로 보인다('23:59까지'는 그대로) — 한국보다 빠른 시간대에서 날짜가 하루 뒤로 보인다 | 없음(정상 버전의 테스트는 한국·UTC에서 돌아 못 잡는다) · `fake-time` |
 | COM-016 | 프론트 | 결제하기를 누를 때마다 새 멱등 키를 만든다 — 응답이 끊긴 뒤 다시 누르면 주문이 하나 더 생긴다 | `web/src/pages/checkout.test.tsx` 응답이 끊긴 뒤 재시도 · `api-boundary` |
+| COM-028 | 프론트 | 보낸 구매 이벤트를 기록하지 않는다 — 결과 화면을 새로 고칠 때마다 다시 나간다 | `web/src/pages/payment.test.tsx` 구매 이벤트 한 번 · `race-and-duplicate` |
 | COM-018 | 백엔드 | 결제 완료를 반영할 때마다 포인트를 쌓는다(이미 반영했는지 확인보다 앞) — 확정 요청과 웹훅이 겹치면 두 번 쌓인다 | `server/test/webhooks.test.ts` 확정 뒤 웹훅 · `idempotency` |
 | COM-019 | 백엔드 | 승인 요청의 타임아웃을 확실한 거절로 처리한다 — PG는 승인했는데 주문은 결제 실패 | `server/test/payments.test.ts` 늦은 응답 · `external-api-fake` |
 | COM-021 | 백엔드 | 웹훅 본문의 상태로 바로 반영하고 PG를 다시 조회하지 않는다 — 본문만 결제 완료인 웹훅으로 주문이 확정된다 | `server/test/webhooks.test.ts` 본문을 믿지 않음 · `webhook-contract` |
+| KCL-005 | 프론트 | 결제 동의 체크를 처음부터 켜 둔다 — 원클릭 구매가 된다 | `web/src/pages/checkout.test.tsx` 동의는 비어 있음 · `user-interaction` |
+| COM-024 | 둘 다 | 주문 응답에서 canCancel·canReturn을 뺀다(계약·web은 그대로) — web의 취소·반품 버튼이 사라진다 | `server/test/refunds-returns.test.ts` canCancel · `api-contract` |
+| COM-029 | 백엔드 | 무료 배송을 쿠폰 전 상품 금액으로 정한다 — PR 본문의 요구사항(쿠폰 뒤 금액)과 다르다(의도) | `server/test/pricing.test.ts` 쿠폰 뒤 금액 · `requirement-cases` |
+| HIST-001 | 백엔드 | 받은 날 0시를 "한 줄로 정리"하며 예전 수정(한국 시간 날짜 경계)을 되돌린다 — 새벽 배송의 마감이 하루 이르다(이력) | `server/test/refunds-returns.test.ts` 새벽 배송 · `regression-first` |
 | KCL-001 | 백엔드 | 반품 기한을 배송 시각 + 7×24시간으로 따로 계산한다 — 화면이 보이는 마감(7일째 23:59)보다 일찍 막는다 | `server/test/refunds-returns.test.ts` 7일째 경계 · `domain-boundaries` |
+| missing-ownership | 백엔드 | 주문을 기본 키로만 조회한다(요청자 조건을 뺌) — 남의 주문을 조회·취소할 수 있다 | `server/test/orders.test.ts` 남의 주문 · `db-integration` |
