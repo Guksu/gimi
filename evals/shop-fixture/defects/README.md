@@ -84,6 +84,7 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 
 | ID | 층 | 무엇을 심었나 | 잡는 테스트 · 패턴 예시 |
 |---|---|---|---|
+| COM-003 | 백엔드 | 요청 본문의 total을 주문 금액으로 저장한다 — 요청을 바꾸면 그 금액으로 결제된다 | `server/test/orders.test.ts` 요청의 금액 무시 · `test-principles` |
 | COM-007 | 백엔드 | 남은 수량을 알려 주려고 재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다 — 동시 주문이 모두 통과한다 | `server/test/orders.test.ts` 동시 주문 · `concurrency` |
 | COM-015 | 프론트 | 서버가 확인 중(202)이라고 해도 주문을 불러와 완료 화면을 보인다 — 결제 대기 주문이 '결제가 끝났어요'로 보인다 | `web/src/pages/payment.test.tsx` 확인 중 · `async-ui-states` |
 | COM-012 | 프론트 | 반품 마감 날짜를 기기 시간대로 보인다('23:59까지'는 그대로) — 한국보다 빠른 시간대에서 날짜가 하루 뒤로 보인다 | 없음(정상 버전의 테스트는 한국·UTC에서 돌아 못 잡는다) · `fake-time` |

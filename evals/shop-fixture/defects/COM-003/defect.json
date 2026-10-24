@@ -1,0 +1,24 @@
+{
+  "id": "COM-003",
+  "rules": ["COM-003"],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: 화면에 보이던 총액으로 주문해 결제창 금액과 맞춘다",
+    "body": "## 배경\n쿠폰을 바꾼 직후 결제하면 화면에 보이던 금액과 결제창 금액이 달라 문의가 온다.\n\n## 변경\n- 주문 요청에 화면의 총액(total)이 오면 그 금액으로 주문을 만든다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "요청 본문의 total을 주문 금액으로 저장한다. 결제창·승인은 이 저장 금액을 쓰므로, 요청의 total을 100으로 바꾸면 100원에 결제된다. 클라이언트에서는 상품 ID와 수량만 받고 금액은 서버가 계산해야 한다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 76,
+      "endLine": 77,
+      "evidence": [
+        { "path": "server/src/orders/orders.service.ts", "line": 54 },
+        { "path": "server/src/orders/orders.service.ts", "line": 162 }
+      ]
+    }
+  ],
+  "catches": ["server/test/orders.test.ts"]
+}

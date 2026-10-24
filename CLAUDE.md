@@ -24,3 +24,4 @@
 | 2026-10-24 | 테스트 패턴 — 백엔드 나머지 db-integration↔missing-ownership·api-contract↔COM-024(결함 PR·PATTERN.md·예시·선택 평가). 예제 저장소 server에 개발 의존성 ajv·yaml | skills/gimi-test/patterns·evals·evals/shop-fixture | 사용자 요청 — "남은것들도 각각 진행해서 pr올려줘" |
 | 2026-10-24 | 테스트 패턴 — fake-time↔COM-012(결함 PR·PATTERN.md·예시·선택 평가). 정상 버전의 테스트가 못 잡는 결함이라 패턴 예시로만 확인 | skills/gimi-test/patterns·evals·evals/shop-fixture | 사용자 요청 — "남은것들도 각각 진행해서 pr올려줘" |
 | 2026-10-24 | 테스트 패턴 — 맥락 결함 requirement-cases↔COM-029(의도)·regression-first↔HIST-001(이력). 결함 PR의 history(평가용 저장소 main에 예전 커밋), 정상 버전에 새벽 배송 재현 테스트 | scripts·skills/gimi-test/patterns·evals·evals/shop-fixture·tests | 사용자 요청 — "남은것들도 각각 진행해서 pr올려줘". history 형식은 제가 정했다 |
+| 2026-10-24 | 테스트 패턴 — 바탕 test-principles↔COM-003·test-audit(check.mjs 규칙표, 예시는 검사기로 검증). 모든 좋은 예시에 check.mjs 지적이 없는지 보는 테스트 | skills/gimi-test/patterns·evals·evals/shop-fixture·tests | 사용자 요청 — "남은것들도 각각 진행해서 pr올려줘". test-audit 검증 방식은 제가 정했다 |
