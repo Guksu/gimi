@@ -13,7 +13,7 @@ const priceOfNoodle = (won: number) => t.db.query('UPDATE products SET price = $
 const quote = (body: Record<string, unknown>) => t.as(1).post('/orders/quote').send({ method: 'card', items: [{ productId: 1, quantity: 1 }], ...body })
 
 // 요구사항(기획 문서 '배송비 정책')을 항목마다 테스트로 옮긴다 — 테스트 이름이 요구사항 문장이다.
-// 구현을 보고 쓰지 않는다. 문서에 없는 경우는 it.todo로 남겨 묻는다
+// 구현을 보고 쓰지 않는다. 문서에 없는 경우는 테스트로 굳히지 않고 맨 아래에 질문으로 남긴다
 describe("요구사항 — 배송비 정책", () => {
   it('1. 쿠폰을 적용한 뒤 상품 금액이 30,000원 이상이면 배송비 0원', async () => {
     await priceOfNoodle(33000)
@@ -45,5 +45,5 @@ describe("요구사항 — 배송비 정책", () => {
     expect(res.body).toMatchObject({ pointsUsed: 1000, shippingFee: 0, total: 29000 })
   })
 
-  it.todo('문서에 없음 — 제주·도서 산간의 추가 배송비. 기획에 묻고 정한다')
+  // 문서에 없음(기획에 물었다) — 제주·도서 산간의 추가 배송비. 정해지면 항목 4로 더한다
 })
