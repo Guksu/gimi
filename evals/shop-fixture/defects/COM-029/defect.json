@@ -1,0 +1,23 @@
+{
+  "id": "COM-029",
+  "rules": ["COM-029"],
+  "context": "의도",
+  "layer": "백엔드",
+  "pr": {
+    "title": "refactor: 배송비 계산을 한 줄로 정리한다",
+    "body": "## 요구사항(기획 문서 '배송비 정책')\n- 쿠폰을 적용한 뒤 상품 금액이 30,000원 이상이면 배송비 0원\n- 그 밖에는 배송비 3,000원\n- 포인트는 배송비를 정할 때 빼지 않는다\n\n## 변경\n- 배송비를 상품 금액으로 바로 정해 계산을 한 줄로 줄인다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "PR 본문의 요구사항은 '쿠폰을 적용한 뒤' 금액이 기준인데, 코드는 쿠폰 전 상품 금액(subtotal)으로 배송비를 정한다. 32,000원에 3,000원 쿠폰을 쓰면 29,000원인데 배송비가 0원이 된다. 장바구니의 '무료 배송까지' 안내는 쿠폰 뒤 금액으로 계산해 화면과도 어긋난다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 93,
+      "evidence": [
+        { "path": "server/src/pricing/pricing.service.ts", "line": 91 },
+        { "path": "web/src/pages/CartPage.tsx", "line": 48 }
+      ]
+    }
+  ],
+  "catches": ["server/test/pricing.test.ts"]
+}
