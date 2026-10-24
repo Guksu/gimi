@@ -82,8 +82,11 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 | ID | 층 | 무엇을 심었나 | 잡는 테스트 · 패턴 예시 |
 |---|---|---|---|
 | COM-007 | 백엔드 | 남은 수량을 알려 주려고 재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다 — 동시 주문이 모두 통과한다 | `server/test/orders.test.ts` 동시 주문 · `concurrency` |
+| COM-015 | 프론트 | 서버가 확인 중(202)이라고 해도 주문을 불러와 완료 화면을 보인다 — 결제 대기 주문이 '결제가 끝났어요'로 보인다 | `web/src/pages/payment.test.tsx` 확인 중 · `async-ui-states` |
 | COM-016 | 프론트 | 결제하기를 누를 때마다 새 멱등 키를 만든다 — 응답이 끊긴 뒤 다시 누르면 주문이 하나 더 생긴다 | `web/src/pages/checkout.test.tsx` 응답이 끊긴 뒤 재시도 · `api-boundary` |
+| COM-028 | 프론트 | 보낸 구매 이벤트를 기록하지 않는다 — 결과 화면을 새로 고칠 때마다 다시 나간다 | `web/src/pages/payment.test.tsx` 구매 이벤트 한 번 · `race-and-duplicate` |
 | COM-018 | 백엔드 | 결제 완료를 반영할 때마다 포인트를 쌓는다(이미 반영했는지 확인보다 앞) — 확정 요청과 웹훅이 겹치면 두 번 쌓인다 | `server/test/webhooks.test.ts` 확정 뒤 웹훅 · `idempotency` |
 | COM-019 | 백엔드 | 승인 요청의 타임아웃을 확실한 거절로 처리한다 — PG는 승인했는데 주문은 결제 실패 | `server/test/payments.test.ts` 늦은 응답 · `external-api-fake` |
 | COM-021 | 백엔드 | 웹훅 본문의 상태로 바로 반영하고 PG를 다시 조회하지 않는다 — 본문만 결제 완료인 웹훅으로 주문이 확정된다 | `server/test/webhooks.test.ts` 본문을 믿지 않음 · `webhook-contract` |
+| KCL-005 | 프론트 | 결제 동의 체크를 처음부터 켜 둔다 — 원클릭 구매가 된다 | `web/src/pages/checkout.test.tsx` 동의는 비어 있음 · `user-interaction` |
 | KCL-001 | 백엔드 | 반품 기한을 배송 시각 + 7×24시간으로 따로 계산한다 — 화면이 보이는 마감(7일째 23:59)보다 일찍 막는다 | `server/test/refunds-returns.test.ts` 7일째 경계 · `domain-boundaries` |
