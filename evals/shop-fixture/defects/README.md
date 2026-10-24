@@ -81,6 +81,7 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 
 | ID | 층 | 무엇을 심었나 | 잡는 테스트 · 패턴 예시 |
 |---|---|---|---|
+| COM-003 | 백엔드 | 요청 본문의 total을 주문 금액으로 저장한다 — 요청을 바꾸면 그 금액으로 결제된다 | `server/test/orders.test.ts` 요청의 금액 무시 · `test-principles` |
 | COM-007 | 백엔드 | 남은 수량을 알려 주려고 재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다 — 동시 주문이 모두 통과한다 | `server/test/orders.test.ts` 동시 주문 · `concurrency` |
 | COM-016 | 프론트 | 결제하기를 누를 때마다 새 멱등 키를 만든다 — 응답이 끊긴 뒤 다시 누르면 주문이 하나 더 생긴다 | `web/src/pages/checkout.test.tsx` 응답이 끊긴 뒤 재시도 · `api-boundary` |
 | COM-018 | 백엔드 | 결제 완료를 반영할 때마다 포인트를 쌓는다(이미 반영했는지 확인보다 앞) — 확정 요청과 웹훅이 겹치면 두 번 쌓인다 | `server/test/webhooks.test.ts` 확정 뒤 웹훅 · `idempotency` |
