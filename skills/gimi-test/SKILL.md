@@ -9,7 +9,7 @@ AI가 쓴 테스트는 통과하지만 아무것도 지키지 않는 경우가 �
 
 ## 지금 상태 (0.0.1)
 
-끝내기 전 검사 스크립트(`scripts/check.mjs`)는 바뀐 범위의 테스트·타입 검사·린트를 찾아 돌리고, 바뀐 JS·TS 줄에서 테스트·코드 슬롭을 찾아 보고한다. `--baseline`으로 실패를 기준에서 다시 돌려 보고, `scripts/connect.mjs`로 프로젝트별로 자동 실행을 연결한다. 테스트 금지선(`shared/rules/test.md`·`done.md`)과 분야 프리셋(`shared/domains/`)이 들어 있고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 테스트 패턴은 1차 가운데 6개(프론트 `api-boundary`, 백엔드 `concurrency`·`idempotency`·`webhook-contract`·`external-api-fake`, 둘 다 `domain-boundaries`)가 들어 있다. 나머지는 차례로 더한다. 슬롭 검사는 정규식 수준이라 놓치는 것이 있으니 아래 "쓰지 않을 테스트"도 직접 확인한다.
+끝내기 전 검사 스크립트(`scripts/check.mjs`)는 바뀐 범위의 테스트·타입 검사·린트를 찾아 돌리고, 바뀐 JS·TS 줄에서 테스트·코드 슬롭을 찾아 보고한다. `--baseline`으로 실패를 기준에서 다시 돌려 보고, `scripts/connect.mjs`로 프로젝트별로 자동 실행을 연결한다. 테스트 금지선(`shared/rules/test.md`·`done.md`)과 분야 프리셋(`shared/domains/`)이 들어 있고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 테스트 패턴은 1차 가운데 8개(프론트 `api-boundary`, 백엔드 `concurrency`·`idempotency`·`webhook-contract`·`external-api-fake`, 둘 다 `domain-boundaries`·`requirement-cases`·`regression-first`)가 들어 있다. 나머지는 차례로 더한다. 슬롭 검사는 정규식 수준이라 놓치는 것이 있으니 아래 "쓰지 않을 테스트"도 직접 확인한다.
 
 ## 테스트를 쓸 때
 
@@ -28,6 +28,8 @@ AI가 쓴 테스트는 통과하지만 아무것도 지키지 않는 경우가 �
 | 패턴 | 대상 | 무엇을·언제 |
 |---|---|---|
 | [`domain-boundaries`](patterns/domain-boundaries/PATTERN.md) | 둘 다 | 회사 규칙·분야 프리셋의 경계값(최소 주문 금액, 0원, 재고 0·1, 반품 기한 마지막 날 23:59와 다음 날 00:00, 쿠폰 기간 끝)을 표(it.each)로 만들어 경계 바로 안과 바로 밖을 짝지어 테스트한다. 정상값 하나만 넣지 않는다. "경계값 테스트, 경계 조건, 엣지 케이스, 기한 마지막 날, 유효기간, 최소 금액, 0원, 도메인 규칙 테스트, it.each 표" 요청에 쓴다. |
+| [`regression-first`](patterns/regression-first/PATTERN.md) | 둘 다 | 버그를 고칠 때 재현 테스트부터 쓴다 — 신고된 조건(새벽 배송·특정 시간대·경계값)을 그대로 넣은 테스트를 먼저 쓰고, 고치기 전 코드에서 실패하는 것을 확인한 뒤 고친다. 버그가 없던 조건도 함께 넣어 고친 코드가 다른 경우를 깨지 않았는지 본다. 고친 뒤에 통과하는 테스트만 쓰지 않는다. "회귀 테스트, 재현 테스트, 버그 재현, 버그 수정 테스트, 고치기 전에 실패 확인, 예전에 고친 버그, regression test" 요청에 쓴다. |
+| [`requirement-cases`](patterns/requirement-cases/PATTERN.md) | 둘 다 | 티켓·PR·기획 문서의 요구사항을 항목마다 테스트 하나로 옮긴다 — 테스트 이름이 요구사항 문장이고, 항목의 경계(기준 바로 아래)도 함께 넣으며, 문서에 없는 경우는 it.todo로 남겨 묻는다. 구현(함수·변수 이름)을 보고 테스트를 쓰지 않는다. "요구사항 테스트, 티켓대로 테스트, 기획서 항목마다 테스트, 요구사항 빠진 테스트, 테스트 이름, 수용 기준, acceptance criteria, PR 본문의 요구사항" 요청에 쓴다. |
 | [`api-boundary`](patterns/api-boundary/PATTERN.md) | 프론트 | 화면 테스트에서 API를 네트워크 경계(MSW)에서 바꿔 성공·4xx·5xx·네트워크 끊김·느린 응답마다 사용자가 보는 결과(안내 문구·버튼 상태)와 보낸 요청(본문·멱등 키)을 단언한다. fetch·axios·api 모듈을 mock하지 않는다. "MSW, API mocking, 서버 오류 화면, 500 에러, 409 응답, 네트워크 끊김, 재시도 화면, 응답 mock, 컴포넌트 API 테스트" 요청에 쓴다. |
 | [`concurrency`](patterns/concurrency/PATTERN.md) | 백엔드 | 동시에 들어온 요청이 수량이 한정된 자원(재고·1회용 쿠폰·포인트 잔액)을 두 번 쓰지 않는지 실제 DB로 테스트한다 — 같은 요청 N건을 한꺼번에(Promise.all) 보내 성공 1건, 남은 수량, 진 요청의 충돌 응답(409)을 단언한다. 순차 호출 두 번으로 대신하지 않는다. "동시성 테스트, 동시 주문, 동시에 여러 건, 하나만 성공, 재고 초과 판매, 쿠폰 동시 사용, 포인트 동시 차감, 경쟁 상태, race condition" 요청에 쓴다. |
 | [`external-api-fake`](patterns/external-api-fake/PATTERN.md) | 백엔드 | PG·배송·알림 같은 외부 API를 부르는 백엔드 코드를 HTTP 가짜 서버(fake)로 테스트한다 — 승인·4xx 거절·5xx·타임아웃(늦은 응답)을 가짜 서버의 동작으로 만들고, 주문 상태와 다시 시도할 수 있는지를 단언한다. HTTP 클라이언트 모듈을 mock하지 않는다. "외부 API 테스트, PG 연동 테스트, 결제사 연동, 가짜 서버, fake server, 타임아웃 테스트, 응답 지연, 5xx 처리, 외부 연동 실패" 요청에 쓴다. |
