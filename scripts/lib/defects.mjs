@@ -2,6 +2,7 @@
  * 예제 저장소의 결함 PR(설계 결정 15·41) — evals/shop-fixture/defects/{ID}/에 change.patch와 defect.json을 둔다.
  * 패치는 정상 버전(예제 저장소에서 defects/를 뺀 것)에 붙이는 diff다. defect.json은 어긴 규칙·맥락 종류·PR 제목과 본문,
  * 정답(단계 + file:line, 범위면 endLine까지 + 근거 위치), 결함을 잡는 테스트를 적는다. 경로는 모두 예제 저장소 루트 기준이다.
+ * 이력 결함은 history(예전 커밋 — 메시지와 history/ 아래의 패치)를 더해, 평가용 저장소의 main에 그 커밋들을 쌓는다.
  * 파일 읽기·git·테스트 실행은 scripts/defects.mjs가 맡고, 여기에는 판단만 둔다.
  */
 
@@ -59,6 +60,18 @@ export const validateDefect = ({ dir, json, ruleIds, patchedLines, baseLines, to
     errors.push(...locationErrors(label, finding, patchedLines))
     ;(finding?.evidence ?? []).forEach((evidence, n) => errors.push(...locationErrors(`${label} 근거 ${n + 1}`, evidence, patchedLines)))
   })
+
+  // 이력 — 평가용 저장소의 main에 쌓을 예전 커밋. 패치는 그 커밋 앞의 상태 → 뒤의 상태이고, 마지막 커밋 뒤가 정상 버전이다
+  if (json?.history !== undefined) {
+    if (!Array.isArray(json.history) || json.history.length === 0) errors.push('history는 예전 커밋 목록이다 — 이력이 없으면 history를 뺀다')
+    else
+      json.history.forEach((commit, index) => {
+        const label = `history ${index + 1}`
+        if (!isText(commit?.message)) errors.push(`${label}: 커밋 메시지(message)가 없다`)
+        if (!isText(commit?.patch)) errors.push(`${label}: 패치 파일(patch)이 없다`)
+        else if (!/^history\/[\w.-]+\.patch$/.test(commit.patch)) errors.push(`${label}: patch는 history/ 아래의 .patch 파일이다 — ${commit.patch}`)
+      })
+  }
 
   const catches = Array.isArray(json?.catches) ? json.catches : []
   if (json?.clean === true && catches.length > 0) errors.push('결함이 없는 PR에는 잡는 테스트를 두지 않는다')

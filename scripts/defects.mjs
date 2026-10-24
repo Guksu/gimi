@@ -69,16 +69,36 @@ const ensureEmpty = (dir) => {
   if (existsSync(dir) && readdirSync(dir).length > 0) throw new UsageError(`폴더가 비어 있지 않다: ${dir}`)
 }
 
-/** 정상 버전을 dir에 풀고 main에 커밋한다 */
-const writeBase = (fixture, dir) => {
+/** 정상 버전의 파일을 dir에 풀고 git 저장소로 만든다 — 커밋은 하지 않는다 */
+const copyBase = (fixture, dir) => {
   ensureEmpty(dir)
   for (const path of baseFiles(fixture)) {
     mkdirSync(dirname(join(dir, path)), { recursive: true })
     copyFileSync(join(fixture, path), join(dir, path))
   }
   git(dir, ['init', '-q', '-b', 'main'])
-  git(dir, ['add', '-A'])
-  git(dir, ['commit', '-q', '--no-verify', '-m', BASE_MESSAGE])
+}
+
+const commitAll = (dir, message, date, body) => {
+  git(dir, ['add', '-A'], date)
+  git(dir, ['commit', '-q', '--no-verify', '-m', message, ...(body === undefined ? [] : ['-m', body])], date)
+}
+
+/** 정상 버전을 dir에 풀고 main에 커밋한다 */
+const writeBase = (fixture, dir) => {
+  copyBase(fixture, dir)
+  commitAll(dir, BASE_MESSAGE, BASE_DATE)
+}
+
+// 이력 커밋의 시각 — 정상 버전 커밋(10:00)과 결함 커밋(다음 날) 사이에 한 시간씩
+const historyDate = (index) => `2026-10-20T${String(11 + index).padStart(2, '0')}:00:00+09:00`
+
+const applyPatch = (dir, patchPath, { reverse = false, what }) => {
+  try {
+    git(dir, ['apply', '--whitespace=nowarn', ...(reverse ? ['-R'] : []), patchPath])
+  } catch (error) {
+    throw new Error(`${what} — ${String(error.stderr ?? error.message).trim().split('\n')[0]}`)
+  }
 }
 
 const readDefect = (fixture, id) => {
@@ -88,18 +108,27 @@ const readDefect = (fixture, id) => {
   return { json, patch, patchPath: join(folder, 'change.patch') }
 }
 
-/** 결함 버전 — 정상 버전 위에 defect/<ID> 브랜치를 따고 패치를 PR 제목·본문으로 커밋한다 */
+/**
+ * 결함 버전 — 정상 버전 위에 defect/<ID> 브랜치를 따고 패치를 PR 제목·본문으로 커밋한다.
+ * 이력(history)이 있으면 정상 버전에서 이력 패치를 거꾸로 풀어 처음 상태를 커밋하고, 이력 패치를 차례로 다시 올려 main에 쌓는다.
+ * 그래서 main의 마지막 상태는 언제나 정상 버전과 같다
+ */
 const materialize = (fixture, id, dir) => {
   const { json, patchPath } = readDefect(fixture, id)
-  writeBase(fixture, dir)
-  git(dir, ['checkout', '-q', '-b', `defect/${id}`])
-  try {
-    git(dir, ['apply', '--whitespace=nowarn', patchPath])
-  } catch (error) {
-    throw new Error(`패치가 정상 버전에 붙지 않는다 — ${String(error.stderr ?? error.message).trim().split('\n')[0]}`)
+  const history = Array.isArray(json.history) ? json.history : []
+  const historyPath = (commit) => join(fixture, 'defects', id, commit.patch ?? '')
+  copyBase(fixture, dir)
+  for (let index = history.length - 1; index >= 0; index--) {
+    applyPatch(dir, historyPath(history[index]), { reverse: true, what: `이력 패치가 정상 버전에서 거꾸로 붙지 않는다 — history ${index + 1}` })
   }
-  git(dir, ['add', '-A'], DEFECT_DATE)
-  git(dir, ['commit', '-q', '--no-verify', '-m', json.pr?.title ?? id, '-m', json.pr?.body ?? ''], DEFECT_DATE)
+  commitAll(dir, BASE_MESSAGE, BASE_DATE)
+  history.forEach((commit, index) => {
+    applyPatch(dir, historyPath(commit), { what: `이력 패치가 다시 붙지 않는다 — history ${index + 1}` })
+    commitAll(dir, commit.message, historyDate(index))
+  })
+  git(dir, ['checkout', '-q', '-b', `defect/${id}`])
+  applyPatch(dir, patchPath, { what: '패치가 정상 버전에 붙지 않는다' })
+  commitAll(dir, json.pr?.title ?? id, DEFECT_DATE, json.pr?.body ?? '')
 }
 
 /** 그 버전에서 파일의 줄 수 — 없거나 저장소 밖을 가리키면 null */

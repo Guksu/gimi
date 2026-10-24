@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { makeRepo } from './helpers/repo.mjs'
@@ -105,6 +105,37 @@ describe('defects.mjs materialize·base', () => {
   it('같은 결함은 언제 만들어도 커밋 해시가 같다 — 작성자·시각을 고정한다', () => {
     run(['materialize', 'COM-007', join(out, 'again'), '--fixture', repo.dir])
     assert.equal(git(join(out, 'again'), 'rev-parse', 'HEAD'), git(join(out, 'pr'), 'rev-parse', 'HEAD'))
+  })
+
+  it('이력(history)이 있으면 main에 예전 커밋을 쌓는다 — 정상 버전에서 이력 패치를 거꾸로 풀어 처음 상태를 만들고 다시 올린다', () => {
+    // 정상 버전의 app/src/stock.ts에 이르기까지의 예전 수정 하나 — 조건부 차감이 없던 상태에서 조건을 더했다
+    const before = ['export const take = async (db, id, n) => {', "  await db.query('UPDATE products SET stock = stock - $2 WHERE id = $1', [id, n])", '}', ''].join('\n')
+    const fixed = execFileSync('git', ['show', 'HEAD:app/src/stock.ts'], { cwd: repo.dir, encoding: 'utf8' })
+    repo.write({ 'app/src/stock.ts': before })
+    const fix = repo.git('diff', '-R') // 처음 상태 → 정상 버전
+    repo.git('checkout', '--', 'app/src/stock.ts')
+    const defect = JSON.parse(readFileSync(join(repo.dir, 'defects/COM-007/defect.json'), 'utf8'))
+    mkdirSync(join(repo.dir, 'defects/HIST-001/history'), { recursive: true })
+    writeFileSync(join(repo.dir, 'defects/HIST-001/history/01-conditional.patch'), fix)
+    writeFileSync(join(repo.dir, 'defects/HIST-001/change.patch'), readFileSync(join(repo.dir, 'defects/COM-007/change.patch')))
+    writeFileSync(join(repo.dir, 'defects/HIST-001/defect.json'), JSON.stringify({ ...defect, id: 'HIST-001', context: '이력', history: [{ message: 'fix: 재고보다 많이 팔리던 문제', patch: 'history/01-conditional.patch' }] }))
+
+    const dir = join(out, 'history')
+    const result = run(['materialize', 'HIST-001', dir, '--fixture', repo.dir])
+
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    assert.equal(git(dir, 'log', '--format=%s', 'main'), 'fix: 재고보다 많이 팔리던 문제\nfeat: 국수집 주문 앱')
+    assert.equal(git(dir, 'show', 'main~1:app/src/stock.ts'), before.trimEnd())
+    assert.equal(git(dir, 'show', 'main:app/src/stock.ts'), fixed.trimEnd())
+    assert.equal(git(dir, 'log', '-1', '--format=%s'), 'feat: 재고 부족을 알린다')
+    assert.equal(run(['check', 'HIST-001', '--fixture', repo.dir, '--no-tests']).status, 0)
+  })
+
+  it('이력 패치가 정상 버전에서 거꾸로 붙지 않으면 실패한다', () => {
+    writeFileSync(join(repo.dir, 'defects/HIST-001/history/01-conditional.patch'), readFileSync(join(repo.dir, 'defects/COM-016/change.patch')))
+    const result = run(['check', 'HIST-001', '--fixture', repo.dir, '--no-tests'])
+    assert.equal(result.status, 1)
+    assert.match(result.stdout, /이력 패치.*history 1/)
   })
 
   it('비어 있지 않은 폴더에는 만들지 않는다', () => {
