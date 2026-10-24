@@ -1,0 +1,7 @@
+{
+  "pattern": "api-contract",
+  "assets": [
+    { "file": "order-contract.test.ts", "at": "server/test/order-contract.test.ts", "defect": "COM-024" },
+    { "file": "order-contract.slop.test.ts", "at": "server/test/order-contract.slop.test.ts", "defect": "COM-024" }
+  ]
+}

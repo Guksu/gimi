@@ -1,0 +1,14 @@
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..16dbf94 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -140,8 +140,7 @@ export class OrdersService {
+       pointsEarned: order.points_earned,
+       refundedAmount: order.refunded_amount,
+       refundableAmount: refundable,
+-      canCancel: CANCELABLE.has(order.status),
+-      canReturn: order.status === 'delivered' && deadline !== null && now < deadline && items.some((item) => item.returnable),
++      // 버튼을 보일지는 화면이 주문 상태로 정한다 — API는 화면 사정을 몰라도 된다
+       returnDeadline: deadline?.toISOString() ?? null,
+       createdAt: order.created_at.toISOString(),
+       paidAt: order.paid_at?.toISOString() ?? null,

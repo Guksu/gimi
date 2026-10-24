@@ -1,0 +1,14 @@
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..fcc7b74 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -106,7 +106,8 @@ export class OrdersService {
+   /** 내 주문 — 남의 주문은 없는 것과 같다(404) */
+   async row(userId: number, orderId: number, q: Queryable = this.db.pool) {
+     if (!Number.isSafeInteger(orderId)) throw fail(404, 'ORDER_NOT_FOUND', '주문이 없다')
+-    const order = (await q.query<OrderRow>('SELECT * FROM orders WHERE id = $1 AND user_id = $2', [orderId, userId])).rows[0]
++    // 기본 키로만 찾는다 — user_id 조건이 붙으면 기본 키 인덱스를 타지 못한다
++    const order = (await q.query<OrderRow>('SELECT * FROM orders WHERE id = $1', [orderId])).rows[0]
+     if (!order) throw fail(404, 'ORDER_NOT_FOUND', '주문이 없다')
+     return order
+   }

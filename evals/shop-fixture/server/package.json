@@ -23,11 +23,13 @@
     "@types/node": "^22.20.5",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^6.0.3",
+    "ajv": "^8.20.0",
+    "fake-pg": "*",
     "supertest": "^7.3.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "unplugin-swc": "^1.6.0",
     "vitest": "^3.2.7",
-    "fake-pg": "*"
+    "yaml": "^2.9.1"
   }
 }
