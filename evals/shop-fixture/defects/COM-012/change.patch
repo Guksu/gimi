@@ -1,0 +1,19 @@
+diff --git a/web/src/pages/OrderPage.tsx b/web/src/pages/OrderPage.tsx
+index 350ffc9..fb1deea 100644
+--- a/web/src/pages/OrderPage.tsx
++++ b/web/src/pages/OrderPage.tsx
+@@ -17,10 +17,11 @@ const STATUS_LABEL: Record<string, string> = {
+   cancelled: '취소됨',
+ }
+ const PAYABLE = new Set(['pending_payment', 'payment_failed'])
+-const KST_DAY = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric' })
++// 손님 기기의 시간대로 날짜를 보인다 — 해외 배송지 손님이 현지 날짜로 읽게
++const LOCAL_DAY = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' })
+ 
+-/** 반품 기한(이 시각부터 막힌다)의 마지막 날 — 한국 시간 */
+-const lastDay = (deadline: string) => KST_DAY.format(new Date(new Date(deadline).getTime() - 1))
++/** 반품 기한(이 시각부터 막힌다)의 마지막 날 */
++const lastDay = (deadline: string) => LOCAL_DAY.format(new Date(new Date(deadline).getTime() - 1))
+ 
+ export const OrderPage = ({ id }: { id: number }) => {
+   const [order, setOrder] = useState<Order | null>(null)
