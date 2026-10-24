@@ -83,6 +83,7 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 |---|---|---|---|
 | COM-007 | 백엔드 | 남은 수량을 알려 주려고 재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다 — 동시 주문이 모두 통과한다 | `server/test/orders.test.ts` 동시 주문 · `concurrency` |
 | COM-015 | 프론트 | 서버가 확인 중(202)이라고 해도 주문을 불러와 완료 화면을 보인다 — 결제 대기 주문이 '결제가 끝났어요'로 보인다 | `web/src/pages/payment.test.tsx` 확인 중 · `async-ui-states` |
+| COM-012 | 프론트 | 반품 마감 날짜를 기기 시간대로 보인다('23:59까지'는 그대로) — 한국보다 빠른 시간대에서 날짜가 하루 뒤로 보인다 | 없음(정상 버전의 테스트는 한국·UTC에서 돌아 못 잡는다) · `fake-time` |
 | COM-016 | 프론트 | 결제하기를 누를 때마다 새 멱등 키를 만든다 — 응답이 끊긴 뒤 다시 누르면 주문이 하나 더 생긴다 | `web/src/pages/checkout.test.tsx` 응답이 끊긴 뒤 재시도 · `api-boundary` |
 | COM-028 | 프론트 | 보낸 구매 이벤트를 기록하지 않는다 — 결과 화면을 새로 고칠 때마다 다시 나간다 | `web/src/pages/payment.test.tsx` 구매 이벤트 한 번 · `race-and-duplicate` |
 | COM-018 | 백엔드 | 결제 완료를 반영할 때마다 포인트를 쌓는다(이미 반영했는지 확인보다 앞) — 확정 요청과 웹훅이 겹치면 두 번 쌓인다 | `server/test/webhooks.test.ts` 확정 뒤 웹훅 · `idempotency` |
