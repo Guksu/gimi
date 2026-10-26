@@ -138,6 +138,24 @@ describe('defects.mjs materialize·base', () => {
     assert.match(result.stdout, /이력 패치.*history 1/)
   })
 
+  it('--branch로 결함 브랜치 이름을 정한다 — 평가용 저장소에 결함 ID가 드러나지 않게', () => {
+    const dir = join(out, 'neutral')
+    const result = run(['materialize', 'COM-007', dir, '--fixture', repo.dir, '--branch', 'feature/stock-message'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(git(dir, 'branch', '--show-current'), 'feature/stock-message')
+    assert.equal(git(dir, 'branch', '--format=%(refname:short)'), 'feature/stock-message\nmain')
+  })
+
+  it('--link-deps면 예제 저장소의 node_modules를 링크한다 — 커밋에는 들어가지 않는다', () => {
+    mkdirSync(join(repo.dir, 'node_modules/left-pad'), { recursive: true })
+    writeFileSync(join(repo.dir, 'node_modules/left-pad/index.js'), 'module.exports = 1\n')
+    const dir = join(out, 'deps')
+    const result = run(['materialize', 'COM-007', dir, '--fixture', repo.dir, '--link-deps'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(existsSync(join(dir, 'node_modules/left-pad/index.js')), true)
+    assert.equal(git(dir, 'status', '--porcelain'), '')
+  })
+
   it('비어 있지 않은 폴더에는 만들지 않는다', () => {
     mkdirSync(join(out, 'busy'))
     writeFileSync(join(out, 'busy/keep.txt'), 'x')

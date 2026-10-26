@@ -1,0 +1,13 @@
+diff --git a/web/src/pages/CartPage.tsx b/web/src/pages/CartPage.tsx
+index 4b3b0a2..5e9604b 100644
+--- a/web/src/pages/CartPage.tsx
++++ b/web/src/pages/CartPage.tsx
+@@ -44,7 +44,7 @@ export const CartPage = () => {
+       })
+   }, [cart.items, cart.couponCode, cart.points, invalid.length])
+ 
+-  if (cart.items.length === 0) return <p>장바구니가 비어 있어요</p>
++  if (cart.items.length === 0) return <p>장바구니가 비어 있어요. 메뉴에서 국수를 담아 보세요</p>
+   const remaining = quote ? quote.freeShippingThreshold - (quote.subtotal - quote.couponDiscount) : 0
+   return (
+     <section aria-label="장바구니">

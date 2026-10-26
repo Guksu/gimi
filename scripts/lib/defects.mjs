@@ -3,6 +3,7 @@
  * 패치는 정상 버전(예제 저장소에서 defects/를 뺀 것)에 붙이는 diff다. defect.json은 어긴 규칙·맥락 종류·PR 제목과 본문,
  * 정답(단계 + file:line, 범위면 endLine까지 + 근거 위치), 결함을 잡는 테스트를 적는다. 경로는 모두 예제 저장소 루트 기준이다.
  * 이력 결함은 history(예전 커밋 — 메시지와 history/ 아래의 패치)를 더해, 평가용 저장소의 main에 그 커밋들을 쌓는다.
+ * 근거(evidence)는 위치(path·line)나 이력 커밋(commit — history의 메시지 앞부분)이다.
  * 파일 읽기·git·테스트 실행은 scripts/defects.mjs가 맡고, 여기에는 판단만 둔다.
  */
 
@@ -26,6 +27,13 @@ const locationErrors = (label, location, linesOf) => {
   if (!Number.isInteger(location.endLine) || location.endLine < location.line) return [`${label}: endLine은 line(${location.line}) 이상의 정수다`]
   if (location.endLine > total) return [`${label}: ${location.path}:${location.endLine} — 파일 길이(${total}줄)를 넘는다`]
   return []
+}
+
+/** 근거가 이력 커밋이면 — history의 커밋 메시지 앞부분이어야 한다(평가용 저장소의 main에 그 커밋이 있다) */
+const commitEvidenceErrors = (label, commit, history) => {
+  if (!isText(commit)) return [`${label}: 커밋(commit)이 비었다 — history의 커밋 메시지 앞부분을 적는다`]
+  const messages = Array.isArray(history) ? history.map((entry) => entry?.message).filter(isText) : []
+  return messages.some((message) => message.startsWith(commit)) ? [] : [`${label}: ${commit} — history에 없다`]
 }
 
 /**
@@ -58,7 +66,11 @@ export const validateDefect = ({ dir, json, ruleIds, patchedLines, baseLines, to
     if (!LEVELS.includes(finding?.level)) errors.push(`${label}: 단계는 ${LEVELS.join('·')} 중 하나다: ${finding?.level}`)
     if (!isText(finding?.summary)) errors.push(`${label}: 설명(summary)이 없다`)
     errors.push(...locationErrors(label, finding, patchedLines))
-    ;(finding?.evidence ?? []).forEach((evidence, n) => errors.push(...locationErrors(`${label} 근거 ${n + 1}`, evidence, patchedLines)))
+    ;(finding?.evidence ?? []).forEach((evidence, n) => {
+      const evidenceLabel = `${label} 근거 ${n + 1}`
+      if (evidence && typeof evidence === 'object' && 'commit' in evidence) errors.push(...commitEvidenceErrors(evidenceLabel, evidence.commit, json?.history))
+      else errors.push(...locationErrors(evidenceLabel, evidence, patchedLines))
+    })
   })
 
   // 이력 — 평가용 저장소의 main에 쌓을 예전 커밋. 패치는 그 커밋 앞의 상태 → 뒤의 상태이고, 마지막 커밋 뒤가 정상 버전이다

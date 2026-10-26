@@ -80,6 +80,22 @@ describe('validateDefect — 이력(history)', () => {
   })
 })
 
+describe('validateDefect — 근거의 이력 커밋', () => {
+  it('근거는 위치(path·line) 말고 이력 커밋(commit — history의 메시지 앞부분)일 수 있다', () => {
+    const json = { ...good(), context: '이력', history: [{ message: 'fix: 새벽에 받은 주문의 반품 기한', patch: 'history/01.patch' }] }
+    json.findings[0].evidence = [{ commit: 'fix: 새벽에 받은 주문' }]
+    assert.deepEqual(validate(json), [])
+  })
+
+  it('이력에 없는 커밋이나 빈 커밋은 오류다', () => {
+    const json = { ...good(), history: [{ message: 'fix: a', patch: 'history/01.patch' }] }
+    json.findings[0].evidence = [{ commit: 'fix: b' }, { commit: '' }]
+    const errors = validate(json)
+    assert.ok(errors.some((e) => /근거 1.*fix: b.*history에 없다/.test(e)), errors.join(' / '))
+    assert.ok(errors.some((e) => /근거 2.*커밋/.test(e)), errors.join(' / '))
+  })
+})
+
 describe('patchedPaths', () => {
   it('패치가 고치는 파일 — 새 파일·지운 파일·이름 바꿈을 담는다', () => {
     const patch = [

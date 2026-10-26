@@ -23,6 +23,9 @@
       "line": 14,
       "evidence": [
         {
+          "commit": "fix: 새벽에 받은 주문의 반품 기한이 하루 짧던 문제"
+        },
+        {
           "path": "server/src/orders/returns-policy.ts",
           "line": 2
         },

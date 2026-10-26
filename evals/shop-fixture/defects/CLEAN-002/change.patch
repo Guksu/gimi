@@ -1,0 +1,37 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..da15f1b 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -61,6 +61,16 @@ const parseMethod = (method: unknown): Method => {
+   return method as Method
+ }
+ 
++/** 주문 한 줄 — 상품이 있는지, 한 번에 살 수 있는 수량인지, 재고가 있는지 차례로 본다 */
++const toLine = (rows: ProductRow[], { productId, quantity }: { productId: number; quantity: number }): QuoteLine => {
++  const product = rows.find((row) => Number(row.id) === productId)
++  if (!product) throw fail(400, 'PRODUCT_NOT_FOUND', `상품 ${productId}이 없다`)
++  if (quantity > product.max_per_order) throw fail(400, 'INVALID_QUANTITY', `${product.name}은 한 번에 ${product.max_per_order}개까지 살 수 있다`)
++  if (product.stock === 0) throw fail(409, 'SOLD_OUT', `${product.name}은 품절이다`)
++  if (quantity > product.stock) throw fail(409, 'OUT_OF_STOCK', `${product.name}의 재고가 ${product.stock}개다`)
++  return { productId, name: product.name, unitPrice: product.price, quantity, lineTotal: product.price * quantity, returnable: product.returnable }
++}
++
+ @Injectable()
+ export class PricingService {
+   constructor(
+@@ -76,14 +86,7 @@ export class PricingService {
+     const method = parseMethod(input.method)
+     const items = parseItems(input.items)
+     const rows = (await q.query<ProductRow>('SELECT id, name, price, stock, max_per_order, returnable FROM products WHERE id = ANY($1::bigint[])', [items.map((i) => i.productId)])).rows
+-    const lines = items.map(({ productId, quantity }) => {
+-      const product = rows.find((row) => Number(row.id) === productId)
+-      if (!product) throw fail(400, 'PRODUCT_NOT_FOUND', `상품 ${productId}이 없다`)
+-      if (quantity > product.max_per_order) throw fail(400, 'INVALID_QUANTITY', `${product.name}은 한 번에 ${product.max_per_order}개까지 살 수 있다`)
+-      if (product.stock === 0) throw fail(409, 'SOLD_OUT', `${product.name}은 품절이다`)
+-      if (quantity > product.stock) throw fail(409, 'OUT_OF_STOCK', `${product.name}의 재고가 ${product.stock}개다`)
+-      return { productId, name: product.name, unitPrice: product.price, quantity, lineTotal: product.price * quantity, returnable: product.returnable }
+-    })
++    const lines = items.map((item) => toLine(rows, item))
+     const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0)
+ 
+     const couponCode = typeof input.couponCode === 'string' && input.couponCode.trim() !== '' ? input.couponCode.trim() : null
