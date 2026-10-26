@@ -99,3 +99,12 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 | HIST-001 | 백엔드 | 받은 날 0시를 "한 줄로 정리"하며 예전 수정(한국 시간 날짜 경계)을 되돌린다 — 새벽 배송의 마감이 하루 이르다(이력) | `server/test/refunds-returns.test.ts` 새벽 배송 · `regression-first` |
 | KCL-001 | 백엔드 | 반품 기한을 배송 시각 + 7×24시간으로 따로 계산한다 — 화면이 보이는 마감(7일째 23:59)보다 일찍 막는다 | `server/test/refunds-returns.test.ts` 7일째 경계 · `domain-boundaries` |
 | missing-ownership | 백엔드 | 주문을 기본 키로만 조회한다(요청자 조건을 뺌) — 남의 주문을 조회·취소할 수 있다 | `server/test/orders.test.ts` 남의 주문 · `db-integration` |
+
+## 결함 없는 PR
+
+리뷰어가 문제 없는 변경에 지적을 다는지(오탐) 잰다. `clean: true`로 적고 `findings`·`catches`는 비운다. 정상 버전의 타입 검사와 테스트를 그대로 통과한다.
+
+| ID | 층 | 무엇을 바꿨나 |
+|---|---|---|
+| CLEAN-001 | 프론트 | 빈 장바구니 문구에 메뉴에서 담으라는 안내를 덧붙인다 |
+| CLEAN-002 | 백엔드 | 결제 금액 계산에서 주문 한 줄 검사를 `toLine` 함수로 뺀다 — 검사 순서·오류 코드·메시지는 그대로다 |
