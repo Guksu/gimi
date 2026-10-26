@@ -5,6 +5,8 @@
  *   node scripts/defects.mjs check [ID…] [--no-tests]   패치가 붙는지, defect.json 형식·정답 위치, 잡는 테스트(정상 통과·결함 실패),
  *                                                        패턴 예시(evals/patterns/{패턴}.json — 좋은 예시는 결함 실패, 슬롭 예시는 결함 통과)
  *   node scripts/defects.mjs materialize <ID> <폴더>      main = 정상 버전, defect/<ID> = 결함 PR(체크아웃)
+ *        --branch <이름>   결함 브랜치 이름(기본 defect/<ID>) — 리뷰 평가에서 결함 ID가 드러나지 않게
+ *        --link-deps       예제 저장소의 node_modules를 링크한다(맥락 수집이 프로젝트의 typescript를 쓰게)
  *   node scripts/defects.mjs base <폴더>                  정상 버전만 — 새 결함 패치를 만들 때 쓴다
  *   공통: --fixture <폴더>(기본 evals/shop-fixture)
  *   check: --patterns <폴더>(기본 skills/gimi-test/patterns), --pattern-specs <폴더>(기본 evals/patterns — 예제 저장소가 기본일 때만.
@@ -44,13 +46,15 @@ class UsageError extends Error {}
 const parseArgs = (argv) => {
   const positional = []
   const defaultFixture = join(ROOT, 'evals/shop-fixture')
-  const options = { fixture: defaultFixture, tests: true, patterns: join(ROOT, 'skills/gimi-test/patterns'), patternSpecs: null }
+  const options = { fixture: defaultFixture, tests: true, patterns: join(ROOT, 'skills/gimi-test/patterns'), patternSpecs: null, branch: null, linkDeps: false }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--fixture') options.fixture = resolve(argv[++i] ?? '')
     else if (arg === '--patterns') options.patterns = resolve(argv[++i] ?? '')
     else if (arg === '--pattern-specs') options.patternSpecs = resolve(argv[++i] ?? '')
     else if (arg === '--no-tests') options.tests = false
+    else if (arg === '--branch') options.branch = argv[++i] ?? ''
+    else if (arg === '--link-deps') options.linkDeps = true
     else if (arg.startsWith('--')) throw new UsageError(`모르는 옵션: ${arg}`)
     else positional.push(arg)
   }
@@ -113,7 +117,7 @@ const readDefect = (fixture, id) => {
  * 이력(history)이 있으면 정상 버전에서 이력 패치를 거꾸로 풀어 처음 상태를 커밋하고, 이력 패치를 차례로 다시 올려 main에 쌓는다.
  * 그래서 main의 마지막 상태는 언제나 정상 버전과 같다
  */
-const materialize = (fixture, id, dir) => {
+const materialize = (fixture, id, dir, { branch = `defect/${id}` } = {}) => {
   const { json, patchPath } = readDefect(fixture, id)
   const history = Array.isArray(json.history) ? json.history : []
   const historyPath = (commit) => join(fixture, 'defects', id, commit.patch ?? '')
@@ -126,7 +130,7 @@ const materialize = (fixture, id, dir) => {
     applyPatch(dir, historyPath(commit), { what: `이력 패치가 다시 붙지 않는다 — history ${index + 1}` })
     commitAll(dir, commit.message, historyDate(index))
   })
-  git(dir, ['checkout', '-q', '-b', `defect/${id}`])
+  git(dir, ['checkout', '-q', '-b', branch])
   applyPatch(dir, patchPath, { what: '패치가 정상 버전에 붙지 않는다' })
   commitAll(dir, json.pr?.title ?? id, DEFECT_DATE, json.pr?.body ?? '')
 }
@@ -309,9 +313,12 @@ const main = async () => {
   if (command === 'check') return check({ fixture: options.fixture, ids: args, tests: options.tests, patterns: options.patterns, patternSpecs: options.patternSpecs })
   if (command === 'materialize' && args.length === 2) {
     const dir = resolve(args[1])
+    const branch = options.branch || `defect/${args[0]}`
+    if (!/^[\w./-]+$/.test(branch)) throw new UsageError(`브랜치 이름이 틀렸다: ${branch}`)
     ensureEmpty(dir)
-    materialize(options.fixture, args[0], dir)
-    console.log(`${dir}\n  main = 정상 버전\n  defect/${args[0]} = 결함 PR(체크아웃됨) — 리뷰 범위는 main...defect/${args[0]}`)
+    materialize(options.fixture, args[0], dir, { branch })
+    if (options.linkDeps) linkNodeModules(options.fixture, dir)
+    console.log(`${dir}\n  main = 정상 버전\n  ${branch} = 결함 PR(체크아웃됨) — 리뷰 범위는 main...${branch}`)
     return 0
   }
   if (command === 'base' && args.length === 1) {
@@ -320,7 +327,7 @@ const main = async () => {
     console.log(`${dir}\n  main = 정상 버전 — 고친 뒤 git diff > defects/<ID>/change.patch`)
     return 0
   }
-  throw new UsageError('사용법: defects.mjs check [ID…] [--no-tests] [--patterns <폴더>] [--pattern-specs <폴더>] | materialize <ID> <폴더> | base <폴더>  [--fixture <폴더>]')
+  throw new UsageError('사용법: defects.mjs check [ID…] [--no-tests] [--patterns <폴더>] [--pattern-specs <폴더>] | materialize <ID> <폴더> [--branch <이름>] [--link-deps] | base <폴더>  [--fixture <폴더>]')
 }
 
 main().then(
