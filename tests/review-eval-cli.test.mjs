@@ -86,10 +86,9 @@ describe('review-eval.mjs', () => {
       assert.doesNotMatch(call.cwd, /COM-007|CLEAN-001|defect/)
       for (const flag of ['-p', '--output-format', '--setting-sources', '--no-session-persistence', '--append-system-prompt']) assert.ok(call.args.includes(flag), `${flag} — ${call.args.join(' ')}`)
       assert.equal(call.args[call.args.indexOf('--setting-sources') + 1], 'project')
-      // 읽기 명령은 이어 붙여도 막히지 않게(code-review는 git status && (…; echo "---") && git diff로 시작한다), 테스트 실행(npm)은 막는다
-      const allowed = call.args[call.args.indexOf('--allowedTools') + 1]
-      for (const tool of ['Bash(git *)', 'Bash(node *)', 'Bash(echo *)', 'Bash(head *)', 'Bash(sed -n *)']) assert.ok(allowed.includes(tool), `${tool} — ${allowed}`)
-      assert.doesNotMatch(allowed, /npm/)
+      // Bash는 모두 허용한다(code-review는 git diff에 find·~/.claude 읽기를 이어 붙여, 명령 이름 규칙으로는 막힌다). 테스트 실행만 막는다
+      assert.equal(call.args[call.args.indexOf('--allowedTools') + 1], 'Read Grep Glob Write Skill Agent Bash')
+      assert.equal(call.args[call.args.indexOf('--disallowedTools') + 1], 'Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *)')
     }
     const gimi = calls.filter((call) => call.args.includes('--plugin-dir'))
     assert.equal(gimi.length, 2)
@@ -103,6 +102,8 @@ describe('review-eval.mjs', () => {
     // 막힌 도구 호출을 남긴다 — 리뷰어가 diff를 못 봤는지 확인할 때 본다
     const baseline = JSON.parse(readFileSync(join(out, 'runs/code-review/COM-007-1.json'), 'utf8'))
     assert.deepEqual(baseline.permissionDenials, [{ tool: 'Bash', input: 'git diff main...HEAD | head -50' }])
+    // 어떤 도구 조건으로 돌았는지 남긴다 — 조건이 다른 실행을 한 표에 섞지 않으려고
+    assert.deepEqual(baseline.tools, { allowed: ['Read', 'Grep', 'Glob', 'Write', 'Skill', 'Agent', 'Bash'], disallowed: ['Bash(npm *)', 'Bash(npx *)', 'Bash(pnpm *)', 'Bash(yarn *)'] })
     // 리뷰 기록은 평가용 저장소를 지우기 전에 결과 옆에 복사한다
     assert.equal(readFileSync(join(out, 'runs/gimi/COM-007-1/docs/gimi/reviews/review.md'), 'utf8'), '리뷰 기록\n')
   })
