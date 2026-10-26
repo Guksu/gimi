@@ -40,7 +40,7 @@ defects/{ID}/
 | `context` | 맥락 종류 — 영향 범위·의도·이력·슬롭·도메인 규칙 |
 | `layer` | 프론트·백엔드·둘 다 |
 | `pr` | 결함 커밋의 메시지가 된다. 제목은 첫 줄, 본문은 그 아래 |
-| `findings` | 정답. 단계(고쳐야 함·고치면 좋음·확인 질문) + 결함 버전의 `path:line`(범위면 `endLine`까지). `evidence`는 지적에 필요한 맥락의 위치다. 채점에서 맥락 묶음에 이 위치가 없으면 "수집 실패", 있는데 지적하지 못하면 "판단 실패"로 나눈다 |
+| `findings` | 정답. 단계(고쳐야 함·고치면 좋음·확인 질문) + 결함 버전의 `path:line`(범위면 `endLine`까지). `evidence`는 지적에 필요한 맥락이다 — 위치(`{ "path", "line" }`)나 이력 커밋(`{ "commit": "커밋 메시지 앞부분" }`, `history`에 있어야 한다). 채점에서 맥락 묶음에 이 근거가 없으면 "수집 실패", 있는데 지적하지 못하면 "판단 실패"로 나눈다 |
 | `clean` | `true`면 결함이 없는 PR이다(오탐을 잰다). `findings`·`catches`를 비운다 |
 | `history` | 이력 결함만(선택). 평가용 저장소의 `main`에 쌓을 예전 커밋 목록 — `{ "message": "fix: …", "patch": "history/01-….patch" }`. 패치는 그 커밋 앞의 상태 → 뒤의 상태이고, 마지막 커밋 뒤가 정상 버전이다 |
 | `catches` | 결함을 잡는 테스트 파일(선택). 정상 버전에 있고 패치가 고치지 않는 파일이어야 한다. 정상 버전에서 통과하고 결함 버전에서 실패해야 한다 |
@@ -53,6 +53,8 @@ gimi 저장소 루트에서 돌린다.
 node scripts/defects.mjs check [ID…]           # 패치가 붙는지, defect.json 형식·정답 위치, 잡는 테스트, 패턴 예시
 node scripts/defects.mjs check --no-tests      # 잡는 테스트를 빼고(PostgreSQL 없이)
 node scripts/defects.mjs materialize <ID> <폴더> # 평가용 저장소 — main = 정상 버전, defect/<ID> = 결함 PR
+node scripts/defects.mjs materialize <ID> <폴더> --branch feature/pr --link-deps
+                                               # 결함 브랜치 이름을 바꾸고, 예제 저장소의 node_modules를 링크한다(리뷰 평가가 쓴다)
 node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 결함을 만들 때
 ```
 
