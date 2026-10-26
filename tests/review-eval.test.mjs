@@ -53,6 +53,11 @@ describe('parseFindings — 리뷰 출력의 FINDING 줄', () => {
     assert.equal(parseFindings(`FINDING 없음\n${text}`, { root: ROOT }).findings.length, 0)
   })
 
+  it('JSON 목록 앞에 다른 코드 블록이 있어도 블록을 짝지어 읽는다', () => {
+    const text = ['고치는 법:', '', '```ts', 'const kst = new Date(t + OFFSET)', '```', '', '나머지는 작다.', '', '```json', JSON.stringify([{ file: 'server/src/orders/returns-policy.ts', line: 14, summary: 'UTC 날짜' }]), '```'].join('\n')
+    assert.deepEqual(parseFindings(text, { root: ROOT }).findings.map((f) => `${f.path}:${f.line}`), ['server/src/orders/returns-policy.ts:14'])
+  })
+
   it('"FINDING 없음"이면 지적 없음, FINDING 줄이 하나도 없으면 형식을 지키지 않은 것이다', () => {
     assert.deepEqual(parseFindings('문제 없어 보입니다.\nFINDING 없음\n', { root: ROOT }), { declared: true, findings: [] })
     assert.deepEqual(parseFindings('문제 없어 보입니다.', { root: ROOT }), { declared: false, findings: [] })
