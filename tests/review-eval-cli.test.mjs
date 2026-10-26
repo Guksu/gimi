@@ -55,7 +55,8 @@ if (gimi) {
   writeFileSync('docs/gimi/reviews/review.md', '리뷰 기록\\n')
 }
 const result = gimi ? 'FINDING 고쳐야 함 app/src/stock.ts:3 재고를 읽고 비교해 덮어쓴다' : '문제 없어 보입니다.\\nFINDING 없음'
-console.log(JSON.stringify({ type: 'result', result, total_cost_usd: 0.01, duration_ms: 5, num_turns: 3 }))
+const permission_denials = gimi ? [] : [{ tool_name: 'Bash', tool_input: { command: 'git diff main...HEAD | head -50' } }]
+console.log(JSON.stringify({ type: 'result', result, total_cost_usd: 0.01, duration_ms: 5, num_turns: 3, permission_denials }))
 `,
   )
   chmodSync(fake, 0o755)
@@ -85,6 +86,10 @@ describe('review-eval.mjs', () => {
       assert.doesNotMatch(call.cwd, /COM-007|CLEAN-001|defect/)
       for (const flag of ['-p', '--output-format', '--setting-sources', '--no-session-persistence', '--append-system-prompt']) assert.ok(call.args.includes(flag), `${flag} — ${call.args.join(' ')}`)
       assert.equal(call.args[call.args.indexOf('--setting-sources') + 1], 'project')
+      // 읽기 명령은 이어 붙여도 막히지 않게(code-review는 git status && (…; echo "---") && git diff로 시작한다), 테스트 실행(npm)은 막는다
+      const allowed = call.args[call.args.indexOf('--allowedTools') + 1]
+      for (const tool of ['Bash(git *)', 'Bash(node *)', 'Bash(echo *)', 'Bash(head *)', 'Bash(sed -n *)']) assert.ok(allowed.includes(tool), `${tool} — ${allowed}`)
+      assert.doesNotMatch(allowed, /npm/)
     }
     const gimi = calls.filter((call) => call.args.includes('--plugin-dir'))
     assert.equal(gimi.length, 2)
@@ -95,6 +100,9 @@ describe('review-eval.mjs', () => {
     const appended = new Set(calls.map((call) => call.args[call.args.indexOf('--append-system-prompt') + 1]))
     assert.equal(appended.size, 1)
     assert.ok(readdirSync(join(out, 'runs/gimi')).includes('COM-007-1.json'))
+    // 막힌 도구 호출을 남긴다 — 리뷰어가 diff를 못 봤는지 확인할 때 본다
+    const baseline = JSON.parse(readFileSync(join(out, 'runs/code-review/COM-007-1.json'), 'utf8'))
+    assert.deepEqual(baseline.permissionDenials, [{ tool: 'Bash', input: 'git diff main...HEAD | head -50' }])
     // 리뷰 기록은 평가용 저장소를 지우기 전에 결과 옆에 복사한다
     assert.equal(readFileSync(join(out, 'runs/gimi/COM-007-1/docs/gimi/reviews/review.md'), 'utf8'), '리뷰 기록\n')
   })
