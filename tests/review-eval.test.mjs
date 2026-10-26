@@ -40,6 +40,19 @@ describe('parseFindings — 리뷰 출력의 FINDING 줄', () => {
     })
   })
 
+  it('FINDING 줄이 없으면 내장 /code-review의 JSON 지적 목록(file·line·summary)을 읽는다 — 단계는 없다', () => {
+    const text = ['I found 2 problems.', '```json', JSON.stringify([{ file: 'server/src/orders/orders.service.ts', line: 143, summary: 'canCancel is gone', failure_scenario: '...' }, { file: `${ROOT}/web/src/a.ts`, line: 3, summary: 'x' }]), '```'].join('\n')
+    assert.deepEqual(parseFindings(text, { root: ROOT }), {
+      declared: true,
+      findings: [
+        { level: null, path: 'server/src/orders/orders.service.ts', line: 143, endLine: 143, summary: 'canCancel is gone' },
+        { level: null, path: 'web/src/a.ts', line: 3, endLine: 3, summary: 'x' },
+      ],
+    })
+    // FINDING 줄이 있으면 그것만 읽는다
+    assert.equal(parseFindings(`FINDING 없음\n${text}`, { root: ROOT }).findings.length, 0)
+  })
+
   it('"FINDING 없음"이면 지적 없음, FINDING 줄이 하나도 없으면 형식을 지키지 않은 것이다', () => {
     assert.deepEqual(parseFindings('문제 없어 보입니다.\nFINDING 없음\n', { root: ROOT }), { declared: true, findings: [] })
     assert.deepEqual(parseFindings('문제 없어 보입니다.', { root: ROOT }), { declared: false, findings: [] })
@@ -112,6 +125,13 @@ describe('scoreRuns — 리뷰어마다 집계', () => {
     )
     const baseline = reviewers.find((r) => r.name === 'code-review')
     assert.deepEqual([baseline.answers, baseline.found, baseline.noFormat], [1, 0, 1])
+  })
+
+  it('단계가 없는 지적(JSON 목록)이 결함 없는 PR에 있으면 "고쳐야 함" 오탐 수는 셀 수 없다', () => {
+    const json = '```json\n[{"file":"web/src/a.ts","line":1,"summary":"x"}]\n```'
+    const { reviewers } = scoreRuns({ runs: [{ reviewer: 'code-review', id: 'CLEAN-001', run: 1, defect: { id: 'CLEAN-001', clean: true, findings: [] }, output: json }] })
+    assert.deepEqual([reviewers[0].falsePositives, reviewers[0].blockingFalsePositives], [1, null])
+    assert.match(formatScore(scoreRuns({ runs: [{ reviewer: 'code-review', id: 'CLEAN-001', run: 1, defect: { id: 'CLEAN-001', clean: true, findings: [] }, output: json }] })), /\| 1 \(고쳐야 함 -\) \|/)
   })
 
   it('formatScore — 리뷰어마다 한 줄, 결함마다 한 줄', () => {

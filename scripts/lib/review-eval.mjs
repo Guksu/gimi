@@ -1,6 +1,7 @@
 /**
  * 리뷰 품질 평가(설계 결정 15)의 채점 — 결함 PR마다 리뷰어의 지적을 정답(defect.json findings)과 맞춰 본다.
  * 리뷰어는 출력 끝에 지적마다 `FINDING <단계> <경로>:<줄> <요약>`을 적는다(두 리뷰어에 같은 지시). 지적이 없으면 `FINDING 없음`.
+ * 내장 /code-review는 이 지시 대신 자기 JSON 지적 목록을 내므로, FINDING 줄이 없으면 그 목록을 읽는다.
  * 정답 줄(범위) ±3이나 정답의 근거 위치에서 지적하면 찾은 것이다. 결함 없는 PR(clean)의 지적은 오탐이다.
  * gimi는 맥락 묶음(context.mjs)을 쓰므로, 놓친 정답을 "수집 실패"(근거가 묶음에 없음)와 "판단 실패"(있는데 못 봄)로 나눈다.
  * 실행(모델 부르기·파일)은 scripts/review-eval.mjs가 맡는다.
@@ -20,10 +21,25 @@ const normalizePath = (path, root) => {
   return out.replace(/^\.\//, '')
 }
 
+/** 내장 /code-review의 지적 목록 — 코드 블록 안의 JSON 배열([{ file, line, summary }]). 단계가 없다 */
+const jsonFindings = (text, root) => {
+  for (const [, body] of text.matchAll(/```(?:json)?\s*\n([\s\S]*?)```/g)) {
+    let list
+    try {
+      list = JSON.parse(body)
+    } catch {
+      continue
+    }
+    if (!Array.isArray(list) || !list.every((item) => typeof item?.file === 'string' && Number.isInteger(item?.line))) continue
+    return list.map((item) => ({ level: null, path: normalizePath(item.file, root), line: item.line, endLine: Number.isInteger(item.endLine) ? item.endLine : item.line, summary: String(item.summary ?? '').trim() }))
+  }
+  return null
+}
+
 /**
- * 리뷰 출력에서 FINDING 줄을 읽는다
+ * 리뷰 출력에서 FINDING 줄을 읽는다. FINDING 줄이 없으면 내장 /code-review의 JSON 지적 목록을 읽는다(그 형식을 고집해 덧붙인 지시를 따르지 않는다)
  * @param {string} text @param {{ root?: string }} options root — 평가용 저장소의 절대 경로(지적에 붙어 오면 뗀다)
- * @returns {{ declared: boolean, findings: { level: string, path: string, line: number, endLine: number, summary: string }[] }}
+ * @returns {{ declared: boolean, findings: { level: string | null, path: string, line: number, endLine: number, summary: string }[] }}
  */
 export const parseFindings = (text, { root } = {}) => {
   const findings = []
@@ -39,7 +55,9 @@ export const parseFindings = (text, { root } = {}) => {
     const start = Number(match[3])
     findings.push({ level: match[1].trim(), path: normalizePath(match[2], root), line: start, endLine: match[4] ? Number(match[4]) : start, summary: (match[5] ?? '').trim() })
   }
-  return { declared, findings }
+  if (declared) return { declared, findings }
+  const listed = jsonFindings(text, root)
+  return listed ? { declared: true, findings: listed } : { declared: false, findings: [] }
 }
 
 /** 정답 하나가 받아 주는 위치 — 정답 줄(범위)과 위치 근거들 */
@@ -140,7 +158,8 @@ export const scoreRuns = ({ runs, coverage = {} }) => {
       judgeMiss: split ? missed.length - collectMiss : null,
       extra: defectRuns.reduce((sum, run) => sum + run.extra.length, 0),
       falsePositives: falseFindings.length,
-      blockingFalsePositives: falseFindings.filter((finding) => finding.level === '고쳐야 함').length,
+      // 단계가 없는 지적(JSON 목록)이 섞이면 "고쳐야 함"을 셀 수 없다
+      blockingFalsePositives: falseFindings.some((finding) => finding.level === null) ? null : falseFindings.filter((finding) => finding.level === '고쳐야 함').length,
       noFormat: mine.filter((run) => !run.declared).length,
     }
   })
@@ -168,7 +187,7 @@ export const formatScore = ({ reviewers, perDefect }) =>
   [
     '| 리뷰어 | 실행 | 찾음 | 수집 실패 | 판단 실패 | 정답 밖 지적 | 오탐(결함 없는 PR) | 형식 어김 |',
     '|---|---|---|---|---|---|---|---|',
-    ...reviewers.map((r) => `| ${r.name} | ${r.runs} | ${r.found}/${r.answers} (${percent(r.foundRate)}) | ${dash(r.collectMiss)} | ${dash(r.judgeMiss)} | ${r.extra} | ${r.falsePositives} (고쳐야 함 ${r.blockingFalsePositives}) | ${r.noFormat} |`),
+    ...reviewers.map((r) => `| ${r.name} | ${r.runs} | ${r.found}/${r.answers} (${percent(r.foundRate)}) | ${dash(r.collectMiss)} | ${dash(r.judgeMiss)} | ${r.extra} | ${r.falsePositives} (고쳐야 함 ${dash(r.blockingFalsePositives)}) | ${r.noFormat} |`),
     '',
     '| 결함 | 맥락 | 찾음 |',
     '|---|---|---|',
