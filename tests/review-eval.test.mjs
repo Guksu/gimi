@@ -75,7 +75,7 @@ describe('coverageOf — 정답의 근거가 맥락 묶음에 있는가(모델 �
     history: { commits: { abc: { subject: 'fix: 새벽에 받은 주문의 반품 기한이 하루 짧던 문제' } } },
   }
 
-  it('위치는 바뀐 조각(±3)이나 영향 범위의 사용처(±3)에 있으면, 커밋은 이력에 있으면 있다', () => {
+  it('위치는 바뀐 조각(±3)·바뀐 파일(조각 밖)·영향 범위의 사용처(±3)에 있으면, 커밋은 이력에 있으면 있다', () => {
     const result = coverageOf({ bundle, defect: defect() })
     assert.deepEqual(
       result.map((item) => [item.what, item.covered, item.where]),
@@ -85,6 +85,9 @@ describe('coverageOf — 정답의 근거가 맥락 묶음에 있는가(모델 �
         ['web/src/pages/OrderPage.tsx:72', true, '영향 범위'],
       ],
     )
+    // 바뀐 파일의 조각 밖 — 리뷰어가 바뀐 파일을 열면 보이는 곳
+    const sameFile = coverageOf({ bundle, defect: defect({ findings: [{ ...defect().findings[0], evidence: [{ path: 'server/src/orders/orders.service.ts', line: 54 }] }] }) })
+    assert.deepEqual(sameFile.at(-1), { answer: 0, kind: 'location', what: 'server/src/orders/orders.service.ts:54', covered: true, where: '바뀐 파일' })
     const history = coverageOf({ bundle, defect: defect({ findings: [{ ...defect().findings[0], evidence: [{ commit: 'fix: 새벽에 받은 주문' }] }] }) })
     assert.deepEqual(history.at(-1), { answer: 0, kind: 'commit', what: 'fix: 새벽에 받은 주문', covered: true, where: '이력' })
   })

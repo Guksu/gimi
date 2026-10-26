@@ -44,12 +44,16 @@ before(() => {
   writeFileSync(
     fake,
     `#!/usr/bin/env node
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 const args = process.argv.slice(2)
 const branch = execFileSync('git', ['branch', '--show-current'], { encoding: 'utf8' }).trim()
 appendFileSync(${JSON.stringify(join(out, 'calls.jsonl'))}, JSON.stringify({ args, cwd: process.cwd(), branch }) + '\\n')
 const gimi = args.includes('--plugin-dir')
+if (gimi) {
+  mkdirSync('docs/gimi/reviews', { recursive: true })
+  writeFileSync('docs/gimi/reviews/review.md', '리뷰 기록\\n')
+}
 const result = gimi ? 'FINDING 고쳐야 함 app/src/stock.ts:3 재고를 읽고 비교해 덮어쓴다' : '문제 없어 보입니다.\\nFINDING 없음'
 console.log(JSON.stringify({ type: 'result', result, total_cost_usd: 0.01, duration_ms: 5, num_turns: 3 }))
 `,
@@ -91,6 +95,8 @@ describe('review-eval.mjs', () => {
     const appended = new Set(calls.map((call) => call.args[call.args.indexOf('--append-system-prompt') + 1]))
     assert.equal(appended.size, 1)
     assert.ok(readdirSync(join(out, 'runs/gimi')).includes('COM-007-1.json'))
+    // 리뷰 기록은 평가용 저장소를 지우기 전에 결과 옆에 복사한다
+    assert.equal(readFileSync(join(out, 'runs/gimi/COM-007-1/docs/gimi/reviews/review.md'), 'utf8'), '리뷰 기록\n')
   })
 
   it('score — 결과 폴더를 채점표로 만든다', () => {

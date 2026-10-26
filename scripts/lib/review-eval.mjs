@@ -70,7 +70,7 @@ export const matchFindings = ({ findings, answers, tolerance = TOLERANCE }) => {
   return { matched, missed, extra }
 }
 
-/** 맥락 묶음에서 위치를 담은 곳 — 바뀐 조각과 영향 범위의 사용처(중첩된 {path, line} 전부) */
+/** 맥락 묶음의 영향 범위에서 위치를 담은 곳 — 사용처(중첩된 {path, line} 전부) */
 const usagesIn = (value, out = []) => {
   if (Array.isArray(value)) for (const item of value) usagesIn(item, out)
   else if (value && typeof value === 'object') {
@@ -83,16 +83,19 @@ const usagesIn = (value, out = []) => {
 /**
  * 결함의 정답·근거가 맥락 묶음에 있는가 — 모델 없이 맥락 수집을 점검한다
  * @param {{ bundle: any, defect: any, tolerance?: number }} args
- * @returns {{ answer: number, kind: 'location' | 'commit', what: string, covered: boolean, where: string | null }[]}
+ * @returns {{ answer: number, kind: 'location' | 'commit', what: string, covered: boolean, where: '바뀐 조각' | '영향 범위' | '바뀐 파일' | '이력' | null }[]}
  */
 export const coverageOf = ({ bundle, defect, tolerance = TOLERANCE }) => {
   const hunks = (bundle.files ?? []).flatMap((file) => (file.hunks ?? []).map((hunk) => ({ path: file.newPath ?? file.path, from: hunk.newStart, to: hunk.newStart + Math.max(hunk.newLines, 1) - 1 })))
+  const changedFiles = new Set((bundle.files ?? []).map((file) => file.newPath ?? file.path))
   const usages = usagesIn(bundle.impact ?? {})
   const subjects = Object.values(bundle.history?.commits ?? {}).map((commit) => commit.subject ?? '')
   const locate = ({ path, line, endLine }) => {
     const span = { path, line, endLine: endLine ?? line }
     if (hunks.some((hunk) => overlaps(span, hunk, tolerance))) return '바뀐 조각'
     if (usages.some((usage) => overlaps(span, { path: usage.path, from: usage.line, to: usage.line }, tolerance))) return '영향 범위'
+    // 바뀐 파일의 조각 밖 — 묶음이 파일을 가리키고, 리뷰어가 그 파일을 열면 보인다
+    if (changedFiles.has(path)) return '바뀐 파일'
     return null
   }
   return (defect.findings ?? []).flatMap((answer, index) => [answer, ...(answer.evidence ?? [])].map((item) => {

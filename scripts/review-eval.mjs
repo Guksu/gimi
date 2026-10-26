@@ -14,7 +14,7 @@
  * 이름에는 결함 ID를 넣지 않는다(feature/pr). 판단은 scripts/lib/review-eval.mjs가 맡는다.
  */
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,13 +25,17 @@ const DEFECTS = join(ROOT, 'scripts/defects.mjs')
 const CONTEXT = join(ROOT, 'skills/gimi-review/scripts/context.mjs')
 const BRANCH = 'feature/pr'
 const RUN_TIMEOUT_MS = 20 * 60 * 1000
+// 리뷰어마다 부르는 말 — gimi는 범위를 스스로 정한다(지금 브랜치와 기본 브랜치의 갈림점부터), code-review에는 같은 범위를 브랜치로 준다
 const REVIEWERS = {
-  gimi: { invoke: '/gimi:gimi-review', plugin: true },
-  'code-review': { invoke: '/code-review', plugin: false },
+  gimi: { prompt: '/gimi:gimi-review', plugin: true },
+  'code-review': { prompt: `/code-review ${BRANCH}`, plugin: false },
 }
-// 두 리뷰어에 똑같이 덧붙이는 지시 — 채점할 수 있게 지적을 한 줄씩 다시 적게 한다
+// 리뷰가 남긴 기록 — 결과 옆에 복사해 둔다(수집 실패·판단 실패를 나눌 때 본다)
+const KEEP = ['docs/gimi/reviews']
+// 두 리뷰어에 똑같이 덧붙이는 지시 — 범위와 PR 설명이 있는 곳, 채점할 수 있게 지적을 한 줄씩 다시 적게 한다
 const FINDING_INSTRUCTION = [
   '이 세션은 코드 리뷰 평가다. 코드를 고치거나 커밋하지 않는다.',
+  `리뷰할 PR은 main...${BRANCH}(지금 브랜치)다. PR 제목과 본문은 ${BRANCH}의 마지막 커밋 메시지다.`,
   '리뷰를 마치면 마지막에 지적마다 한 줄씩 다음 형식으로 다시 적는다(저장소 루트 기준 경로, 줄 번호는 지금 브랜치의 파일 기준).',
   'FINDING <고쳐야 함|고치면 좋음|확인 질문> <파일 경로>:<줄> <한 줄 요약>',
   '지적이 없으면 FINDING 없음 한 줄만 적는다.',
@@ -101,7 +105,8 @@ const coverage = ({ fixture, ids, out }) => {
     lines.push(`  ${id.padEnd(18)} ${String(defect.context).padEnd(6)} ${items.filter((item) => item.covered).length}/${items.length}${missing.length > 0 ? `  빠짐 ${missing.join(', ')}` : ''}`)
   }
   const total = Object.values(result).flat()
-  console.log(`맥락 수집 점검 — 정답·근거 ${total.length}개 가운데 ${total.filter((item) => item.covered).length}개가 맥락 묶음에 있다`)
+  const tally = ['바뀐 조각', '바뀐 파일', '영향 범위', '이력'].map((where) => `${where} ${total.filter((item) => item.where === where).length}`).join(' · ')
+  console.log(`맥락 수집 점검 — 정답·근거 ${total.length}개 가운데 ${total.filter((item) => item.covered).length}개가 맥락 묶음에 있다(${tally})`)
   for (const line of lines) console.log(line)
   if (out) {
     mkdirSync(out, { recursive: true })
@@ -139,7 +144,7 @@ const runReviews = async ({ fixture, ids, options }) => {
   for (const id of pick(fixture, ids)) {
     for (let n = 1; n <= options.runs; n++) {
       const { holder, repo } = prepare(fixture, id)
-      const prompt = `${reviewer.invoke} 범위는 main...${BRANCH}(지금 브랜치)다. PR 제목과 본문은 마지막 커밋 메시지에 있다.`
+      const prompt = reviewer.prompt
       const args = [
         '-p',
         prompt,
@@ -182,6 +187,7 @@ const runReviews = async ({ fixture, ids, options }) => {
           stderr: result.stderr.slice(-4000),
         }
         writeFileSync(join(folder, `${id}-${n}.json`), `${JSON.stringify(record, null, 2)}\n`)
+        for (const path of KEEP) if (existsSync(join(repo, path))) cpSync(join(repo, path), join(folder, `${id}-${n}`, path), { recursive: true })
         console.log(`${options.reviewer} ${id} #${n} — 종료 코드 ${result.code}, ${Math.round(record.durationMs / 1000)}초${record.costUsd === null ? '' : `, $${record.costUsd.toFixed(2)}`}`)
       } finally {
         rmSync(holder, { recursive: true, force: true })
