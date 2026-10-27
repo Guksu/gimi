@@ -30,6 +30,15 @@ describe('장바구니', () => {
     expect(screen.getByRole('button', { name: '주문하기' })).toBeDisabled()
   })
 
+  it('주문하기를 누르면 주문 확인 화면으로 가고, 브라우저의 뒤로 가기로 장바구니에 돌아온다', async () => {
+    const { user } = openAt('/cart', [{ productId: 1, quantity: 2 }])
+    await screen.findByText('15,000원')
+    await user.click(screen.getByRole('button', { name: '주문하기' }))
+    expect(await screen.findByRole('heading', { name: '주문 확인' })).toBeInTheDocument()
+    window.history.back()
+    expect(await screen.findByRole('spinbutton', { name: '잔치국수 수량' })).toBeInTheDocument()
+  })
+
   it('쿠폰 오류는 서버가 준 코드로 문구를 고른다', async () => {
     server.use(http.post(`${API}/orders/quote`, async ({ request }) => {
       const body = (await request.json()) as { couponCode?: string }
