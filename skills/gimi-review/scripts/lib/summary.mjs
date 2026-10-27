@@ -6,7 +6,7 @@
 const STATUS = { added: 'A', deleted: 'D', modified: 'M', renamed: 'R' }
 const TAG_LABEL = { fix: '수정', revert: '되돌리기', hotfix: '긴급', workaround: '우회' }
 const CHANGE_LABEL = { signature: '시그니처 변경', removed: '삭제', body: '본문만 변경' }
-const CHANGE_ORDER = { signature: 0, removed: 1, body: 2 }
+const CHANGE_ORDER = { signature: 0, removed: 1, body: 2, wraps: 3 }
 const MAX_FILES = 30
 const MAX_COMMITS = 10
 const MAX_USAGES = 10
@@ -78,20 +78,27 @@ const usageSummary = ({ item, marker }) => {
 
 const impactRows = (impact) => {
   const { symbols, literals, added } = impact
-  if (symbols.length === 0 && literals.length === 0) return [`영향 범위  바뀐 export·문자열 없음${added.length > 0 ? ` / 새 export ${added.length}개` : ''}`]
+  const fields = impact.fields ?? []
+  if (symbols.length === 0 && literals.length === 0 && fields.length === 0) return [`영향 범위  바뀐 export·문자열 없음${added.length > 0 ? ` / 새 export ${added.length}개` : ''}`]
+  // 감싼 export는 바뀐 export가 아니다 — 머리에서 따로 센다
+  const changedSymbols = symbols.filter((symbol) => symbol.change !== 'wraps')
+  const wrappers = symbols.length - changedSymbols.length
   // 머리의 방법은 심볼마다 실제로 쓴 것을 센다 — TypeScript를 불러왔어도 tsconfig 밖이나 지운 export는 문자열로 찾는다
-  const byTs = symbols.filter((symbol) => symbol.method === 'typescript').length
-  const byText = symbols.length - byTs
+  const byTs = changedSymbols.filter((symbol) => symbol.method === 'typescript').length
+  const byText = changedSymbols.length - byTs
   const method =
     impact.method === 'text' || byTs === 0 ? '문자열 검색' : byText === 0 ? 'TypeScript 참조' : `TypeScript 참조 ${byTs} · 문자열 검색 ${byText}`
-  const rows = [`영향 범위  바뀐 export ${symbols.length}개(${method}) / 바뀐 문자열 ${literals.length}개 / 새 export ${added.length}개`]
+  const extra = [wrappers > 0 ? ` / 감싼 export ${wrappers}개` : '', fields.length > 0 ? ` / 지운 필드 ${fields.length}개` : ''].join('')
+  const rows = [`영향 범위  바뀐 export ${changedSymbols.length}개(${method}) / 바뀐 문자열 ${literals.length}개 / 새 export ${added.length}개${extra}`]
   // 시그니처 변경·삭제가 먼저다 — 쓰는 쪽이 깨질 수 있다. 같은 종류 안에서는 이 변경에서 안 바뀐 사용처가 많은 것부터
   const ordered = [...symbols].sort((a, b) => CHANGE_ORDER[a.change] - CHANGE_ORDER[b.change] || b.unchanged - a.unchanged)
   for (const symbol of ordered) {
     const marker = symbol.method === 'text' && impact.method === 'typescript'
-    rows.push(`  ${symbol.name} (${CHANGE_LABEL[symbol.change]}) — ${symbol.path}  ${usageSummary({ item: symbol, marker })}`, ...usageRows(symbol))
+    const label = symbol.change === 'wraps' ? `감싼 export — ${symbol.through} 호출` : CHANGE_LABEL[symbol.change]
+    rows.push(`  ${symbol.name} (${label}) — ${symbol.path}  ${usageSummary({ item: symbol, marker })}`, ...usageRows(symbol))
   }
   for (const literal of literals) rows.push(`  "${literal.value}" (바뀐 문자열) — ${literal.path}  ${usageSummary({ item: literal, marker: false })}`, ...usageRows(literal))
+  for (const field of fields) rows.push(`  ${field.name} (지운 필드 · 문자열 검색) — ${field.path}  ${usageSummary({ item: field, marker: false })}`, ...usageRows(field))
   return rows
 }
 

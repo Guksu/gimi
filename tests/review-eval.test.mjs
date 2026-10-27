@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { coverageOf, formatScore, matchFindings, parseFindings, scoreRuns } from '../scripts/lib/review-eval.mjs'
+import { coverageOf, formatScore, hunksOf, locateFinding, matchFindings, parseFindings, scoreRuns } from '../scripts/lib/review-eval.mjs'
 
 const ROOT = '/tmp/shop-a1b2'
 const defect = (overrides = {}) => ({
@@ -152,5 +152,55 @@ describe('scoreRuns — 리뷰어마다 집계', () => {
     // 수집·판단 실패는 맥락 묶음을 쓰는 gimi에만 나눈다
     assert.match(text, /\| code-review \| 1 \| 0\/1 \(0%\) \| - \| - \| 0 \| 0 \(고쳐야 함 0\) \| 1 \|/)
     assert.match(text, /\| COM-024 \| 영향 범위 \| gimi 1\/2 · code-review 0\/1 \|/)
+  })
+})
+
+describe('hunksOf·locateFinding — 지적이 PR diff의 어디에 있나', () => {
+  const patch = [
+    'diff --git a/web/src/cart.ts b/web/src/cart.ts',
+    '--- a/web/src/cart.ts',
+    '+++ b/web/src/cart.ts',
+    '@@ -10,2 +10,3 @@ export const total = () => {',
+    ' a',
+    '+b',
+    ' c',
+    'diff --git a/web/src/new.ts b/web/src/new.ts',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/web/src/new.ts',
+    '@@ -0,0 +1,4 @@',
+    '+x',
+    'diff --git a/web/src/gone.ts b/web/src/gone.ts',
+    'deleted file mode 100644',
+    '--- a/web/src/gone.ts',
+    '+++ /dev/null',
+    '@@ -1,3 +0,0 @@',
+    '-y',
+  ].join('\n')
+
+  it('새 줄 범위를 파일마다 읽는다 — 지운 파일은 뺀다', () => {
+    assert.deepEqual(hunksOf(patch), [
+      { path: 'web/src/cart.ts', from: 10, to: 12 },
+      { path: 'web/src/new.ts', from: 1, to: 4 },
+    ])
+  })
+
+  it('바뀐 조각(±3)·바뀐 파일의 조각 밖·바뀌지 않은 파일로 나눈다', () => {
+    const hunks = hunksOf(patch)
+    const at = (path, line) => locateFinding({ finding: { path, line, endLine: line }, hunks })
+    assert.deepEqual([at('web/src/cart.ts', 15), at('web/src/cart.ts', 16), at('web/src/cart.ts', 40), at('web/src/other.ts', 1)], ['hunk', 'file', 'file', 'outside'])
+  })
+
+  it('scoreRuns·formatScore — 실행에 diff 조각이 있으면 정답 밖 지적과 오탐을 위치로 나눠 센다', () => {
+    const hunks = hunksOf(patch)
+    const runs = [
+      { reviewer: 'gimi', id: 'COM-024', run: 1, hunks, defect: defect(), output: 'FINDING 고쳐야 함 server/src/orders/orders.service.ts:143 a\nFINDING 고치면 좋음 web/src/cart.ts:11 b\nFINDING 고치면 좋음 web/src/other.ts:2 c' },
+      { reviewer: 'gimi', id: 'CLEAN-001', run: 1, hunks, defect: { id: 'CLEAN-001', clean: true, findings: [] }, output: 'FINDING 확인 질문 web/src/cart.ts:40 d' },
+    ]
+    const gimi = scoreRuns({ runs }).reviewers[0]
+    assert.deepEqual([gimi.extraAt, gimi.falseAt], [{ hunk: 1, file: 0, outside: 1 }, { hunk: 0, file: 1, outside: 0 }])
+    assert.match(formatScore(scoreRuns({ runs })), /\| gimi \| 2 — 1 · 0 · 1 \| 1 — 0 · 1 · 0 \|/)
+    // diff 조각이 없는 실행이 섞이면 나누지 않는다
+    assert.equal(scoreRuns({ runs: [{ ...runs[0], hunks: undefined }] }).reviewers[0].extraAt, null)
   })
 })

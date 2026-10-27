@@ -4,6 +4,7 @@
  * 내장 /code-review는 이 지시 대신 자기 JSON 지적 목록을 내므로, FINDING 줄이 없으면 그 목록을 읽는다.
  * 정답 줄(범위) ±3이나 정답의 근거 위치에서 지적하면 찾은 것이다. 결함 없는 PR(clean)의 지적은 오탐이다.
  * gimi는 맥락 묶음(context.mjs)을 쓰므로, 놓친 정답을 "수집 실패"(근거가 묶음에 없음)와 "판단 실패"(있는데 못 봄)로 나눈다.
+ * 정답 밖 지적과 오탐은 PR diff와 견줘 바뀐 조각(±3)·바뀐 파일의 조각 밖·바뀌지 않은 파일로 나눠 센다.
  * 실행(모델 부르기·파일)은 scripts/review-eval.mjs가 맡는다.
  */
 
@@ -73,6 +74,40 @@ export const parseFindings = (text, { root } = {}) => {
   if (declared) return { declared, findings }
   const listed = jsonFindings(text, root)
   return listed ? { declared: true, findings: listed } : { declared: false, findings: [] }
+}
+
+export const LOCATIONS = { hunk: '바뀐 조각', file: '바뀐 파일', outside: '바뀌지 않은 파일' }
+
+/**
+ * PR diff의 새 줄 범위 — 파일마다 조각. 지운 파일은 뺀다. 지우기만 한 조각은 그 자리 한 줄로 둔다
+ * @param {string} patch @returns {{ path: string, from: number, to: number }[]}
+ */
+export const hunksOf = (patch) => {
+  const out = []
+  let file = null
+  for (const line of patch.replace(/\r\n?/g, '\n').split('\n')) {
+    if (line.startsWith('diff --git ')) {
+      file = null
+      continue
+    }
+    const plus = line.match(/^\+\+\+ (?:b\/(.+)|\/dev\/null)$/)
+    if (plus) {
+      file = plus[1] ?? null
+      continue
+    }
+    const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/)
+    if (!hunk || !file) continue
+    const from = Number(hunk[1])
+    const count = hunk[2] === undefined ? 1 : Number(hunk[2])
+    out.push({ path: file, from: Math.max(from, 1), to: Math.max(from + count - 1, from, 1) })
+  }
+  return out
+}
+
+/** 지적이 PR diff의 어디에 있나 — hunk(바뀐 조각 ±tolerance)·file(바뀐 파일의 조각 밖)·outside(바뀌지 않은 파일) */
+export const locateFinding = ({ finding, hunks, tolerance = TOLERANCE }) => {
+  if (hunks.some((hunk) => overlaps(finding, hunk, tolerance))) return 'hunk'
+  return hunks.some((hunk) => hunk.path === finding.path) ? 'file' : 'outside'
 }
 
 /** 정답 하나가 받아 주는 위치 — 정답 줄(범위)과 위치 근거들 */
@@ -168,6 +203,13 @@ export const scoreRuns = ({ runs, coverage = {} }) => {
     const answers = defectRuns.reduce((sum, run) => sum + (run.defect.findings ?? []).length, 0)
     const found = defectRuns.reduce((sum, run) => sum + run.matched.length, 0)
     const falseFindings = cleanRuns.flatMap((run) => run.findings)
+    // 위치로 나누기 — 이 리뷰어의 실행 모두에 diff 조각이 있을 때만
+    const located = mine.every((run) => Array.isArray(run.hunks))
+    const tally = (pairs) => {
+      const out = { hunk: 0, file: 0, outside: 0 }
+      for (const { finding, hunks } of pairs) out[locateFinding({ finding, hunks })] += 1
+      return out
+    }
     return {
       name,
       runs: mine.length,
@@ -181,6 +223,8 @@ export const scoreRuns = ({ runs, coverage = {} }) => {
       // 단계가 없는 지적(JSON 목록)이 섞이면 "고쳐야 함"을 셀 수 없다
       blockingFalsePositives: falseFindings.some((finding) => finding.level === null) ? null : falseFindings.filter((finding) => finding.level === '고쳐야 함').length,
       noFormat: mine.filter((run) => !run.declared).length,
+      extraAt: located ? tally(defectRuns.flatMap((run) => run.extra.map((finding) => ({ finding, hunks: run.hunks })))) : null,
+      falseAt: located ? tally(cleanRuns.flatMap((run) => run.findings.map((finding) => ({ finding, hunks: run.hunks })))) : null,
     }
   })
   const ids = [...new Set(runs.map((run) => run.id))]
@@ -202,12 +246,22 @@ export const scoreRuns = ({ runs, coverage = {} }) => {
 const percent = (rate) => (rate === null ? '-' : `${Math.round(rate * 100)}%`)
 const dash = (value) => (value === null ? '-' : String(value))
 
-/** 채점표 — 리뷰어마다 한 줄, 결함마다 한 줄 */
+const byLocation = (total, at) => (at ? `${total} — ${at.hunk} · ${at.file} · ${at.outside}` : '-')
+
+/** 채점표 — 리뷰어마다 한 줄, (diff 조각이 있으면) 지적의 위치, 결함마다 한 줄 */
 export const formatScore = ({ reviewers, perDefect }) =>
   [
     '| 리뷰어 | 실행 | 찾음 | 수집 실패 | 판단 실패 | 정답 밖 지적 | 오탐(결함 없는 PR) | 형식 어김 |',
     '|---|---|---|---|---|---|---|---|',
     ...reviewers.map((r) => `| ${r.name} | ${r.runs} | ${r.found}/${r.answers} (${percent(r.foundRate)}) | ${dash(r.collectMiss)} | ${dash(r.judgeMiss)} | ${r.extra} | ${r.falsePositives} (고쳐야 함 ${dash(r.blockingFalsePositives)}) | ${r.noFormat} |`),
+    ...(reviewers.some((r) => r.extraAt)
+      ? [
+          '',
+          `| 리뷰어 | 정답 밖 지적 — ${Object.values(LOCATIONS).join(' · ')} | 오탐 — ${Object.values(LOCATIONS).join(' · ')} |`,
+          '|---|---|---|',
+          ...reviewers.map((r) => `| ${r.name} | ${byLocation(r.extra, r.extraAt)} | ${byLocation(r.falsePositives, r.falseAt)} |`),
+        ]
+      : []),
     '',
     '| 결함 | 맥락 | 찾음 |',
     '|---|---|---|',

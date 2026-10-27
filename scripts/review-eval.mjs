@@ -19,7 +19,7 @@ import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, re
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { coverageOf, formatScore, scoreRuns } from './lib/review-eval.mjs'
+import { coverageOf, formatScore, hunksOf, scoreRuns } from './lib/review-eval.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
 const DEFECTS = join(ROOT, 'scripts/defects.mjs')
@@ -78,6 +78,11 @@ const allDefects = (fixture) => {
   return existsSync(folder) ? readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort() : []
 }
 const readDefect = (fixture, id) => JSON.parse(readFileSync(join(fixture, 'defects', id, 'defect.json'), 'utf8'))
+// 결함 PR의 diff 조각 — 지적의 위치(바뀐 조각·바뀐 파일·바뀌지 않은 파일)를 나눈다
+const readHunks = (fixture, id) => {
+  const patch = join(fixture, 'defects', id, 'change.patch')
+  return existsSync(patch) ? hunksOf(readFileSync(patch, 'utf8')) : undefined
+}
 const pick = (fixture, ids) => {
   const all = allDefects(fixture)
   const unknown = ids.filter((id) => !all.includes(id))
@@ -226,7 +231,7 @@ const score = ({ fixture, dir }) => {
         .map((name) => JSON.parse(readFileSync(join(dir, entry.name, name), 'utf8'))),
     )
     .sort((a, b) => a.id.localeCompare(b.id) || a.reviewer.localeCompare(b.reviewer) || a.run - b.run)
-    .map((record) => ({ ...record, defect: readDefect(fixture, record.id) }))
+    .map((record) => ({ ...record, defect: readDefect(fixture, record.id), hunks: readHunks(fixture, record.id) }))
   const coverageFile = join(dir, 'coverage.json')
   const result = scoreRuns({ runs, coverage: existsSync(coverageFile) ? JSON.parse(readFileSync(coverageFile, 'utf8')) : {} })
   const text = `${formatScore(result)}\n`
