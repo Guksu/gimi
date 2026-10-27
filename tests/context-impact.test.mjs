@@ -155,3 +155,42 @@ describe('영향 범위 — TypeScript가 없을 때', () => {
     }
   })
 })
+
+describe('영향 범위 — 지운 필드와 감싼 export', () => {
+  let repo
+  let impact
+  before(() => {
+    repo = makeRepo()
+    repo.write({
+      'tsconfig.json': TSCONFIG,
+      'src/orders.service.ts': ['export const view = (order: { status: string }) => ({', '  status: order.status,', "  canCancel: order.status === 'paid',", '})', ''].join('\n'),
+      // 다른 층의 화면 — 응답 객체를 타입 없이 받아 TypeScript 참조로는 이어지지 않는다
+      'src/order-page.ts': "export const button = (order: { canCancel: boolean }) => (order.canCancel ? '취소' : '')\n",
+      'contracts/openapi.yaml': ['components:', '  schemas:', '    Order:', '      required: [status, canCancel]', '      properties:', '        canCancel:', '          type: boolean', ''].join('\n'),
+      'src/nav.ts': ['export const navigate = (to: string) => {', "  globalThis.history.pushState(null, '', to)", '}', 'export const Link = (to: string) => navigate(to)', ''].join('\n'),
+      'src/app.ts': "import { Link } from './nav'\nexport const header = () => Link('/')\n",
+    })
+    repo.commit('feat: 처음')
+    repo.git('switch', '-q', '-c', 'feat/x')
+    repo.write({
+      'src/orders.service.ts': ['export const view = (order: { status: string }) => ({', '  status: order.status,', '})', ''].join('\n'),
+      'src/nav.ts': ['export const navigate = (to: string) => {', "  globalThis.history.replaceState(null, '', to)", '}', 'export const Link = (to: string) => navigate(to)', ''].join('\n'),
+    })
+    repo.commit('feat: 바꿈')
+    impact = collectContext({ exec: execFor({ dir: repo.dir }), useGh: false, loadTs: () => ({ ts, reason: null }) }).impact
+  })
+  after(() => repo.cleanup())
+
+  it('지운 필드는 이름으로 찾는다 — 다른 층의 화면과 계약 파일(정확도 낮음)', () => {
+    assert.deepEqual(
+      impact.fields.map((field) => [field.name, field.path, where(field.usages)]),
+      [['canCancel', 'src/orders.service.ts', [['contracts/openapi.yaml', 4, false], ['contracts/openapi.yaml', 6, false], ['src/order-page.ts', 1, false]]]],
+    )
+  })
+
+  it('바뀐 export를 같은 파일의 다른 export가 부르면, 그 export의 사용처도 한 단계 더 찾는다', () => {
+    const link = symbolOf(impact, 'Link')
+    assert.deepEqual([link.change, link.through, link.method], ['wraps', 'navigate', 'typescript'])
+    assert.deepEqual(where(link.usages), [['src/app.ts', 2, false]])
+  })
+})
