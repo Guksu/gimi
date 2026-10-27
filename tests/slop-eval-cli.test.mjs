@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -129,5 +129,50 @@ describe('slop-eval.mjs', () => {
     assert.match(result.stdout, /\| `test\/tautology` [^|]+\| 테스트 \| [^|]+\| 1\/1 \| 1\/1 \|/)
     assert.match(result.stdout, /\| `code\/fire-and-forget` [^|]+\| 코드 \| 리뷰 \| 1\/1 \| 1\/1 \|/)
     assert.equal(existsSync(join(out, 'm/score.md')), true)
+  })
+})
+
+describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
+  it('score --rejected·--results — 걸러 낸 지적을 빼고 세고 결과 파일을 쓴다', () => {
+    const rejected = join(out, 'rejected.json')
+    writeFileSync(rejected, JSON.stringify([{ arm: 'with', request: 'F1', run: 1, id: 'code/fire-and-forget', path: 'web/src/cart.ts', line: 1, reason: '판정이 틀렸다' }]))
+    const result = run(['score', join(out, 'm'), '--rejected', rejected, '--results', join(out, 'results.json'), '--date', '2026-10-27'])
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    assert.match(result.stdout, /\| `code\/fire-and-forget` [^|]+\| 코드 \| 리뷰 \| 1\/1 \| 0\/1 \|/)
+    const results = JSON.parse(readFileSync(join(out, 'results.json'), 'utf8'))
+    assert.deepEqual([results.date, results.runs], ['2026-10-27', { without: 1, with: 1 }])
+    assert.deepEqual(results.rules.find((rule) => rule.id === 'code/fire-and-forget'), { id: 'code/fire-and-forget', without: 1, with: 0 })
+  })
+
+  it('apply·buildSlopTable — 원본 규칙 파일의 근거를 바꿔 복사본에 옮기고, 두 SKILL.md의 표를 다시 쓴다', () => {
+    const root = join(out, 'root')
+    const rule = (id, title) => `## ${id} ${title}\n- 대상: 둘 다\n- 검사: 리뷰\n- 근거: 측정 전\n`
+    const files = {
+      test: `<!-- @shared test.md origin: gimi-test -->\n# 테스트\n\n${rule('test/tautology', '늘 참인 단언을 쓰지 않는다')}`,
+      done: `<!-- @shared done.md origin: gimi-test -->\n# 완료\n\n${rule('done/unrun-claim', '돌리지 않고 통과했다고 하지 않는다')}`,
+      code: `<!-- @shared code.md origin: gimi-review -->\n# 코드\n\n${rule('code/fire-and-forget', '비동기 작업을 기다리지 않는다')}`,
+    }
+    for (const skill of ['gimi-test', 'gimi-review']) {
+      mkdirSync(join(root, 'skills', skill, 'shared/rules'), { recursive: true })
+      writeFileSync(join(root, 'skills', skill, 'SKILL.md'), `# ${skill}\n\n<!-- slop-table:start -->\n<!-- slop-table:end -->\n`)
+      for (const [area, text] of Object.entries(files)) writeFileSync(join(root, 'skills', skill, 'shared/rules', `${area}.md`), text)
+    }
+    const applied = run(['apply', join(out, 'results.json'), '--root', root])
+    assert.equal(applied.status, 0, applied.stdout + applied.stderr)
+    for (const skill of ['gimi-test', 'gimi-review']) {
+      assert.match(readFileSync(join(root, 'skills', skill, 'shared/rules/code.md'), 'utf8'), /- 근거: 측정 2026-10-27 — gimi 없이 1번 중 1번 · gimi 있이 1번 중 0번/)
+      assert.match(readFileSync(join(root, 'skills', skill, 'shared/rules/test.md'), 'utf8'), /- 근거: 측정 2026-10-27 — gimi 없이 1번 중 1번 · gimi 있이 1번 중 1번/)
+    }
+    const table = (args) => spawnSync(process.execPath, [join(ROOT, 'scripts/buildSlopTable.mjs'), ...args], { encoding: 'utf8' })
+    assert.equal(table(['--check', '--root', root]).status, 1)
+    assert.equal(table(['--root', root]).status, 0)
+    assert.equal(table(['--check', '--root', root]).status, 0)
+    const testSkill = readFileSync(join(root, 'skills/gimi-test/SKILL.md'), 'utf8')
+    assert.match(testSkill, /\| `test\/tautology` 늘 참인 단언을 쓰지 않는다 \| 1번 중 1번 \| 1번 중 1번 \|/)
+    assert.match(testSkill, /\| `code\/fire-and-forget` 비동기 작업을 기다리지 않는다 \| 1번 중 1번 \| 1번 중 0번 \|/)
+    // gimi-review는 코드 줄만
+    const reviewSkill = readFileSync(join(root, 'skills/gimi-review/SKILL.md'), 'utf8')
+    assert.match(reviewSkill, /code\/fire-and-forget/)
+    assert.doesNotMatch(reviewSkill, /test\/tautology/)
   })
 })

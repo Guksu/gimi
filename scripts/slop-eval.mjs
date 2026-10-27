@@ -8,8 +8,12 @@
  *        --run N은 그 번째 실행 하나만 다시 돌린다(다른 일이 테스트 DB를 건드려 망친 실행을 바꿀 때)
  *   node scripts/slop-eval.mjs judge <폴더> [--model M] [--claude <실행 파일>]
  *        실행마다 판정 모델(도구 없음)이 diff·보고를 읽고, 검사가 error·warn만이 아닌 금지선 줄을 고른다. 판정한 실행은 건너뛴다
- *   node scripts/slop-eval.mjs score <폴더>
- *        줄마다 "N번 중 M번" 표(<폴더>/score.md)
+ *   node scripts/slop-eval.mjs score <폴더> [--rejected <파일>] [--results <파일>] [--date YYYY-MM-DD]
+ *        줄마다 "N번 중 M번" 표(<폴더>/score.md). --rejected는 사람이 읽고 틀렸다고 걸러 낸 지적(세지 않는다),
+ *        --results는 규칙 파일에 옮길 측정 결과 파일을 쓴다
+ *   node scripts/slop-eval.mjs apply <결과 파일> [--root <폴더>]
+ *        원본 규칙 파일(test·done은 gimi-test, code는 gimi-review)의 근거를 "N번 중 M번"으로 바꾸고 다른 스킬의 복사본에 옮긴다.
+ *        SKILL.md의 금지선 표는 scripts/buildSlopTable.mjs가 다시 쓴다
  *   공통: --fixture <폴더>(기본 evals/shop-fixture), --requests <파일>(기본 evals/slop/requests.json)
  *
  * 공정하게 — 사용자 설정·플러그인·MCP는 읽지 않는다(--setting-sources project, --strict-mcp-config). 폴더 이름에 요청 ID를 넣지 않는다.
@@ -21,12 +25,16 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseRuleFile } from '../skills/gimi-test/scripts/lib/rulefile.mjs'
-import { ARMS, formatSlopScore, judgePrompt, judgedRules, parseJudgement, scoreSlop } from './lib/slop-eval.mjs'
+import { ARMS, formatSlopScore, judgePrompt, judgedRules, parseJudgement, scoreSlop, slopResults } from './lib/slop-eval.mjs'
+import { applyEvidence } from './lib/slop-table.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
 const DEFECTS = join(ROOT, 'scripts/defects.mjs')
 const CHECK = join(ROOT, 'skills/gimi-test/scripts/check.mjs')
 const RULE_AREAS = ['test', 'code', 'done']
+// 규칙 파일의 원본 — 영역 주인(설계 7절). 다른 스킬에는 바이트가 같은 복사본이 있다
+const RULE_ORIGIN = { test: 'gimi-test', done: 'gimi-test', code: 'gimi-review' }
+const OTHER_SKILL = { 'gimi-test': 'gimi-review', 'gimi-review': 'gimi-test' }
 const RUN_TIMEOUT_MS = 30 * 60 * 1000
 const CHECK_TIMEOUT_MS = 15 * 60 * 1000
 // 두 쪽 모두 같은 gimi 설정을 둔다 — gimi를 설치한 프로젝트처럼. gimi 없이 쪽에는 읽는 것이 없어 영향이 없다
@@ -54,7 +62,7 @@ class UsageError extends Error {}
 
 const parseArgs = (argv) => {
   const positional = []
-  const options = { fixture: join(ROOT, 'evals/shop-fixture'), requests: join(ROOT, 'evals/slop/requests.json'), out: null, arm: null, runs: 1, only: null, model: null, claude: 'claude' }
+  const options = { fixture: join(ROOT, 'evals/shop-fixture'), requests: join(ROOT, 'evals/slop/requests.json'), out: null, arm: null, runs: 1, only: null, model: null, claude: 'claude', rejected: null, results: null, date: new Date().toISOString().slice(0, 10), root: ROOT }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     const value = () => {
@@ -70,6 +78,10 @@ const parseArgs = (argv) => {
     else if (arg === '--run') options.only = Number(value())
     else if (arg === '--model') options.model = value()
     else if (arg === '--claude') options.claude = value()
+    else if (arg === '--rejected') options.rejected = resolve(value())
+    else if (arg === '--results') options.results = resolve(value())
+    else if (arg === '--date') options.date = value()
+    else if (arg === '--root') options.root = resolve(value())
     else if (arg.startsWith('--')) throw new UsageError(`모르는 옵션: ${arg}`)
     else positional.push(arg)
   }
@@ -236,17 +248,34 @@ const judgeAll = async ({ dir, options }) => {
   return 0
 }
 
-const score = ({ dir }) => {
+const score = ({ dir, options }) => {
   if (!dir || !existsSync(dir)) throw new UsageError(`결과 폴더가 없다: ${dir}`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(options.date)) throw new UsageError(`--date는 YYYY-MM-DD다: ${options.date}`)
+  const rejected = options.rejected ? JSON.parse(readFileSync(options.rejected, 'utf8')) : []
   const rules = loadRules().map((rule) => ({ id: rule.id, title: rule.title, area: rule.area, check: rule.items.get('검사')?.value ?? '' }))
   const runs = recordsIn(dir).map(({ path, record }) => {
     const judgePath = path.replace(/\.json$/, '.judge.json')
     const judged = existsSync(judgePath) ? JSON.parse(readFileSync(judgePath, 'utf8')) : null
     return { arm: record.arm, request: record.request, run: record.run, report: record.check, judgement: judged?.judgement?.declared ? judged.judgement : null }
   })
-  const text = `${formatSlopScore(scoreSlop({ runs, rules }))}\n`
+  const result = scoreSlop({ runs, rules, rejected })
+  const text = `${formatSlopScore(result)}\n${rejected.length > 0 ? `\n걸러 낸 지적 ${rejected.length}개는 세지 않았다\n` : ''}`
   writeFileSync(join(dir, 'score.md'), text)
+  if (options.results) writeFileSync(options.results, `${JSON.stringify(slopResults({ score: result, date: options.date }), null, 2)}\n`)
   console.log(text.trimEnd())
+  return 0
+}
+
+const apply = ({ file, root }) => {
+  if (!file || !existsSync(file)) throw new UsageError(`결과 파일이 없다: ${file}`)
+  const results = JSON.parse(readFileSync(file, 'utf8'))
+  for (const area of RULE_AREAS) {
+    const origin = join(root, 'skills', RULE_ORIGIN[area], 'shared/rules', `${area}.md`)
+    const text = applyEvidence({ text: readFileSync(origin, 'utf8'), results })
+    writeFileSync(origin, text)
+    writeFileSync(join(root, 'skills', OTHER_SKILL[RULE_ORIGIN[area]], 'shared/rules', `${area}.md`), text)
+    console.log(`근거를 바꿨다 — ${RULE_ORIGIN[area]}/shared/rules/${area}.md(원본)과 복사본`)
+  }
   return 0
 }
 
@@ -254,8 +283,9 @@ const main = async () => {
   const { command, args, options } = parseArgs(process.argv.slice(2))
   if (command === 'run') return runAll({ options, ids: args })
   if (command === 'judge') return judgeAll({ dir: args[0] ? resolve(args[0]) : null, options })
-  if (command === 'score') return score({ dir: args[0] ? resolve(args[0]) : null })
-  throw new UsageError('사용법: slop-eval.mjs run [ID…] --arm without|with [--runs N | --run N] [--model M] [--out <폴더>] [--claude <실행 파일>] | judge <폴더> [--model M] | score <폴더>  [--fixture <폴더>] [--requests <파일>]')
+  if (command === 'score') return score({ dir: args[0] ? resolve(args[0]) : null, options })
+  if (command === 'apply') return apply({ file: args[0] ? resolve(args[0]) : null, root: options.root })
+  throw new UsageError('사용법: slop-eval.mjs run [ID…] --arm without|with [--runs N | --run N] [--model M] [--out <폴더>] [--claude <실행 파일>] | judge <폴더> [--model M] | score <폴더> [--rejected <파일>] [--results <파일>] [--date YYYY-MM-DD] | apply <결과 파일> [--root <폴더>]  [--fixture <폴더>] [--requests <파일>]')
 }
 
 main().then(

@@ -2,6 +2,7 @@
  * 슬롭 금지선 측정(설계 결정 16·34·49) — 같은 요청을 gimi 없이·있이 실행한 결과에서 금지선 줄이 몇 번의 실행에 나왔는지 센다.
  * 끝내기 전 검사(check.mjs)가 잡는 줄은 그 보고를 그대로 쓰고, 검사가 error·warn만이 아닌 줄(리뷰·출력이 섞인 줄)은 판정 모델이 고른다.
  * 한 실행에서 여러 번 나와도, 자동 검사와 판정이 같은 줄을 찾아도 그 실행은 한 번으로 센다.
+ * 사람이 읽고 틀렸다고 걸러 낸 지적(rejected — 같은 실행·같은 줄·같은 위치)은 세지 않는다.
  * 실행(모델 부르기·저장소·파일)은 scripts/slop-eval.mjs가 맡는다.
  */
 import { itemText } from '../../skills/gimi-test/scripts/lib/rulefile.mjs'
@@ -85,21 +86,32 @@ export const parseJudgement = (text, { ids }) => {
 /** check.mjs 보고(JSON)의 슬롭 지적 */
 export const staticFindings = (report) => (report?.slop?.findings ?? []).map(({ id, path, line }) => ({ id, path, line }))
 
+const sameFinding = (rejected, run, finding) =>
+  rejected.arm === run.arm && rejected.request === run.request && rejected.run === run.run && rejected.id === finding.id && rejected.path === finding.path && (rejected.line ?? null) === (finding.line ?? null)
+
 /**
  * 줄마다 몇 번의 실행에서 나왔나
- * @param {{ runs: { arm: 'without' | 'with', request: string, run: number, report: any, judgement: { findings: { id: string }[] } | null }[], rules: { id: string, title: string, area: string, check: string }[] }} args
+ * @param {{ runs: { arm: 'without' | 'with', request: string, run: number, report: any, judgement: { findings: { id: string }[] } | null }[], rules: { id: string, title: string, area: string, check: string }[], rejected?: { arm: string, request: string, run: number, id: string, path: string, line: number | null }[] }} args
  */
-export const scoreSlop = ({ runs, rules }) => {
+export const scoreSlop = ({ runs, rules, rejected = [] }) => {
   const arms = Object.fromEntries(Object.keys(ARMS).map((arm) => [arm, { runs: 0, judged: 0 }]))
   const hits = new Map(rules.map((rule) => [rule.id, { without: 0, with: 0 }]))
   for (const run of runs) {
     arms[run.arm].runs += 1
     if (run.judgement) arms[run.arm].judged += 1
-    const ids = new Set([...staticFindings(run.report), ...(run.judgement?.findings ?? [])].map((finding) => finding.id))
+    const kept = [...staticFindings(run.report), ...(run.judgement?.findings ?? [])].filter((finding) => !rejected.some((entry) => sameFinding(entry, run, finding)))
+    const ids = new Set(kept.map((finding) => finding.id))
     for (const id of ids) if (hits.has(id)) hits.get(id)[run.arm] += 1
   }
   return { arms, rules: rules.map((rule) => ({ ...rule, ...hits.get(rule.id) })) }
 }
+
+/** 측정 결과 파일 — 규칙 파일의 근거(scripts/lib/slop-table.mjs)를 이것으로 바꾼다 */
+export const slopResults = ({ score, date }) => ({
+  date,
+  runs: { without: score.arms.without.runs, with: score.arms.with.runs },
+  rules: score.rules.map((rule) => ({ id: rule.id, without: rule.without, with: rule.with })),
+})
 
 /** 측정표 — 나온 줄은 gimi 없이에서 많이 나온 순으로, 나오지 않은 줄은 이름만 */
 export const formatSlopScore = ({ arms, rules }) => {

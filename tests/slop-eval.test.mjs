@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseRuleFile } from '../skills/gimi-test/scripts/lib/rulefile.mjs'
-import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, scoreSlop, skillTableRows, staticFindings } from '../scripts/lib/slop-eval.mjs'
+import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, scoreSlop, skillTableRows, slopResults, staticFindings } from '../scripts/lib/slop-eval.mjs'
 
 const RULES = `# 코드 금지선
 
@@ -89,6 +89,29 @@ describe('scoreSlop — 줄마다 몇 번의 실행에서 나왔나', () => {
     const byId = Object.fromEntries(score.rules.map((rule) => [rule.id, rule]))
     assert.deepEqual([byId['code/empty-catch'].without, byId['code/empty-catch'].with], [1, 0])
     assert.deepEqual([byId['code/fire-and-forget'].without, byId['code/debug-leftover'].without], [1, 0])
+  })
+
+  it('걸러 낸 지적(rejected)은 세지 않는다 — 같은 실행·같은 줄·같은 위치여야 뺀다', () => {
+    const rejected = [
+      { arm: 'without', request: 'B1', run: 1, id: 'code/fire-and-forget', path: 'a.ts', line: 5, reason: '기다린다 — 판정이 틀렸다' },
+      { arm: 'without', request: 'B1', run: 1, id: 'code/empty-catch', path: 'a.ts', line: 1, reason: '로그를 남긴다' },
+    ]
+    const byId = Object.fromEntries(scoreSlop({ runs, rules: ruleList, rejected }).rules.map((rule) => [rule.id, rule]))
+    assert.equal(byId['code/fire-and-forget'].without, 0)
+    // 같은 줄의 다른 위치(a.ts:9, 자동 검사)는 남는다
+    assert.equal(byId['code/empty-catch'].without, 1)
+  })
+
+  it('slopResults — 측정 결과 파일(날짜·실행 수·줄마다 횟수)', () => {
+    assert.deepEqual(slopResults({ score: scoreSlop({ runs, rules: ruleList }), date: '2026-10-27' }), {
+      date: '2026-10-27',
+      runs: { without: 2, with: 1 },
+      rules: [
+        { id: 'code/empty-catch', without: 1, with: 0 },
+        { id: 'code/fire-and-forget', without: 1, with: 0 },
+        { id: 'code/debug-leftover', without: 0, with: 0 },
+      ],
+    })
   })
 
   it('formatSlopScore — 나온 줄은 표로, 나오지 않은 줄은 이름만', () => {
