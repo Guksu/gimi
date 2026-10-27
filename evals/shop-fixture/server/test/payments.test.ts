@@ -85,6 +85,16 @@ describe('POST /payments/confirm', () => {
     expect((await confirm({ orderId: order.id, paymentKey: retry.body.paymentKey, amount: order.total })).body.status).toBe('paid')
   })
 
+  it('결제 실패 주문을 다시 결제해도 또 거절되면 같은 결제 실패다 — 주문은 결제 실패 그대로', async () => {
+    const { order, paymentKey } = await orderWithCheckout(t)
+    t.pg.behavior.confirm = 'reject'
+    await confirm({ orderId: order.id, paymentKey, amount: order.total })
+    const retry = await t.as(1).post(`/orders/${order.id}/checkout`)
+    const again = await confirm({ orderId: order.id, paymentKey: retry.body.paymentKey, amount: order.total })
+    expect([again.status, again.body.code]).toEqual([402, 'PAYMENT_REJECTED'])
+    expect((await t.as(1).get(`/orders/${order.id}`)).body.status).toBe('payment_failed')
+  })
+
   it('결제 실패 주문을 취소하면 묶어 둔 재고·쿠폰·포인트를 돌려준다', async () => {
     const { order, paymentKey } = await orderWithCheckout(t, { couponCode: 'NOODLE10', points: 1000 })
     t.pg.behavior.confirm = 'reject'
