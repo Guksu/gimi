@@ -1,0 +1,32 @@
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..3a0d5c2 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -243,6 +243,9 @@ export class OrdersService {
+       const items = (await this.db.pool.query<{ returnable: boolean }>('SELECT returnable FROM order_items WHERE order_id = $1', [orderId])).rows
+       if (!items.some((item) => item.returnable)) throw fail(409, 'NOT_RETURNABLE', '단순 변심으로 반품할 수 없다고 표시한 상품이다')
+     }
++    // 같은 반품을 두 번 받지 않는다(#46)
++    const requested = await this.db.pool.query('SELECT 1 FROM returns WHERE order_id = $1 AND reason = $2', [orderId, reason])
++    if ((requested.rowCount ?? 0) > 0) throw fail(409, 'RETURN_ALREADY_REQUESTED', '이미 반품을 신청한 주문이다')
+     const inserted = await this.db.pool.query<{ id: string }>('INSERT INTO returns (order_id, reason, requested_at) VALUES ($1, $2, $3) RETURNING id', [orderId, reason, now])
+     return { id: Number(inserted.rows[0]?.id), deadline: deadline.toISOString() }
+   }
+diff --git a/server/test/refunds-returns.test.ts b/server/test/refunds-returns.test.ts
+index a3769a0..1b26ed8 100644
+--- a/server/test/refunds-returns.test.ts
++++ b/server/test/refunds-returns.test.ts
+@@ -95,6 +95,13 @@ describe('POST /orders/:id/returns — 청약철회(반품)', () => {
+     expect((await ret(order.id, 'defective')).status).toBe(201)
+   })
+ 
++  it('같은 반품은 두 번 받지 않는다', async () => {
++    const order = await delivered()
++    expect((await ret(order.id)).status).toBe(201)
++    const again = await ret(order.id)
++    expect([again.status, again.body.code]).toEqual([409, 'RETURN_ALREADY_REQUESTED'])
++  })
++
+   it('배송 완료 전에는 반품이 아니라 취소다', async () => {
+     const { order } = await paid()
+     expect((await ret(order.id)).body.code).toBe('NOT_DELIVERED')

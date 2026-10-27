@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { changedLiterals, keyLiteralsOf } from '../skills/gimi-review/scripts/lib/literals.mjs'
+import { changedLiterals, keyLiteralsOf, removedFieldsOf } from '../skills/gimi-review/scripts/lib/literals.mjs'
 
 describe('keyLiteralsOf', () => {
   it('키처럼 생긴 문자열(쿼리 키·라우트·i18n 키·저장소 키)을 뽑는다', () => {
@@ -35,5 +35,19 @@ describe('changedLiterals', () => {
       ],
     }
     assert.deepEqual(changedLiterals(file), ['orders/list'])
+  })
+})
+
+describe('removedFieldsOf', () => {
+  const fileOf = (removed, added = []) => ({ hunks: [{ removed: removed.map((text, i) => ({ line: i + 1, text })), added: added.map((text, i) => ({ line: i + 1, text })) }] })
+
+  it('지운 줄의 객체·타입 키 가운데 더한 줄에 없는 것 — 응답에서 뺀 필드', () => {
+    assert.deepEqual(removedFieldsOf(fileOf(['      canCancel: CANCELABLE.has(order.status),', '  canReturn?: boolean'])), ['canCancel', 'canReturn'])
+    assert.deepEqual(removedFieldsOf(fileOf(['    return { lines, total, freeShippingThreshold: LIMIT, method }'], ['    return { lines, total, freeShippingRemaining, method }'])), ['freeShippingThreshold'])
+  })
+
+  it('더한 줄에 같은 이름이 있으면(옮기거나 값만 바꿈) 빼고, 짧은 이름·switch의 default·삼항 연산자·주석은 뽑지 않는다', () => {
+    assert.deepEqual(removedFieldsOf(fileOf(['  status: order.status,'], ['  status: order.state,'])), [])
+    assert.deepEqual(removedFieldsOf(fileOf(['  id: 1,', '    default: return 0', '  const a = ok ? left : right', '  // memo: 나중에'])), [])
   })
 })

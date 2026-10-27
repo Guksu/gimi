@@ -1,0 +1,53 @@
+diff --git a/web/src/pages/MenuPage.tsx b/web/src/pages/MenuPage.tsx
+index 66c2e75..6112c4e 100644
+--- a/web/src/pages/MenuPage.tsx
++++ b/web/src/pages/MenuPage.tsx
+@@ -23,17 +23,19 @@ export const MenuPage = () => {
+   if (!products) return <p>메뉴를 불러오고 있어요</p>
+   return (
+     <section aria-label="메뉴">
+-      {products.map((product) => (
+-        <article key={product.id}>
+-          <h2>{product.name}</h2>
+-          <p>{formatPrice(product.price)}</p>
+-          {!product.returnable && <p>단순 변심으로 반품할 수 없는 상품이에요</p>}
+-          {/* 품절이면 담는 길을 모두 막는다 — 서버도 재고를 다시 검사한다 */}
+-          <button type="button" disabled={product.soldOut} onClick={() => cart.add(product.id)}>
+-            {product.soldOut ? '품절' : '담기'}
+-          </button>
+-        </article>
+-      ))}
++      {products
++        .filter((product) => !product.soldOut)
++        .map((product) => (
++          <article key={product.id}>
++            <h2>{product.name}</h2>
++            <p>{formatPrice(product.price)}</p>
++            {!product.returnable && <p>단순 변심으로 반품할 수 없는 상품이에요</p>}
++            {/* 품절이면 담는 길을 모두 막는다 — 서버도 재고를 다시 검사한다 */}
++            <button type="button" disabled={product.soldOut} onClick={() => cart.add(product.id)}>
++              {product.soldOut ? '품절' : '담기'}
++            </button>
++          </article>
++        ))}
+     </section>
+   )
+ }
+diff --git a/web/src/pages/menu.test.tsx b/web/src/pages/menu.test.tsx
+index ecf8c5e..0f76870 100644
+--- a/web/src/pages/menu.test.tsx
++++ b/web/src/pages/menu.test.tsx
+@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
+ import { openAt } from '../test/render'
+ 
+ describe('메뉴', () => {
+-  it('품절 상품은 담기 버튼이 막혀 있고 품절이라고 보인다', async () => {
++  it('품절 상품은 메뉴에 보이지 않는다', async () => {
+     openAt('/')
+-    const card = (await screen.findByRole('heading', { name: '칼국수' })).closest('article') as HTMLElement
+-    expect(within(card).getByRole('button', { name: '품절' })).toBeDisabled()
++    await screen.findByRole('heading', { name: '잔치국수' })
++    expect(screen.queryByRole('heading', { name: '칼국수' })).not.toBeInTheDocument()
+   })
+ 
+   it('반품 불가 상품에는 상품 화면에 그렇다고 표시한다', async () => {

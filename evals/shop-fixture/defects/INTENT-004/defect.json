@@ -1,0 +1,31 @@
+{
+  "id": "INTENT-004",
+  "rules": [],
+  "context": "의도",
+  "layer": "백엔드",
+  "issues": [
+    {
+      "number": 46,
+      "title": "반품 — 주문당 반품 신청은 한 번",
+      "body": "## 요구사항\n- 주문 하나에 반품 신청은 한 번만 받는다. 사유(단순 변심·상품 하자)가 달라도 마찬가지다\n- 두 번째 신청부터 409 RETURN_ALREADY_REQUESTED\n\n## 배경\n같은 주문으로 사유를 바꿔 여러 번 신청해 환불이 겹친 일이 있었다."
+    }
+  ],
+  "pr": {
+    "title": "feat: 같은 반품을 두 번 받지 않는다",
+    "body": "closes #46\n\n## 변경\n- 같은 반품을 다시 신청하면 409 RETURN_ALREADY_REQUESTED로 막는다\n- 반품 테스트를 더한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "이슈 #46은 사유가 달라도 주문당 반품 신청을 한 번만 받으라고 한다. PR은 같은 사유만 막아(reason = $2) 단순 변심 뒤 상품 하자로 다시 신청할 수 있다 — 이슈가 막으려던 환불 겹침이 남는다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 247,
+      "endLine": 248,
+      "evidence": [
+        {
+          "issue": 46
+        }
+      ]
+    }
+  ]
+}

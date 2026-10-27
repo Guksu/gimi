@@ -114,6 +114,19 @@ describe('renderSummary', () => {
     assert.match(text, /^ {4}… 안 바뀐 곳 30곳 더 — JSON에 있다$/m)
   })
 
+  it('감싼 export와 지운 필드는 바뀐 export와 따로 세고 사용처를 보인다', () => {
+    const ctx = context()
+    const at = (path, line) => ({ path, line, text: '', context: [], changedInPr: false })
+    ctx.impact.symbols = [...ctx.impact.symbols, { name: 'Link', kind: 'function', change: 'wraps', through: 'navigate', path: 'web/src/navigation.tsx', method: 'typescript', searched: true, total: 1, unchanged: 1, usages: [at('web/src/App.tsx', 16)] }]
+    ctx.impact.fields = [{ name: 'canCancel', path: 'server/src/orders.service.ts', method: 'text', total: 2, unchanged: 2, usages: [at('contracts/openapi.yaml', 365), at('web/src/OrderPage.tsx', 72)] }]
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.match(text, /^영향 범위 {2}바뀐 export 4개\(TypeScript 참조 2 · 문자열 검색 2\) \/ 바뀐 문자열 1개 \/ 새 export 1개 \/ 감싼 export 1개 \/ 지운 필드 1개$/m)
+    assert.match(text, /^ {2}Link \(감싼 export — navigate 호출\) — web\/src\/navigation\.tsx {2}사용처 1\(이 변경에서 안 바뀜 1\)$/m)
+    assert.match(text, /^ {4}web\/src\/App\.tsx:16$/m)
+    assert.match(text, /^ {2}canCancel \(지운 필드 · 문자열 검색\) — server\/src\/orders\.service\.ts {2}사용처 2\(이 변경에서 안 바뀜 2\)$/m)
+    assert.match(text, /^ {4}web\/src\/OrderPage\.tsx:72$/m)
+  })
+
   it('문자열 검색으로 내려갔으면 이유와 정확도를 참고로 적는다', () => {
     const ctx = context()
     ctx.impact.method = 'text'
