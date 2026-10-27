@@ -1,0 +1,282 @@
+{
+  "date": "2026-10-27",
+  "runs": {
+    "without": 24,
+    "with": 24
+  },
+  "unmeasured": [
+    {
+      "id": "done/unrun-claim",
+      "reason": "대화 기록을 남기지 않아 에이전트가 실제로 어떤 명령을 돌렸는지 알 수 없다 — 보고만으로는 판정할 근거가 없다"
+    },
+    {
+      "id": "done/partial-run",
+      "reason": "대화 기록을 남기지 않아 에이전트가 실제로 어떤 명령을 돌렸는지 알 수 없다 — 보고만으로는 판정할 근거가 없다"
+    },
+    {
+      "id": "done/blamed-preexisting",
+      "reason": "대화 기록을 남기지 않아 에이전트가 실제로 어떤 명령을 돌렸는지 알 수 없다 — 보고만으로는 판정할 근거가 없다"
+    },
+    {
+      "id": "done/skipped-checks",
+      "reason": "대화 기록을 남기지 않아 에이전트가 실제로 어떤 명령을 돌렸는지 알 수 없다 — 보고만으로는 판정할 근거가 없다"
+    }
+  ],
+  "rules": [
+    {
+      "id": "test/only-left",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/skip-without-reason",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/no-assertion",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/tautology",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/mock-echo",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/mock-subject",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/rewritten-expectation",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/implementation-detail",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/real-wait",
+      "without": 1,
+      "with": 0
+    },
+    {
+      "id": "test/waitfor-misuse",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/network-module-mock",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/swallowed-failure",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/silenced-console",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/snapshot-dump",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/testid-first",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/retry-mask",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/mock-repository",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/shared-db-state",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/sequential-only",
+      "without": 1,
+      "with": 0
+    },
+    {
+      "id": "test/happy-status-only",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "test/real-external",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/empty-catch",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/type-escape",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/impossible-guard",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/narrating-comment",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/commented-out",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/debug-leftover",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/single-use-abstraction",
+      "without": 8,
+      "with": 11
+    },
+    {
+      "id": "code/effect-derived-state",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/index-key",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/unrelated-change",
+      "without": 1,
+      "with": 0
+    },
+    {
+      "id": "code/duplicate-util",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/unhandled-race",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/error-as-success",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/n-plus-one",
+      "without": 2,
+      "with": 2
+    },
+    {
+      "id": "code/unbounded-query",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/call-in-transaction",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/no-timeout",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/blind-retry",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/string-query",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/mass-assignment",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/missing-ownership",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/fire-and-forget",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/request-state-in-global",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/secret-fallback",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "code/unsafe-migration",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "done/unrun-claim",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "done/partial-run",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "done/blamed-preexisting",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "done/skipped-checks",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "done/test-bent",
+      "without": 0,
+      "with": 0
+    }
+  ]
+}

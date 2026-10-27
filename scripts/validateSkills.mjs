@@ -9,6 +9,7 @@ import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { RULE_SEVERITY } from '../skills/gimi-test/scripts/lib/slop.mjs'
 import { expectedSkillDocument, readPatterns } from './buildCatalog.mjs'
+import { expectedSlopDocuments } from './buildSlopTable.mjs'
 import { checkPatternDoc } from './lib/patterns.mjs'
 import { PRESET_PREFIX, SHARED_FILES, SKILLS, checkAgentDocs, checkManifests, checkRoot, checkRules, checkSharedCopies, checkSkillDoc, checkSkillSet } from './lib/skills.mjs'
 
@@ -61,6 +62,12 @@ for (const pattern of patterns) errors.push(...checkPatternDoc(pattern))
 const expectedTestSkill = expectedSkillDocument()
 if (expectedTestSkill === null) errors.push('skills/gimi-test/SKILL.md: 패턴 카탈로그 표시(<!-- catalog:start --> … <!-- catalog:end -->)가 없다')
 else if (expectedTestSkill !== readText('skills/gimi-test/SKILL.md')) errors.push('skills/gimi-test/SKILL.md: 패턴 카탈로그가 PATTERN.md와 어긋남 — npm run catalog로 다시 만든다')
+
+// 금지선 표(결정 34) — 두 스킬 SKILL.md의 표가 규칙 파일의 근거로 만든 것과 같은지
+for (const { skill, current, expected } of expectedSlopDocuments(root)) {
+  if (expected === null) errors.push(`skills/${skill}/SKILL.md: 금지선 표 표시(<!-- slop-table:start --> … <!-- slop-table:end -->)가 없다`)
+  else if (expected !== current) errors.push(`skills/${skill}/SKILL.md: 금지선 표가 규칙 파일의 근거와 어긋남 — node scripts/buildSlopTable.mjs로 다시 만든다`)
+}
 
 // 규칙 파일 — 두 스킬 모두 공통 금지선 네 영역과 분야 프리셋을 갖는다. 형식과 check.mjs와의 대조는 원본만 본다(복사본은 바이트가 같다)
 const ruleFiles = []
