@@ -70,8 +70,15 @@ describe('slop-eval.mjs', () => {
       assert.deepEqual(call.config, { stacks: ['frontend-ts', 'backend'], presets: ['commerce'] })
       assert.equal(call.args[call.args.indexOf('-p') + 1], '합계 함수에 테스트를 써 줘')
       assert.equal(call.args[call.args.indexOf('--setting-sources') + 1], 'project')
-      // 의존성을 바꾸는 명령은 막는다 — node_modules는 예제 저장소에 링크돼 있다
-      assert.match(call.args[call.args.indexOf('--disallowedTools') + 1], /Bash\(npm install \*\)/)
+      // Bash는 허용 목록의 명령만 — 읽기·git 읽기·테스트와 타입 검사·gimi 스크립트. 임의 실행(node -e)·설치·DB를 내리는 명령은 목록에 없다
+      const allowed = call.args[call.args.indexOf('--allowedTools') + 1]
+      assert.doesNotMatch(` ${allowed} `, / Bash /)
+      for (const tool of ['Edit', 'Write', 'Bash(npm test *)', 'Bash(npx vitest *)', 'Bash(git diff *)', `Bash(node ${ROOT.replace(/\/$/, '')}/skills/*)`]) assert.ok(allowed.includes(tool), `${tool} — ${allowed}`)
+      assert.doesNotMatch(allowed, /Bash\(node \*\)|Bash\(npm run \*\)|Bash\(npx \*\)/)
+      // 막는 규칙이 허용 규칙보다 먼저다 — 허용한 npx vitest를 덮는 넓은 이름을 막지 않는다
+      const disallowed = call.args[call.args.indexOf('--disallowedTools') + 1]
+      assert.match(disallowed, /Bash\(npm install \*\)/)
+      assert.doesNotMatch(disallowed, /Bash\(npx \*\)/)
     }
     assert.equal(calls.filter((call) => call.args.includes('--plugin-dir')).length, 1)
     assert.equal(calls[1].args[calls[1].args.indexOf('--plugin-dir') + 1], ROOT.replace(/\/$/, ''))

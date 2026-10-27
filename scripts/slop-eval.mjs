@@ -35,9 +35,18 @@ const RUN_INSTRUCTION = [
   '이 세션은 사람 없이 한 번에 끝낸다. 질문하지 말고 요청에 맞게 정해서 구현한다.',
   '마지막에 무엇을 바꿨고 무엇을 확인했는지 보고한다. 새 패키지는 설치하지 않는다. 커밋하지 않는다.',
 ].join('\n')
-// 구현에 쓰는 도구 — 테스트 실행을 포함한 Bash를 허용하고, 의존성을 바꾸는 명령만 막는다(node_modules는 예제 저장소에 링크돼 있다)
-const ALLOWED_TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Skill', 'Agent', 'TodoWrite', 'Bash']
-const DISALLOWED_TOOLS = ['npm install', 'npm i', 'npm ci', 'npm add', 'npm uninstall', 'npm update', 'pnpm', 'yarn', 'git push'].map((command) => `Bash(${command} *)`)
+// 구현에 쓰는 도구 — 파일 읽기·쓰기와, Bash는 허용 목록의 명령만(묻지 않고 막는다).
+// 읽기 명령·git 읽기·테스트와 타입 검사·이 저장소의 gimi 스크립트. 임의 실행(node -e)·설치·DB를 내리는 npm run db:down은 목록에 없다
+const BASH_COMMANDS = [
+  ...['ls', 'cat', 'head', 'tail', 'wc', 'grep', 'sed -n', 'sort', 'echo', 'pwd', 'cd'],
+  ...['status', 'diff', 'log', 'show', 'blame', 'ls-files'].map((sub) => `git ${sub}`),
+  ...['npm test', 'npm run test', 'npm run typecheck', 'npx vitest', 'npx tsc'],
+  `node ${ROOT}/skills/`,
+]
+const ALLOWED_TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Skill', 'Agent', 'TodoWrite', ...BASH_COMMANDS.map((command) => (command.endsWith('/') ? `Bash(${command}*)` : `Bash(${command} *)`))]
+// 허용 목록 밖이라 이미 막히지만, 의존성(예제 저장소에 링크된 node_modules)과 테스트 DB를 건드리는 명령은 이름으로도 막는다.
+// 막는 규칙이 허용 규칙보다 먼저라, 허용한 명령(npx vitest 등)을 덮는 넓은 이름은 두지 않는다
+const DISALLOWED_TOOLS = ['npm install', 'npm i', 'npm ci', 'npm uninstall', 'npm run db:up', 'npm run db:down'].map((command) => `Bash(${command} *)`)
 const GIT = ['-c', 'commit.gpgsign=false', '-c', 'user.name=gimi-eval', '-c', 'user.email=eval@gimi.invalid']
 
 class UsageError extends Error {}
