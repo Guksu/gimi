@@ -40,7 +40,7 @@ const RUN_INSTRUCTION = [
 const BASH_COMMANDS = [
   ...['ls', 'cat', 'head', 'tail', 'wc', 'grep', 'sed -n', 'sort', 'echo', 'pwd', 'cd'],
   ...['status', 'diff', 'log', 'show', 'blame', 'ls-files'].map((sub) => `git ${sub}`),
-  ...['npm test', 'npm run test', 'npm run typecheck', 'npx vitest', 'npx tsc'],
+  ...['npm test', 'npm run test', 'npm run typecheck', 'npm run generate:api', 'npx vitest', 'npx tsc'],
   `node ${ROOT}/skills/`,
 ]
 const ALLOWED_TOOLS = ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'Skill', 'Agent', 'TodoWrite', ...BASH_COMMANDS.map((command) => (command.endsWith('/') ? `Bash(${command}*)` : `Bash(${command} *)`))]
@@ -160,7 +160,8 @@ const runAll = async ({ options, ids }) => {
         '--append-system-prompt',
         RUN_INSTRUCTION,
         ...(options.model ? ['--model', options.model] : []),
-        ...(options.arm === 'with' ? ['--plugin-dir', ROOT] : []),
+        // gimi 있이 — 플러그인으로 받고, 스킬이 자기 패턴·규칙 파일을 읽을 수 있게 스킬 폴더를 연다
+        ...(options.arm === 'with' ? ['--plugin-dir', ROOT, '--add-dir', join(ROOT, 'skills')] : []),
       ]
       try {
         const result = await spawnText({ command: options.claude, args, cwd: repo, timeoutMs: RUN_TIMEOUT_MS })

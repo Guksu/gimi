@@ -82,6 +82,11 @@ describe('slop-eval.mjs', () => {
     }
     assert.equal(calls.filter((call) => call.args.includes('--plugin-dir')).length, 1)
     assert.equal(calls[1].args[calls[1].args.indexOf('--plugin-dir') + 1], ROOT.replace(/\/$/, ''))
+    // gimi 있이는 스킬 폴더를 읽을 수 있다 — 패턴·규칙 파일을 연다(설치해 쓸 때처럼)
+    assert.equal(calls[1].args[calls[1].args.indexOf('--add-dir') + 1], join(ROOT, 'skills'))
+    assert.equal(calls[0].args.includes('--add-dir'), false)
+    // 생성 타입을 다시 만드는 프로젝트 명령은 두 쪽 모두 쓸 수 있다
+    for (const call of calls) assert.ok(call.args[call.args.indexOf('--allowedTools') + 1].includes('Bash(npm run generate:api *)'))
     assert.equal(new Set(calls.map((call) => call.args[call.args.indexOf('--append-system-prompt') + 1])).size, 1)
 
     const record = JSON.parse(readFileSync(join(out, 'm/without/F1-1.json'), 'utf8'))
