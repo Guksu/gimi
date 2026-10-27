@@ -324,10 +324,11 @@ const main = async () => {
   if (command === 'base' && args.length === 1) {
     const dir = resolve(args[0])
     writeBase(options.fixture, dir)
+    if (options.linkDeps) linkNodeModules(options.fixture, dir)
     console.log(`${dir}\n  main = 정상 버전 — 고친 뒤 git diff > defects/<ID>/change.patch`)
     return 0
   }
-  throw new UsageError('사용법: defects.mjs check [ID…] [--no-tests] [--patterns <폴더>] [--pattern-specs <폴더>] | materialize <ID> <폴더> [--branch <이름>] [--link-deps] | base <폴더>  [--fixture <폴더>]')
+  throw new UsageError('사용법: defects.mjs check [ID…] [--no-tests] [--patterns <폴더>] [--pattern-specs <폴더>] | materialize <ID> <폴더> [--branch <이름>] [--link-deps] | base <폴더> [--link-deps]  [--fixture <폴더>]')
 }
 
 main().then(

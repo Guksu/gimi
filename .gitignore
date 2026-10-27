@@ -2,3 +2,5 @@ node_modules/
 .DS_Store
 # 리뷰 평가 실행 결과(원본) — 채점표만 evals/review/results/에 커밋한다
 evals/review/runs/
+# 슬롭 측정 실행 결과(원본) — 측정표만 evals/slop/results/에 커밋한다
+evals/slop/runs/

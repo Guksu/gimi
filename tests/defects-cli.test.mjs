@@ -156,6 +156,16 @@ describe('defects.mjs materialize·base', () => {
     assert.equal(git(dir, 'status', '--porcelain'), '')
   })
 
+  it('base도 --link-deps를 받는다 — 슬롭 측정이 정상 버전에서 테스트를 돌린다', () => {
+    mkdirSync(join(repo.dir, 'node_modules/left-pad'), { recursive: true })
+    writeFileSync(join(repo.dir, 'node_modules/left-pad/index.js'), 'module.exports = 1\n')
+    const dir = join(out, 'base-deps')
+    const result = run(['base', dir, '--fixture', repo.dir, '--link-deps'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(existsSync(join(dir, 'node_modules/left-pad/index.js')), true)
+    assert.equal(git(dir, 'status', '--porcelain'), '')
+  })
+
   it('비어 있지 않은 폴더에는 만들지 않는다', () => {
     mkdirSync(join(out, 'busy'))
     writeFileSync(join(out, 'busy/keep.txt'), 'x')
