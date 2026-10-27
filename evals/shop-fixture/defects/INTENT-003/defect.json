@@ -1,0 +1,30 @@
+{
+  "id": "INTENT-003",
+  "rules": [],
+  "context": "의도",
+  "layer": "백엔드",
+  "issues": [
+    {
+      "number": 45,
+      "title": "주문 — 한 주문의 상품 수 상한",
+      "body": "## 요구사항\n- 한 주문에 담는 상품은 모두 합쳐 20개까지다(수량을 더한 값)\n- 상품마다 정한 최대 수량(max_per_order)과 별개로 둘 다 지킨다\n- 넘으면 400 TOO_MANY_ITEMS\n\n## 배경\n단체 주문이 몰려 주방이 감당하지 못한 날이 있었다."
+    }
+  ],
+  "pr": {
+    "title": "feat: 한 주문의 상품 수 상한",
+    "body": "closes #45\n\n## 변경\n- 한 주문에 담을 수 있는 상품을 20개까지로 막는다(400 TOO_MANY_ITEMS)\n- 견적 테스트를 더한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "이슈 #45는 상품을 '모두 합쳐' 20개(수량을 더한 값)까지라고 한다. PR은 주문 줄 수(items.length)를 센다 — 한 상품을 수량 10으로 세 줄 담으면 30개도 통과한다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 49,
+      "evidence": [
+        {
+          "issue": 45
+        }
+      ]
+    }
+  ]
+}

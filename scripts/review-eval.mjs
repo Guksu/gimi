@@ -119,7 +119,7 @@ const coverage = ({ fixture, ids, out }) => {
     lines.push(`  ${id.padEnd(18)} ${String(defect.context).padEnd(6)} ${items.filter((item) => item.covered).length}/${items.length}${missing.length > 0 ? `  빠짐 ${missing.join(', ')}` : ''}`)
   }
   const total = Object.values(result).flat()
-  const tally = ['바뀐 조각', '바뀐 파일', '영향 범위', '이력'].map((where) => `${where} ${total.filter((item) => item.where === where).length}`).join(' · ')
+  const tally = ['바뀐 조각', '바뀐 파일', '영향 범위', '이력', '의도'].map((where) => `${where} ${total.filter((item) => item.where === where).length}`).join(' · ')
   console.log(`맥락 수집 점검 — 정답·근거 ${total.length}개 가운데 ${total.filter((item) => item.covered).length}개가 맥락 묶음에 있다(${tally})`)
   for (const line of lines) console.log(line)
   if (out) {
