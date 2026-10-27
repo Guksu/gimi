@@ -20,7 +20,9 @@ node scripts/review-eval.mjs score <폴더>
 ## 공정하게
 
 - 두 리뷰어는 같은 모델, 같은 덧붙인 지시(`--append-system-prompt`)를 받는다. gimi만 `--plugin-dir`로 이 저장소를 플러그인으로 받는다.
-- 사용자 설정·플러그인·MCP는 읽지 않는다(`--setting-sources project`, `--strict-mcp-config`). 쓸 수 있는 도구는 읽기·검색·`git`·`node`·기록 쓰기이고, 그 밖은 묻지 않고 막는다(`--permission-mode dontAsk`).
+- 사용자 설정·플러그인·MCP는 읽지 않는다(`--setting-sources project`, `--strict-mcp-config`).
+- 도구는 Read·Grep·Glob·Write·Skill·Agent·Bash를 허용하고, 테스트 명령(`npm`·`npx`·`pnpm`·`yarn`)만 묻지 않고 막는다(`--disallowedTools`, `--permission-mode dontAsk`). 이어 붙인 명령은 하나라도 허용 밖이면 통째로 막힌다. code-review는 `git diff`에 따옴표 없는 `find` 패턴과 `~/.claude/CLAUDE.md` 읽기를 이어 붙여서, `Bash(git *)` 같은 명령 이름 규칙으로는 diff를 못 본다.
+- 실행마다 도구 조건(`tools`)과 막힌 도구 호출(`permissionDenials`)을 결과에 남긴다. 조건이 다른 실행을 한 표에 섞을 때는 결과 문서에 적는다.
 - 평가용 저장소는 이름이 중립인 임시 폴더에 만들고, 결함 브랜치 이름은 `feature/pr`이다. 처음에 `defect/COM-024`로 만들었더니 `context.mjs`가 브랜치 이름을 티켓 번호로 읽었다.
 - 부르는 말은 gimi가 `/gimi:gimi-review`, code-review가 `/code-review feature/pr`이다. gimi는 범위를 스스로 정한다(지금 브랜치와 기본 브랜치의 갈림점부터).
 
@@ -50,3 +52,4 @@ node scripts/review-eval.mjs score <폴더>
 | 날짜 | 무엇 | 파일 |
 |---|---|---|
 | 2026-10-26 | 시험 — COM-024를 리뷰어마다 1번, 맥락 수집 점검은 결함 15개 전체 | `results/2026-10-26-trial.md` |
+| 2026-10-26 | 전체 1회차 — 결함 15 + 결함 없음 2를 리뷰어마다 2번, 두 리뷰어 같은 도구 조건 | `results/2026-10-26-full.md` |

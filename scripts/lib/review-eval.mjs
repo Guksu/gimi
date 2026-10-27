@@ -21,9 +21,24 @@ const normalizePath = (path, root) => {
   return out.replace(/^\.\//, '')
 }
 
+/** 코드 블록 본문 — 여는 줄(```언어)과 닫는 줄(```)을 줄 단위로 짝짓는다 */
+const codeBlocks = (text) => {
+  const blocks = []
+  let open = null
+  for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
+    if (open === null) {
+      if (/^\s*```[\w-]*\s*$/.test(line)) open = []
+    } else if (/^\s*```\s*$/.test(line)) {
+      blocks.push(open.join('\n'))
+      open = null
+    } else open.push(line)
+  }
+  return blocks
+}
+
 /** 내장 /code-review의 지적 목록 — 코드 블록 안의 JSON 배열([{ file, line, summary }]). 단계가 없다 */
 const jsonFindings = (text, root) => {
-  for (const [, body] of text.matchAll(/```(?:json)?\s*\n([\s\S]*?)```/g)) {
+  for (const body of codeBlocks(text)) {
     let list
     try {
       list = JSON.parse(body)

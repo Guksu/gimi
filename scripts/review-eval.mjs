@@ -40,8 +40,11 @@ const FINDING_INSTRUCTION = [
   'FINDING <고쳐야 함|고치면 좋음|확인 질문> <파일 경로>:<줄> <한 줄 요약>',
   '지적이 없으면 FINDING 없음 한 줄만 적는다.',
 ].join('\n')
-// 리뷰에 쓰는 도구 — 읽기·검색·git·node(맥락 수집 스크립트)·기록 쓰기. 그 밖은 묻지 않고 막는다(dontAsk)
-const ALLOWED_TOOLS = ['Read', 'Grep', 'Glob', 'Write', 'Skill', 'Agent', 'Bash(git *)', 'Bash(node *)']
+// 리뷰에 쓰는 도구 — 읽기·검색·기록 쓰기와 Bash. 테스트 실행만 막는다(dontAsk라 묻지 않고 막는다).
+// 이어 붙인 명령은 하나라도 허용 밖이면 통째로 막힌다. code-review는 git diff에 따옴표 없는 find 패턴·~/.claude 읽기를 이어 붙여서,
+// 명령 이름 규칙(Bash(git *) 등)으로는 diff를 못 본다
+const ALLOWED_TOOLS = ['Read', 'Grep', 'Glob', 'Write', 'Skill', 'Agent', 'Bash']
+const DISALLOWED_TOOLS = ['npm', 'npx', 'pnpm', 'yarn'].map((command) => `Bash(${command} *)`)
 
 class UsageError extends Error {}
 
@@ -158,6 +161,8 @@ const runReviews = async ({ fixture, ids, options }) => {
         'dontAsk',
         '--allowedTools',
         ALLOWED_TOOLS.join(' '),
+        '--disallowedTools',
+        DISALLOWED_TOOLS.join(' '),
         '--append-system-prompt',
         FINDING_INSTRUCTION,
         ...(options.model ? ['--model', options.model] : []),
@@ -179,11 +184,14 @@ const runReviews = async ({ fixture, ids, options }) => {
           branch: BRANCH,
           model: options.model ?? '(기본)',
           prompt,
+          tools: { allowed: ALLOWED_TOOLS, disallowed: DISALLOWED_TOOLS },
           exitCode: result.code,
           durationMs: parsed?.duration_ms ?? result.durationMs,
           costUsd: parsed?.total_cost_usd ?? null,
           numTurns: parsed?.num_turns ?? null,
           output: parsed?.result ?? result.stdout,
+          // 막힌 도구 호출 — 리뷰어가 diff를 못 봤는지 확인할 때 본다
+          permissionDenials: (parsed?.permission_denials ?? []).map((denial) => ({ tool: denial.tool_name, input: typeof denial.tool_input?.command === 'string' ? denial.tool_input.command : JSON.stringify(denial.tool_input ?? {}) })),
           stderr: result.stderr.slice(-4000),
         }
         writeFileSync(join(folder, `${id}-${n}.json`), `${JSON.stringify(record, null, 2)}\n`)
