@@ -1,0 +1,18 @@
+diff --git a/web/src/navigation.tsx b/web/src/navigation.tsx
+index 1f655f6..694820a 100644
+--- a/web/src/navigation.tsx
++++ b/web/src/navigation.tsx
+@@ -1,8 +1,11 @@
+ import { type MouseEvent, type ReactNode, useEffect, useState } from 'react'
+ 
+-/** 주소 바꾸기 — 화면 안에서는 pushState, 결제창처럼 밖으로 갈 때는 redirect */
++/**
++ * 주소 바꾸기 — 화면 안에서는 replaceState, 결제창처럼 밖으로 갈 때는 redirect.
++ * 기록을 쌓지 않는다 — 결제를 마친 뒤 뒤로 가기로 주문 확인 화면에 돌아가 다시 결제하지 않게
++ */
+ export const navigate = (to: string) => {
+-  window.history.pushState(null, '', to)
++  window.history.replaceState(null, '', to)
+   window.dispatchEvent(new PopStateEvent('popstate'))
+ }
+ 
