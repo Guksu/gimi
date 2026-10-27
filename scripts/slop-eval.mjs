@@ -251,14 +251,17 @@ const judgeAll = async ({ dir, options }) => {
 const score = ({ dir, options }) => {
   if (!dir || !existsSync(dir)) throw new UsageError(`결과 폴더가 없다: ${dir}`)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(options.date)) throw new UsageError(`--date는 YYYY-MM-DD다: ${options.date}`)
-  const rejected = options.rejected ? JSON.parse(readFileSync(options.rejected, 'utf8')) : []
+  // --rejected — 걸러 낸 지적의 목록, 또는 { rejected, unmeasured }(셀 수 없던 줄과 이유)
+  const review = options.rejected ? JSON.parse(readFileSync(options.rejected, 'utf8')) : []
+  const rejected = Array.isArray(review) ? review : (review.rejected ?? [])
+  const unmeasured = Array.isArray(review) ? [] : (review.unmeasured ?? [])
   const rules = loadRules().map((rule) => ({ id: rule.id, title: rule.title, area: rule.area, check: rule.items.get('검사')?.value ?? '' }))
   const runs = recordsIn(dir).map(({ path, record }) => {
     const judgePath = path.replace(/\.json$/, '.judge.json')
     const judged = existsSync(judgePath) ? JSON.parse(readFileSync(judgePath, 'utf8')) : null
     return { arm: record.arm, request: record.request, run: record.run, report: record.check, judgement: judged?.judgement?.declared ? judged.judgement : null }
   })
-  const result = scoreSlop({ runs, rules, rejected })
+  const result = scoreSlop({ runs, rules, rejected, unmeasured })
   const text = `${formatSlopScore(result)}\n${rejected.length > 0 ? `\n걸러 낸 지적 ${rejected.length}개는 세지 않았다\n` : ''}`
   writeFileSync(join(dir, 'score.md'), text)
   if (options.results) writeFileSync(options.results, `${JSON.stringify(slopResults({ score: result, date: options.date }), null, 2)}\n`)

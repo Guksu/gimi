@@ -41,6 +41,16 @@ describe('applyEvidence — 규칙 파일의 근거 줄만 바꾼다', () => {
   })
 })
 
+describe('셀 수 없던 줄(unmeasured)', () => {
+  it('근거에 "셀 수 없었다: 이유"로 적고, 표에는 올리지 않는다', () => {
+    const results = { date: '2026-10-27', runs: { without: 24, with: 24 }, rules: [], unmeasured: [{ id: 'test/real-wait', reason: '대화 기록이 없어 실제로 돌린 명령을 알 수 없다' }] }
+    const out = applyEvidence({ text: RULES, results })
+    assert.match(out, /## test\/real-wait[^]*?- 근거: 측정 2026-10-27 — 셀 수 없었다: 대화 기록이 없어 실제로 돌린 명령을 알 수 없다\n/)
+    assert.equal(parseEvidence('측정 2026-10-27 — 셀 수 없었다: x'), null)
+    assert.doesNotMatch(renderSlopTable({ files: [{ area: 'test', text: out }] }), /real-wait/)
+  })
+})
+
 describe('renderSlopTable·replaceSlopBlock — SKILL.md의 금지선 표', () => {
   const results = { date: '2026-10-27', runs: { without: 24, with: 24 }, rules: [{ id: 'test/no-assertion', without: 5, with: 1 }, { id: 'test/mock-echo', without: 5, with: 0 }, { id: 'test/real-wait', without: 0, with: 2 }] }
   const ruleText = applyEvidence({ text: RULES, results })

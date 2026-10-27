@@ -102,10 +102,20 @@ describe('scoreSlop — 줄마다 몇 번의 실행에서 나왔나', () => {
     assert.equal(byId['code/empty-catch'].without, 1)
   })
 
+  it('셀 수 없던 줄은 결과 파일에 따로 두고, 측정표에서 "나오지 않은 줄"과 나눈다', () => {
+    const unmeasured = [{ id: 'code/debug-leftover', reason: '이유' }]
+    const score = scoreSlop({ runs, rules: ruleList, unmeasured })
+    assert.deepEqual(slopResults({ score, date: '2026-10-27' }).unmeasured, unmeasured)
+    const text = formatSlopScore(score)
+    assert.match(text, /셀 수 없던 줄 1개 — `code\/debug-leftover` 이유/)
+    assert.match(text, /나오지 않은 줄 0개 — 없음/)
+  })
+
   it('slopResults — 측정 결과 파일(날짜·실행 수·줄마다 횟수)', () => {
     assert.deepEqual(slopResults({ score: scoreSlop({ runs, rules: ruleList }), date: '2026-10-27' }), {
       date: '2026-10-27',
       runs: { without: 2, with: 1 },
+      unmeasured: [],
       rules: [
         { id: 'code/empty-catch', without: 1, with: 0 },
         { id: 'code/fire-and-forget', without: 1, with: 0 },

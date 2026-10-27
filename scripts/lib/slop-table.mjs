@@ -19,15 +19,21 @@ export const parseEvidence = (text) => {
 }
 
 /**
- * 규칙 파일의 `- 근거:` 줄만 바꾼다 — 결과에 없는 줄은 0번이다(측정했지만 나오지 않았다)
- * @param {{ text: string, results: { date: string, runs: { without: number, with: number }, rules: { id: string, without: number, with: number }[] } }} args
+ * 규칙 파일의 `- 근거:` 줄만 바꾼다 — 결과에 없는 줄은 0번이다(측정했지만 나오지 않았다).
+ * 셀 수 없던 줄(unmeasured)은 "셀 수 없었다: 이유"로 적는다 — 0번과 구분한다
+ * @param {{ text: string, results: { date: string, runs: { without: number, with: number }, rules: { id: string, without: number, with: number }[], unmeasured?: { id: string, reason: string }[] } }} args
  */
 export const applyEvidence = ({ text, results }) => {
   const counts = new Map(results.rules.map((rule) => [rule.id, rule]))
+  const unmeasured = new Map((results.unmeasured ?? []).map((entry) => [entry.id, entry.reason]))
   const lines = text.split('\n')
   for (const rule of parseRuleFile(text).rules) {
     const item = rule.items.get('근거')
     if (!item) continue
+    if (unmeasured.has(rule.id)) {
+      lines[item.line - 1] = `- 근거: 측정 ${results.date} — 셀 수 없었다: ${unmeasured.get(rule.id)}`
+      continue
+    }
     const count = counts.get(rule.id) ?? { without: 0, with: 0 }
     lines[item.line - 1] = `- 근거: ${evidenceText({ date: results.date, without: count.without, with: count.with, runs: results.runs })}`
   }

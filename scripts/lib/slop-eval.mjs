@@ -91,9 +91,9 @@ const sameFinding = (rejected, run, finding) =>
 
 /**
  * 줄마다 몇 번의 실행에서 나왔나
- * @param {{ runs: { arm: 'without' | 'with', request: string, run: number, report: any, judgement: { findings: { id: string }[] } | null }[], rules: { id: string, title: string, area: string, check: string }[], rejected?: { arm: string, request: string, run: number, id: string, path: string, line: number | null }[] }} args
+ * @param {{ runs: { arm: 'without' | 'with', request: string, run: number, report: any, judgement: { findings: { id: string }[] } | null }[], rules: { id: string, title: string, area: string, check: string }[], rejected?: { arm: string, request: string, run: number, id: string, path: string, line: number | null }[], unmeasured?: { id: string, reason: string }[] }} args
  */
-export const scoreSlop = ({ runs, rules, rejected = [] }) => {
+export const scoreSlop = ({ runs, rules, rejected = [], unmeasured = [] }) => {
   const arms = Object.fromEntries(Object.keys(ARMS).map((arm) => [arm, { runs: 0, judged: 0 }]))
   const hits = new Map(rules.map((rule) => [rule.id, { without: 0, with: 0 }]))
   for (const run of runs) {
@@ -103,20 +103,22 @@ export const scoreSlop = ({ runs, rules, rejected = [] }) => {
     const ids = new Set(kept.map((finding) => finding.id))
     for (const id of ids) if (hits.has(id)) hits.get(id)[run.arm] += 1
   }
-  return { arms, rules: rules.map((rule) => ({ ...rule, ...hits.get(rule.id) })) }
+  return { arms, rules: rules.map((rule) => ({ ...rule, ...hits.get(rule.id) })), unmeasured }
 }
 
 /** 측정 결과 파일 — 규칙 파일의 근거(scripts/lib/slop-table.mjs)를 이것으로 바꾼다 */
 export const slopResults = ({ score, date }) => ({
   date,
   runs: { without: score.arms.without.runs, with: score.arms.with.runs },
+  unmeasured: score.unmeasured ?? [],
   rules: score.rules.map((rule) => ({ id: rule.id, without: rule.without, with: rule.with })),
 })
 
 /** 측정표 — 나온 줄은 gimi 없이에서 많이 나온 순으로, 나오지 않은 줄은 이름만 */
-export const formatSlopScore = ({ arms, rules }) => {
-  const appeared = rules.filter((rule) => rule.without + rule.with > 0).sort((a, b) => b.without - a.without || b.with - a.with || a.id.localeCompare(b.id))
-  const absent = rules.filter((rule) => rule.without + rule.with === 0)
+export const formatSlopScore = ({ arms, rules, unmeasured = [] }) => {
+  const skipped = new Set(unmeasured.map((entry) => entry.id))
+  const appeared = rules.filter((rule) => !skipped.has(rule.id) && rule.without + rule.with > 0).sort((a, b) => b.without - a.without || b.with - a.with || a.id.localeCompare(b.id))
+  const absent = rules.filter((rule) => !skipped.has(rule.id) && rule.without + rule.with === 0)
   const notJudged = Object.entries(arms).filter(([, arm]) => arm.runs > arm.judged).map(([key, arm]) => `${ARMS[key]} ${arm.runs - arm.judged}`)
   return [
     `| 규칙 | 영역 | 검사 | ${ARMS.without} | ${ARMS.with} |`,
@@ -124,6 +126,7 @@ export const formatSlopScore = ({ arms, rules }) => {
     ...appeared.map((rule) => `| \`${rule.id}\` ${rule.title} | ${AREA_LABEL[rule.area] ?? rule.area} | ${rule.check} | ${rule.without}/${arms.without.runs} | ${rule.with}/${arms.with.runs} |`),
     '',
     `나오지 않은 줄 ${absent.length}개 — ${absent.map((rule) => `\`${rule.id}\``).join(' ') || '없음'}`,
+    ...(unmeasured.length > 0 ? [`셀 수 없던 줄 ${unmeasured.length}개 — ${unmeasured.map((entry) => `\`${entry.id}\` ${entry.reason}`).join(' · ')}`] : []),
     ...(notJudged.length > 0 ? [`판정하지 못한 실행 — ${notJudged.join(', ')}(자동 검사만 셌다)`] : []),
   ].join('\n')
 }
