@@ -1,0 +1,48 @@
+diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
+index 429fd01..d72ef36 100644
+--- a/contracts/openapi.yaml
++++ b/contracts/openapi.yaml
+@@ -323,7 +323,7 @@ components:
+           type: integer
+     Quote:
+       type: object
+-      required: [lines, subtotal, couponCode, couponDiscount, pointsUsed, shippingFee, total, freeShippingThreshold, method]
++      required: [lines, subtotal, couponCode, couponDiscount, pointsUsed, shippingFee, total, freeShippingRemaining, method]
+       properties:
+         lines:
+           type: array
+@@ -342,8 +342,9 @@ components:
+           type: integer
+         total:
+           type: integer
+-        freeShippingThreshold:
++        freeShippingRemaining:
+           type: integer
++          description: 무료 배송까지 더 담아야 할 금액(쿠폰 할인 뒤 금액 기준). 무료 배송이면 0
+         method:
+           $ref: '#/components/schemas/Method'
+     OrderItem:
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..85808a3 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -28,7 +28,8 @@ export interface Quote {
+   pointsUsed: number
+   shippingFee: number
+   total: number
+-  freeShippingThreshold: number
++  /** 무료 배송까지 더 담아야 할 금액 — 쿠폰 할인 뒤 금액 기준, 무료 배송이면 0 */
++  freeShippingRemaining: number
+   method: Method
+ }
+ 
+@@ -95,7 +96,8 @@ export class PricingService {
+     const total = afterCoupon + shippingFee - pointsUsed
+     // 0원은 PG를 거치지 않는다. 0원이 아니면 결제수단의 최소 금액을 넘어야 한다
+     if (total > 0 && total < MINIMUM_PAYMENT[method]) throw fail(400, 'BELOW_MINIMUM_AMOUNT', `${method} 결제는 ${MINIMUM_PAYMENT[method]}원 이상이다`)
+-    return { lines, subtotal, couponCode, couponDiscount, pointsUsed, shippingFee, total, freeShippingThreshold: FREE_SHIPPING_THRESHOLD, method }
++    const freeShippingRemaining = Math.max(FREE_SHIPPING_THRESHOLD - afterCoupon, 0)
++    return { lines, subtotal, couponCode, couponDiscount, pointsUsed, shippingFee, total, freeShippingRemaining, method }
+   }
+ 
+   private async couponDiscount({ q, userId, code, subtotal }: { q: Queryable; userId: number; code: string; subtotal: number }) {
