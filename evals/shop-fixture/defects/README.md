@@ -101,6 +101,10 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 | HIST-001 | 백엔드 | 받은 날 0시를 "한 줄로 정리"하며 예전 수정(한국 시간 날짜 경계)을 되돌린다 — 새벽 배송의 마감이 하루 이르다(이력) | `server/test/refunds-returns.test.ts` 새벽 배송 · `regression-first` |
 | KCL-001 | 백엔드 | 반품 기한을 배송 시각 + 7×24시간으로 따로 계산한다 — 화면이 보이는 마감(7일째 23:59)보다 일찍 막는다 | `server/test/refunds-returns.test.ts` 7일째 경계 · `domain-boundaries` |
 | missing-ownership | 백엔드 | 주문을 기본 키로만 조회한다(요청자 조건을 뺌) — 남의 주문을 조회·취소할 수 있다 | `server/test/orders.test.ts` 남의 주문 · `db-integration` |
+| IMPACT-001 | 백엔드 | 상태 전이 실패를 false 대신 409 예외로 바꾼다 — false에 기대던 호출처(카드 재거절·결제 반영·취소)가 깨진다. 근거는 바꾸지 않은 호출처에만 있다 | `server/test/payments.test.ts` 다시 결제해 또 거절 · 없음 |
+| IMPACT-002 | 프론트 | 결제 뒤 뒤로 가기를 막으려고 공용 navigate를 replaceState로 바꾼다 — 앱 전체의 뒤로 가기가 깨진다. 근거는 바꾸지 않은 호출처에만 있다 | `web/src/pages/cart.test.tsx` 주문하기 뒤 뒤로 가기 · 없음 |
+| CONTRACT-001 | 둘 다 | 견적 응답의 freeShippingThreshold를 freeShippingRemaining으로 바꾸고 web·생성 타입은 그대로 둔다 — 무료 배송 안내가 조용히 사라진다 | `server/test/pricing.test.ts` 견적 응답 · 없음 |
+| HIST-002 | 백엔드 | 재고 차감을 결제가 끝날 때로 옮긴다 — 예전에 같은 변경을 했다가 되돌렸다(결제창에 있는 동안 재고가 팔렸다). 근거는 되돌린 커밋에만 있다(이력) | `server/test/orders.test.ts` 동시 주문 · 없음 |
 
 ## 결함 없는 PR
 

@@ -1,0 +1,66 @@
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..60895cd 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -51,7 +51,7 @@ export class OrdersService {
+     private readonly config: AppConfig,
+   ) {}
+ 
+-  /** 주문 만들기 — 금액은 서버가 다시 계산한다. 재고·쿠폰·포인트는 확인과 차감을 조건부 UPDATE 하나로 한다 */
++  /** 주문 만들기 — 금액은 서버가 다시 계산한다. 쿠폰·포인트는 확인과 차감을 조건부 UPDATE 하나로 한다. 재고는 결제가 끝날 때 줄인다 */
+   async create(userId: number, idempotencyKey: string | undefined, input: QuoteInput) {
+     if (!idempotencyKey) throw fail(400, 'IDEMPOTENCY_KEY_REQUIRED', 'Idempotency-Key 머리가 필요하다')
+     const existing = await this.findIdByKey(userId, idempotencyKey)
+@@ -60,10 +60,6 @@ export class OrdersService {
+     try {
+       id = await this.db.transaction(async (tx) => {
+         const quote = await this.pricing.quote(userId, input, tx)
+-        for (const line of quote.lines) {
+-          const taken = await tx.query('UPDATE products SET stock = stock - $2 WHERE id = $1 AND stock >= $2', [line.productId, line.quantity])
+-          if (taken.rowCount !== 1) throw fail(409, 'OUT_OF_STOCK', `${line.name}의 재고가 모자라다`)
+-        }
+         if (quote.couponCode) {
+           const used = await tx.query('UPDATE coupons SET used_count = used_count + 1 WHERE code = $1 AND used_count < max_uses', [quote.couponCode])
+           if (used.rowCount !== 1) throw fail(409, 'COUPON_EXHAUSTED', '쿠폰이 모두 쓰였다')
+@@ -84,6 +80,8 @@ export class OrdersService {
+         for (const line of quote.lines) {
+           await tx.query('INSERT INTO order_items (order_id, product_id, name, unit_price, quantity, returnable) VALUES ($1, $2, $3, $4, $5, $6)', [orderId, line.productId, line.name, line.unitPrice, line.quantity, line.returnable])
+         }
++        // 0원 주문은 바로 결제 완료라 여기서 재고를 줄인다
++        if (free) await tx.query('UPDATE products p SET stock = GREATEST(p.stock - i.quantity, 0) FROM order_items i WHERE i.order_id = $1 AND p.id = i.product_id', [orderId])
+         return orderId
+       })
+     } catch (error) {
+@@ -219,9 +217,9 @@ export class OrdersService {
+     }
+   }
+ 
+-  /** 주문을 취소하면 묶어 둔 재고·쿠폰·포인트를 돌려주고, 적립한 포인트를 거둔다 */
++  /** 주문을 취소하면 묶어 둔 재고(결제를 마친 주문만)·쿠폰·포인트를 돌려주고, 적립한 포인트를 거둔다 */
+   private async release(tx: PoolClient, order: OrderRow) {
+-    await tx.query('UPDATE products p SET stock = p.stock + i.quantity FROM order_items i WHERE i.order_id = $1 AND p.id = i.product_id', [order.id])
++    if (order.paid_at) await tx.query('UPDATE products p SET stock = p.stock + i.quantity FROM order_items i WHERE i.order_id = $1 AND p.id = i.product_id', [order.id])
+     if (order.coupon_code) {
+       await tx.query('UPDATE coupons SET used_count = used_count - 1 WHERE code = $1 AND used_count > 0', [order.coupon_code])
+       await tx.query('DELETE FROM coupon_uses WHERE coupon_code = $1 AND order_id = $2', [order.coupon_code, order.id])
+diff --git a/server/src/payments/payments.service.ts b/server/src/payments/payments.service.ts
+index c6428fd..e49f44f 100644
+--- a/server/src/payments/payments.service.ts
++++ b/server/src/payments/payments.service.ts
+@@ -69,7 +69,7 @@ export class PaymentsService {
+     return this.apply(order, payment)
+   }
+ 
+-  /** PG의 지금 상태를 주문에 반영한다 — 결제 기록은 결제 키로 하나, 상태는 전이표가 허락할 때만, 포인트 적립은 결제 완료로 바뀔 때 한 번 */
++  /** PG의 지금 상태를 주문에 반영한다 — 결제 기록은 결제 키로 하나, 상태는 전이표가 허락할 때만, 재고 차감·포인트 적립은 결제 완료로 바뀔 때 한 번 */
+   private async apply(order: OrderRow, payment: PgPayment): Promise<ApplyResult> {
+     const target = PG_TO_ORDER[payment.status]
+     if (!target) return `held:${payment.status}`
+@@ -84,6 +84,7 @@ export class PaymentsService {
+       const earned = target === 'paid' ? pointsToEarn(order.total) : 0
+       const set = target === 'paid' ? { paid_at: this.clock.now(), points_earned: earned } : {}
+       if (!(await transition(tx, Number(order.id), current, target, set))) return 'unchanged'
++      if (target === 'paid') await tx.query('UPDATE products p SET stock = GREATEST(p.stock - i.quantity, 0) FROM order_items i WHERE i.order_id = $1 AND p.id = i.product_id', [order.id])
+       if (earned > 0) await tx.query('UPDATE users SET points = points + $2 WHERE id = $1', [order.user_id, earned])
+       return 'applied'
+     })

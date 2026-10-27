@@ -1,0 +1,35 @@
+{
+  "id": "HIST-002",
+  "rules": [],
+  "context": "이력",
+  "layer": "백엔드",
+  "history": [
+    {
+      "message": "feat: 재고는 결제가 끝날 때 줄인다 — 결제하지 않고 떠난 주문이 재고를 붙잡지 않게",
+      "patch": "history/01-take-stock-on-payment.patch"
+    },
+    {
+      "message": "revert: 재고를 결제가 끝날 때 줄이던 변경을 되돌린다 — 결제창에 있는 동안 다른 주문이 같은 재고를 가져가, 결제를 마친 뒤 재고가 없는 주문이 생겼다(품절 상품을 취소·환불했다)",
+      "patch": "history/02-revert-take-stock-on-payment.patch"
+    }
+  ],
+  "pr": {
+    "title": "feat: 결제하지 않고 떠난 주문이 재고를 붙잡지 않게 한다",
+    "body": "## 배경\n결제창에서 그냥 나간 주문도 재고를 줄여 둬서, 실제로는 남은 상품이 품절로 보인다.\n\n## 변경\n- 재고는 주문을 만들 때가 아니라 결제가 끝날 때(결제 완료로 바뀔 때) 줄인다\n- 0원 주문은 만들 때 바로 결제 완료라 그때 줄인다\n- 취소할 때는 결제를 마친 주문만 재고를 돌려준다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "재고 차감을 주문을 만들 때에서 결제가 끝날 때로 옮겼다. 이 저장소는 같은 변경을 한 번 했다가 되돌렸다 — 되돌린 커밋의 이유는 결제창에 있는 동안 다른 주문이 같은 재고를 가져가 결제를 마친 뒤 재고가 없는 주문이 생겼다는 것이다. 주문을 만들 때는 견적의 재고 확인만 남아 재고 1개에 여러 주문이 모두 결제 대기로 만들어지고, 결제가 끝날 때 GREATEST(…, 0)로 깎아 초과 판매가 조용히 일어난다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 99,
+      "endLine": 101,
+      "evidence": [
+        { "commit": "revert: 재고를 결제가 끝날 때 줄이던 변경을 되돌린다" },
+        { "path": "server/src/payments/payments.service.ts", "line": 87 },
+        { "path": "server/src/orders/orders.service.ts", "line": 62 }
+      ]
+    }
+  ],
+  "catches": ["server/test/orders.test.ts"]
+}
