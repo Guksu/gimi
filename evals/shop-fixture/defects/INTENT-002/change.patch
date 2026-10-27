@@ -1,0 +1,52 @@
+diff --git a/web/src/pages/CartPage.tsx b/web/src/pages/CartPage.tsx
+index 4b3b0a2..c2fb9e9 100644
+--- a/web/src/pages/CartPage.tsx
++++ b/web/src/pages/CartPage.tsx
+@@ -6,6 +6,9 @@ import { formatPrice } from '../money/format'
+ import { navigate } from '../navigation'
+ import { Summary } from './Summary'
+ 
++// 무료 배송 안내는 거의 다 채웠을 때만 보인다 — 너무 자주 뜬다는 의견(#44)
++const FREE_SHIPPING_HINT_BELOW = 5000
++
+ /** 수량 입력 — 1 이상, 상품의 최대 수량 이하의 정수만 */
+ const parseQuantity = (text: string, max: number) => (/^\d+$/.test(text) && Number(text) >= 1 && Number(text) <= max ? Number(text) : null)
+ 
+@@ -88,7 +91,7 @@ export const CartPage = () => {
+       {quote && (
+         <>
+           <Summary quote={quote} />
+-          {remaining > 0 && <p>{formatPrice(remaining)} 더 담으면 무료 배송이에요</p>}
++          {remaining > 0 && remaining < FREE_SHIPPING_HINT_BELOW && <p>{formatPrice(remaining)} 더 담으면 무료 배송이에요</p>}
+         </>
+       )}
+       <button type="button" disabled={!quote || invalid.length > 0 || error !== null} onClick={() => navigate('/checkout')}>
+diff --git a/web/src/pages/cart.test.tsx b/web/src/pages/cart.test.tsx
+index 6539d51..80c9341 100644
+--- a/web/src/pages/cart.test.tsx
++++ b/web/src/pages/cart.test.tsx
+@@ -5,11 +5,22 @@ import { API, quote, server } from '../test/server'
+ import { openAt } from '../test/render'
+ 
+ describe('장바구니', () => {
+-  it('금액은 서버가 계산한 값을 그대로 보인다 — 배송비를 더한 결제 금액과 무료 배송까지 남은 금액', async () => {
++  it('금액은 서버가 계산한 값을 그대로 보인다 — 배송비를 더한 결제 금액', async () => {
+     openAt('/cart', [{ productId: 1, quantity: 2 }])
+     expect(await screen.findByText('15,000원')).toBeInTheDocument()
+     expect(screen.getByText('3,000원')).toBeInTheDocument()
+-    expect(screen.getByText('18,000원 더 담으면 무료 배송이에요')).toBeInTheDocument()
++  })
++
++  it('무료 배송 안내는 남은 금액이 5,000원보다 적을 때만 보인다', async () => {
++    server.use(http.post(`${API}/orders/quote`, () => HttpResponse.json(quote({ subtotal: 26000, total: 29000 }))))
++    openAt('/cart', [{ productId: 1, quantity: 2 }])
++    expect(await screen.findByText('4,000원 더 담으면 무료 배송이에요')).toBeInTheDocument()
++  })
++
++  it('무료 배송까지 많이 남았으면 안내하지 않는다', async () => {
++    openAt('/cart', [{ productId: 1, quantity: 2 }])
++    await screen.findByText('15,000원')
++    expect(screen.queryByText(/더 담으면 무료 배송이에요/)).not.toBeInTheDocument()
+   })
+ 
+   it('수량은 1 이상, 상품의 최대 수량 이하의 정수만 받는다 — 잘못된 값이면 서버에 묻지 않는다', async () => {

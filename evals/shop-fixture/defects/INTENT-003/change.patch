@@ -1,0 +1,34 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..e8256ca 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -41,8 +41,12 @@ interface ProductRow {
+   returnable: boolean
+ }
+ 
++// 한 주문에 담을 수 있는 상품 수 — 상품마다 정한 최대 수량과 별개다(#45)
++const MAX_ITEMS_PER_ORDER = 20
++
+ const parseItems = (items: unknown) => {
+   if (!Array.isArray(items) || items.length === 0) throw fail(400, 'EMPTY_ORDER', '담은 상품이 없다')
++  if (items.length > MAX_ITEMS_PER_ORDER) throw fail(400, 'TOO_MANY_ITEMS', `한 주문에 상품은 ${MAX_ITEMS_PER_ORDER}개까지다`)
+   const seen = new Set<number>()
+   return items.map((item: { productId?: unknown; quantity?: unknown }) => {
+     const productId = item?.productId
+diff --git a/server/test/pricing.test.ts b/server/test/pricing.test.ts
+index 197bafe..7f4280f 100644
+--- a/server/test/pricing.test.ts
++++ b/server/test/pricing.test.ts
+@@ -50,6 +50,12 @@ describe('POST /orders/quote — 금액은 서버가 원 단위 정수로 계산
+     expect((await quote({ items: [{ productId: 1, quantity: 1 }, { productId: 1, quantity: 1 }] })).body.code).toBe('DUPLICATE_ITEM')
+   })
+ 
++  it('한 주문에 상품은 20개까지 담는다', async () => {
++    const items = Array.from({ length: 21 }, (_, i) => ({ productId: 100 + i, quantity: 1 }))
++    const res = await quote({ items })
++    expect([res.status, res.body.code]).toEqual([400, 'TOO_MANY_ITEMS'])
++  })
++
+   it('정률 쿠폰은 원 미만을 버린다 — 9,990원의 10%는 999원', async () => {
+     await t.db.query('UPDATE products SET price = 9990 WHERE id = 1')
+     const res = await quote({ items: [{ productId: 1, quantity: 1 }], couponCode: 'NOODLE10' })

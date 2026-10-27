@@ -36,6 +36,12 @@ const commitEvidenceErrors = (label, commit, history) => {
   return messages.some((message) => message.startsWith(commit)) ? [] : [`${label}: ${commit} — history에 없다`]
 }
 
+/** 근거가 이슈면 — issues에 그 번호가 있어야 한다(평가 도구의 가짜 gh가 그 이슈를 돌려준다) */
+const issueEvidenceErrors = (label, number, issues) => {
+  const numbers = Array.isArray(issues) ? issues.map((issue) => issue?.number) : []
+  return Number.isInteger(number) && numbers.includes(number) ? [] : [`${label}: 이슈 #${number} — issues에 없다`]
+}
+
 /**
  * defect.json 하나 — 오류 문장 목록(없으면 빈 배열)
  * @param {{ dir: string, json: any, ruleIds: Set<string>, patchedLines: (path: string) => number | null, baseLines: (path: string) => number | null, touched: string[] }} args
@@ -69,6 +75,7 @@ export const validateDefect = ({ dir, json, ruleIds, patchedLines, baseLines, to
     ;(finding?.evidence ?? []).forEach((evidence, n) => {
       const evidenceLabel = `${label} 근거 ${n + 1}`
       if (evidence && typeof evidence === 'object' && 'commit' in evidence) errors.push(...commitEvidenceErrors(evidenceLabel, evidence.commit, json?.history))
+      else if (evidence && typeof evidence === 'object' && 'issue' in evidence) errors.push(...issueEvidenceErrors(evidenceLabel, evidence.issue, json?.issues))
       else errors.push(...locationErrors(evidenceLabel, evidence, patchedLines))
     })
   })
@@ -83,6 +90,22 @@ export const validateDefect = ({ dir, json, ruleIds, patchedLines, baseLines, to
         if (!isText(commit?.patch)) errors.push(`${label}: 패치 파일(patch)이 없다`)
         else if (!/^history\/[\w.-]+\.patch$/.test(commit.patch)) errors.push(`${label}: patch는 history/ 아래의 .patch 파일이다 — ${commit.patch}`)
       })
+  }
+
+  // 이슈 — 평가 도구의 가짜 gh가 돌려줄 GitHub 이슈. 요구사항이 PR 본문이 아니라 이슈에만 있는 결함에 쓴다
+  if (json?.issues !== undefined) {
+    if (!Array.isArray(json.issues) || json.issues.length === 0) errors.push('issues는 이슈 목록이다 — 이슈가 없으면 issues를 뺀다')
+    else {
+      const seen = new Set()
+      json.issues.forEach((issue, index) => {
+        const label = `이슈 ${index + 1}`
+        if (!Number.isInteger(issue?.number) || issue.number < 1) errors.push(`${label}: 번호(number)는 1 이상의 정수다`)
+        else if (seen.has(issue.number)) errors.push(`${label}: #${issue.number} — 번호가 겹친다`)
+        else seen.add(issue.number)
+        if (!isText(issue?.title)) errors.push(`${label}: 제목(title)이 없다`)
+        if (!isText(issue?.body)) errors.push(`${label}: 본문(body)이 없다`)
+      })
+    }
   }
 
   const catches = Array.isArray(json?.catches) ? json.catches : []

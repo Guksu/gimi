@@ -108,6 +108,13 @@ describe('coverageOf — 정답의 근거가 맥락 묶음에 있는가(모델 �
     assert.deepEqual(sameFile.at(-1), { answer: 0, kind: 'location', what: 'server/src/orders/orders.service.ts:54', covered: true, where: '바뀐 파일' })
     const history = coverageOf({ bundle, defect: defect({ findings: [{ ...defect().findings[0], evidence: [{ commit: 'fix: 새벽에 받은 주문' }] }] }) })
     assert.deepEqual(history.at(-1), { answer: 0, kind: 'commit', what: 'fix: 새벽에 받은 주문', covered: true, where: '이력' })
+    // 근거가 이슈면 — 묶음의 의도에 그 이슈의 본문이 있으면 있다
+    const withIssue = { ...bundle, intent: { issues: [{ number: 41, title: '메뉴 정렬', body: '품절 상품은 맨 아래로' }], unreadIssues: [42] } }
+    const issues = coverageOf({ bundle: withIssue, defect: defect({ findings: [{ ...defect().findings[0], evidence: [{ issue: 41 }, { issue: 42 }] }] }) })
+    assert.deepEqual(issues.slice(-2), [
+      { answer: 0, kind: 'issue', what: '#41', covered: true, where: '의도' },
+      { answer: 0, kind: 'issue', what: '#42', covered: false, where: null },
+    ])
   })
 })
 

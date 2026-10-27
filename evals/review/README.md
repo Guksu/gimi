@@ -24,6 +24,7 @@ node scripts/review-eval.mjs score <폴더>
 - 도구는 Read·Grep·Glob·Write·Skill·Agent·Bash를 허용하고, 테스트 명령(`npm`·`npx`·`pnpm`·`yarn`)만 묻지 않고 막는다(`--disallowedTools`, `--permission-mode dontAsk`). 이어 붙인 명령은 하나라도 허용 밖이면 통째로 막힌다. code-review는 `git diff`에 따옴표 없는 `find` 패턴과 `~/.claude/CLAUDE.md` 읽기를 이어 붙여서, `Bash(git *)` 같은 명령 이름 규칙으로는 diff를 못 본다.
 - 실행마다 도구 조건(`tools`)과 막힌 도구 호출(`permissionDenials`)을 결과에 남긴다. 조건이 다른 실행을 한 표에 섞을 때는 결과 문서에 적는다.
 - 평가용 저장소는 이름이 중립인 임시 폴더에 만들고, 결함 브랜치 이름은 `feature/pr`이다. 처음에 `defect/COM-024`로 만들었더니 `context.mjs`가 브랜치 이름을 티켓 번호로 읽었다.
+- 결함의 `issues`는 가짜 gh(`scripts/fake-gh.mjs`)가 돌려준다. 평가용 저장소 밖에 두고 두 리뷰어의 PATH 앞에 똑같이 넣는다. `auth status`·`issue view`·`issue list`·`repo view`·`api …/issues/N`에 답하고 PR은 없다고 답한다. `coverage`도 같은 가짜 gh로 맥락을 모은다.
 - 부르는 말은 gimi가 `/gimi:gimi-review`, code-review가 `/code-review feature/pr`이다. gimi는 범위를 스스로 정한다(지금 브랜치와 기본 브랜치의 갈림점부터).
 
 ## 채점
@@ -46,6 +47,7 @@ node scripts/review-eval.mjs score <폴더>
 | 영향 범위 | 바뀐 export·문자열·계약의 사용처 ±3 |
 | 바뀐 파일 | 바뀐 파일이지만 조각 밖 — 묶음이 파일을 가리키고, 리뷰어가 그 파일을 열면 보인다 |
 | 이력 | 근거가 커밋이면 묶음의 이력에 그 커밋이 있다 |
+| 의도 | 근거가 이슈면 묶음의 의도에 그 이슈의 본문이 있다 |
 | (없음) | 묶음에 없다 — 리뷰어가 스스로 찾아야 한다 |
 
 ## 결과
@@ -55,3 +57,4 @@ node scripts/review-eval.mjs score <폴더>
 | 2026-10-26 | 시험 — COM-024를 리뷰어마다 1번, 맥락 수집 점검은 결함 15개 전체 | `results/2026-10-26-trial.md` |
 | 2026-10-26 | 전체 1회차 — 결함 15 + 결함 없음 2를 리뷰어마다 2번, 두 리뷰어 같은 도구 조건 | `results/2026-10-26-full.md` |
 | 2026-10-27 | 어려운 결함 4 + 결함 없음 3을 더해 새 PR만 리뷰어마다 2번 | `results/2026-10-27-hard.md` |
+| 2026-10-27 | 요구사항이 이슈에만 있는 결함 4개(INTENT)를 리뷰어마다 2번 — 처음으로 갈렸다(읽은 판단 8/8 대 5/8) | `results/2026-10-27-intent.md` |

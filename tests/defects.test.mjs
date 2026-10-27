@@ -96,6 +96,22 @@ describe('validateDefect — 근거의 이력 커밋', () => {
   })
 })
 
+describe('validateDefect — 이슈(가짜 GitHub 이슈)', () => {
+  it('issues는 번호·제목·본문이 있는 목록이고, 근거는 그 이슈(issue — 번호)일 수 있다', () => {
+    const json = { ...good(), context: '의도', issues: [{ number: 41, title: '메뉴 정렬', body: '품절 상품은 맨 아래로 보낸다' }] }
+    json.findings[0].evidence = [{ issue: 41 }]
+    assert.deepEqual(validate(json), [])
+  })
+
+  it('번호가 양의 정수가 아니거나 겹치거나, 제목·본문이 없거나, 근거의 이슈가 issues에 없으면 오류다', () => {
+    const json = { ...good(), issues: [{ number: 0, title: 'a', body: 'b' }, { number: 7, title: '', body: 'b' }, { number: 7, title: 'c', body: '' }] }
+    json.findings[0].evidence = [{ issue: 9 }]
+    const errors = validate(json)
+    for (const pattern of [/이슈 1.*번호/, /이슈 2.*제목/, /이슈 3.*7.*겹친다/, /이슈 3.*본문/, /근거 1.*#9.*issues에 없다/]) assert.ok(errors.some((e) => pattern.test(e)), `${pattern} — ${errors.join(' / ')}`)
+    assert.ok(validate({ ...good(), issues: [] }).some((e) => /issues.*목록/.test(e)))
+  })
+})
+
 describe('patchedPaths', () => {
   it('패치가 고치는 파일 — 새 파일·지운 파일·이름 바꿈을 담는다', () => {
     const patch = [
