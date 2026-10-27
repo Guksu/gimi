@@ -1,0 +1,113 @@
+diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
+index 429fd01..fafa814 100644
+--- a/contracts/openapi.yaml
++++ b/contracts/openapi.yaml
+@@ -362,7 +362,7 @@ components:
+           type: boolean
+     Order:
+       type: object
+-      required: [id, status, method, items, subtotal, couponDiscount, pointsUsed, shippingFee, total, pointsEarned, refundedAmount, refundableAmount, canCancel, canReturn, returnDeadline, createdAt, paidAt, deliveredAt]
++      required: [id, status, method, items, subtotal, couponCode, couponDiscount, pointsUsed, shippingFee, total, pointsEarned, refundedAmount, refundableAmount, canCancel, canReturn, returnDeadline, createdAt, paidAt, deliveredAt]
+       properties:
+         id:
+           type: integer
+@@ -376,6 +376,10 @@ components:
+             $ref: '#/components/schemas/OrderItem'
+         subtotal:
+           type: integer
++        couponCode:
++          type: string
++          nullable: true
++          description: 이 주문에 쓴 쿠폰 코드. 쓰지 않았으면 null
+         couponDiscount:
+           type: integer
+         pointsUsed:
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..b994c07 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -133,6 +133,7 @@ export class OrdersService {
+       method: order.method,
+       items: items.map((item) => ({ productId: Number(item.product_id), name: item.name, unitPrice: item.unit_price, quantity: item.quantity, returnable: item.returnable })),
+       subtotal: order.subtotal,
++      couponCode: order.coupon_code,
+       couponDiscount: order.coupon_discount,
+       pointsUsed: order.points_used,
+       shippingFee: order.shipping_fee,
+diff --git a/server/test/orders.test.ts b/server/test/orders.test.ts
+index 60b3c16..e010605 100644
+--- a/server/test/orders.test.ts
++++ b/server/test/orders.test.ts
+@@ -16,7 +16,7 @@ describe('POST /orders', () => {
+   it('서버가 다시 계산한 금액으로 결제 대기 주문을 만들고 재고·쿠폰·포인트를 차감한다 — 요청의 금액 필드는 쓰지 않는다', async () => {
+     const res = await create({ items: [{ productId: 1, quantity: 2 }], couponCode: 'NOODLE10', points: 1000, total: 100, price: 1 }, 'k-1')
+     expect(res.status).toBe(201)
+-    expect(res.body).toMatchObject({ status: 'pending_payment', subtotal: 12000, couponDiscount: 1200, pointsUsed: 1000, shippingFee: 3000, total: 12800 })
++    expect(res.body).toMatchObject({ status: 'pending_payment', subtotal: 12000, couponCode: 'NOODLE10', couponDiscount: 1200, pointsUsed: 1000, shippingFee: 3000, total: 12800 })
+     expect(await stockOf(1)).toBe(18)
+     expect((await t.db.query("SELECT used_count FROM coupons WHERE code = 'NOODLE10'")).rows[0].used_count).toBe(1)
+     expect((await t.db.query('SELECT points FROM users WHERE id = 1')).rows[0].points).toBe(4000)
+diff --git a/web/src/api/schema.d.ts b/web/src/api/schema.d.ts
+index 48bae30..7af5b63 100644
+--- a/web/src/api/schema.d.ts
++++ b/web/src/api/schema.d.ts
+@@ -194,6 +194,8 @@ export interface components {
+             method: components["schemas"]["Method"];
+             items: components["schemas"]["OrderItem"][];
+             subtotal: number;
++            /** @description 이 주문에 쓴 쿠폰 코드. 쓰지 않았으면 null */
++            couponCode: string | null;
+             couponDiscount: number;
+             pointsUsed: number;
+             shippingFee: number;
+diff --git a/web/src/pages/OrderPage.tsx b/web/src/pages/OrderPage.tsx
+index 350ffc9..2601493 100644
+--- a/web/src/pages/OrderPage.tsx
++++ b/web/src/pages/OrderPage.tsx
+@@ -60,6 +60,11 @@ export const OrderPage = ({ id }: { id: number }) => {
+           </li>
+         ))}
+       </ul>
++      {order.couponCode && (
++        <p>
++          쿠폰 {order.couponCode} {formatPrice(-order.couponDiscount)}
++        </p>
++      )}
+       <p>결제 금액 {formatPrice(order.total)}</p>
+       {order.refundedAmount > 0 && <p>환불한 금액 {formatPrice(order.refundedAmount)}</p>}
+       {error && <p role="alert">{error}</p>}
+diff --git a/web/src/pages/order.test.tsx b/web/src/pages/order.test.tsx
+index 315d289..f391efe 100644
+--- a/web/src/pages/order.test.tsx
++++ b/web/src/pages/order.test.tsx
+@@ -19,6 +19,18 @@ describe('주문 상세', () => {
+     expect(screen.queryByRole('button', { name: '주문 취소' })).not.toBeInTheDocument()
+   })
+ 
++  it('쓴 쿠폰은 코드와 할인 금액을 보이고, 쓰지 않았으면 보이지 않는다', async () => {
++    show({ couponCode: 'NOODLE10', couponDiscount: 1200 })
++    const first = openAt('/orders/7')
++    expect(await screen.findByText('쿠폰 NOODLE10 -1,200원')).toBeInTheDocument()
++    first.unmount()
++    server.resetHandlers()
++    show({ couponCode: null, couponDiscount: 0 })
++    openAt('/orders/7')
++    await screen.findByText('결제 금액 15,000원')
++    expect(screen.queryByText(/쿠폰/)).not.toBeInTheDocument()
++  })
++
+   it('모르는 상태 값은 "확인 중"으로 보인다', async () => {
+     show({ status: 'held_by_risk_team' })
+     openAt('/orders/7')
+diff --git a/web/src/test/server.ts b/web/src/test/server.ts
+index c55883f..08831b3 100644
+--- a/web/src/test/server.ts
++++ b/web/src/test/server.ts
+@@ -36,6 +36,7 @@ export const order = (overrides: Partial<Order> = {}): Order => ({
+   method: 'card',
+   items: [{ productId: 1, name: '잔치국수', unitPrice: 6000, quantity: 2, returnable: true }],
+   subtotal: 12000,
++  couponCode: null,
+   couponDiscount: 0,
+   pointsUsed: 0,
+   shippingFee: 3000,

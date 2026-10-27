@@ -1,0 +1,30 @@
+diff --git a/server/src/orders/order-state.ts b/server/src/orders/order-state.ts
+index aee9c15..c9f3538 100644
+--- a/server/src/orders/order-state.ts
++++ b/server/src/orders/order-state.ts
+@@ -2,6 +2,7 @@
+  * 주문 상태 전이표 — 상태는 이 표에 있는 전이로만 바꾼다(transition). 되돌아가는 전이도 표에 둔다
+  */
+ import type { Queryable } from '../db/db'
++import { fail } from '../http/errors'
+ 
+ export type OrderStatus = 'pending_payment' | 'waiting_for_deposit' | 'payment_failed' | 'paid' | 'preparing' | 'shipped' | 'delivered' | 'partially_refunded' | 'cancelled'
+ 
+@@ -21,13 +22,14 @@ export const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+ export const canTransition = (from: OrderStatus, to: OrderStatus) => TRANSITIONS[from]?.includes(to) ?? false
+ 
+ /**
+- * 조건부 전이 — 지금 상태가 from일 때만 바꾼다. 동시에 다른 요청이 먼저 바꿨으면 false
++ * 조건부 전이 — 지금 상태가 from일 때만 바꾼다. 전이표에 없는 전이이거나 다른 요청이 먼저 바꿨으면 409로 알린다
+  * @param set 함께 바꿀 열(예: paid_at)
+  */
+ export const transition = async (q: Queryable, orderId: number, from: OrderStatus, to: OrderStatus, set: Record<string, unknown> = {}) => {
+-  if (!canTransition(from, to)) return false
++  if (!canTransition(from, to)) throw fail(409, 'INVALID_TRANSITION', `${from}에서 ${to}로 바꿀 수 없다`)
+   const columns = Object.keys(set)
+   const assignments = ['status = $3', ...columns.map((column, i) => `${column} = $${i + 4}`)].join(', ')
+   const result = await q.query(`UPDATE orders SET ${assignments} WHERE id = $1 AND status = $2`, [orderId, from, to, ...columns.map((column) => set[column])])
+-  return result.rowCount === 1
++  if (result.rowCount !== 1) throw fail(409, 'ORDER_STATE_CHANGED', `주문 ${orderId}의 상태가 ${from}이 아니다 — 다른 요청이 먼저 바꿨다`)
++  return true
+ }

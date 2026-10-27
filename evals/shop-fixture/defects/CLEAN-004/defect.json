@@ -1,0 +1,12 @@
+{
+  "id": "CLEAN-004",
+  "rules": [],
+  "context": "의도",
+  "layer": "백엔드",
+  "clean": true,
+  "pr": {
+    "title": "test: 정률 할인과 포인트 적립의 원 미만 버림을 테스트로 남긴다",
+    "body": "## 배경\n금액 함수(money.ts)의 원 미만 버림은 주문·결제 테스트 안에서 간접으로만 확인된다.\n\n## 변경\n- discountByRate·pointsToEarn의 경계값 테스트를 더한다(코드는 바꾸지 않는다)"
+  },
+  "findings": []
+}

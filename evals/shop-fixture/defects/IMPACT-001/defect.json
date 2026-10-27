@@ -1,0 +1,26 @@
+{
+  "id": "IMPACT-001",
+  "rules": [],
+  "context": "영향 범위",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: 주문 상태 전이가 실패하면 조용히 넘기지 않고 알린다",
+    "body": "## 배경\n상태 전이가 실패하면 false만 돌려줘서, 왜 실패했는지 로그에 남지 않는다. 호출하는 쪽이 false를 놓치면 상태가 바뀌지 않은 채 다음 처리로 넘어간다.\n\n## 변경\n- 전이표에 없는 전이와, 다른 요청이 먼저 상태를 바꾼 경우를 409 예외로 알린다\n- 성공하면 지금처럼 true를 돌려준다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "전이 실패를 false 대신 409 예외로 바꿨는데, 호출처들은 false에 기대어 있다. 카드 거절 때 결제 실패로 전이하는 곳(payments.service.ts:53)은 이미 결제 실패인 주문을 다시 결제해 또 거절되면 결제 실패→결제 실패가 전이표에 없어 이제 예외가 나고, 402 '결제가 거절됐다' 대신 409로 답한다. 결제 반영(:86)과 취소(orders.service.ts:179·191)도 false를 '이미 바뀜'으로 보고 넘어가던 자리가 예외가 된다",
+      "path": "server/src/orders/order-state.ts",
+      "line": 29,
+      "endLine": 33,
+      "evidence": [
+        { "path": "server/src/payments/payments.service.ts", "line": 53 },
+        { "path": "server/src/payments/payments.service.ts", "line": 86 },
+        { "path": "server/src/orders/orders.service.ts", "line": 179 },
+        { "path": "server/src/orders/orders.service.ts", "line": 191 }
+      ]
+    }
+  ],
+  "catches": ["server/test/payments.test.ts"]
+}

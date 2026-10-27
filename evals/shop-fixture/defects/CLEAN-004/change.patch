@@ -1,0 +1,23 @@
+diff --git a/server/test/money.test.ts b/server/test/money.test.ts
+new file mode 100644
+index 0000000..e7f8d9e
+--- /dev/null
++++ b/server/test/money.test.ts
+@@ -0,0 +1,17 @@
++import { describe, expect, it } from 'vitest'
++import { discountByRate, pointsToEarn } from '../src/money'
++
++describe('금액 계산', () => {
++  it('정률 할인은 원 미만을 버린다', () => {
++    expect(discountByRate(12000, 10)).toBe(1200)
++    expect(discountByRate(9999, 10)).toBe(999)
++    expect(discountByRate(1, 50)).toBe(0)
++  })
++
++  it('포인트는 결제 금액의 1%를 적립하고 원 미만은 버린다 — 100원 아래는 적립하지 않는다', () => {
++    expect(pointsToEarn(15000)).toBe(150)
++    expect(pointsToEarn(199)).toBe(1)
++    expect(pointsToEarn(100)).toBe(1)
++    expect(pointsToEarn(99)).toBe(0)
++  })
++})
