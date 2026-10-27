@@ -114,6 +114,9 @@ describe('review-eval.mjs', () => {
     assert.match(result.stdout, /\| gimi \| 2 \| 1\/1 \(100%\) \|/)
     assert.match(result.stdout, /\| code-review \| 2 \| 0\/1 \(0%\) \|/)
     assert.match(result.stdout, /\| CLEAN-001 \| 결함 없음 \|/)
+    // 결함 PR의 diff와 견줘 지적의 위치를 나눈다 — 가짜 gimi는 결함 없는 PR(label.ts만 바꿈)에도 stock.ts를 지적한다
+    assert.match(result.stdout, /\| 리뷰어 \| 정답 밖 지적 — 바뀐 조각 · 바뀐 파일 · 바뀌지 않은 파일 \|/)
+    assert.match(result.stdout, /\| gimi \| 0 — 0 · 0 · 0 \| 1 — 0 · 0 · 1 \|/)
     assert.equal(existsSync(join(out, 'runs/score.md')), true)
   })
 })
