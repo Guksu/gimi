@@ -11,10 +11,11 @@
  *   공통: --fixture <폴더>(기본 evals/shop-fixture)
  *
  * 공정하게 — 사용자 설정·플러그인·MCP는 읽지 않는다(--setting-sources project, --strict-mcp-config). 평가용 저장소의 폴더·브랜치
- * 이름에는 결함 ID를 넣지 않는다(feature/pr). 판단은 scripts/lib/review-eval.mjs가 맡는다.
+ * 이름에는 결함 ID를 넣지 않는다(feature/pr). 결함의 issues는 가짜 gh(scripts/fake-gh.mjs)로 두 리뷰어에게 똑같이 준다.
+ * 판단은 scripts/lib/review-eval.mjs가 맡는다.
  */
 import { execFileSync, spawn } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,6 +24,8 @@ import { coverageOf, formatScore, scoreRuns } from './lib/review-eval.mjs'
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
 const DEFECTS = join(ROOT, 'scripts/defects.mjs')
 const CONTEXT = join(ROOT, 'skills/gimi-review/scripts/context.mjs')
+const FAKE_GH = join(ROOT, 'scripts/fake-gh.mjs')
+const ISSUE_REPO = 'guksu-shop/shop'
 const BRANCH = 'feature/pr'
 const RUN_TIMEOUT_MS = 20 * 60 * 1000
 // 리뷰어마다 부르는 말 — gimi는 범위를 스스로 정한다(지금 브랜치와 기본 브랜치의 갈림점부터), code-review에는 같은 범위를 브랜치로 준다
@@ -82,12 +85,20 @@ const pick = (fixture, ids) => {
   return ids.length > 0 ? ids : all
 }
 
-/** 평가용 저장소 — 이름이 중립인 임시 폴더에, 결함 브랜치는 feature/pr, 예제 저장소의 의존성을 링크한다 */
+/**
+ * 평가용 저장소 — 이름이 중립인 임시 폴더에, 결함 브랜치는 feature/pr, 예제 저장소의 의존성을 링크한다.
+ * 저장소 밖(holder/bin)에 가짜 gh를 두고 그 폴더를 PATH 앞에 넣는다 — 결함의 issues를 이슈로 돌려준다(없으면 빈 목록)
+ */
 const prepare = (fixture, id) => {
   const holder = mkdtempSync(join(tmpdir(), 'shop-'))
   const repo = join(holder, 'shop')
   execFileSync(process.execPath, [DEFECTS, 'materialize', id, repo, '--fixture', fixture, '--branch', BRANCH, '--link-deps'], { stdio: ['ignore', 'pipe', 'pipe'] })
-  return { holder, repo }
+  const bin = join(holder, 'bin')
+  mkdirSync(bin)
+  writeFileSync(join(bin, 'issues.json'), `${JSON.stringify({ repo: ISSUE_REPO, issues: readDefect(fixture, id).issues ?? [] })}\n`)
+  writeFileSync(join(bin, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${FAKE_GH}" --data "${join(bin, 'issues.json')}" "$@"\n`)
+  chmodSync(join(bin, 'gh'), 0o755)
+  return { holder, repo, env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` } }
 }
 
 const coverage = ({ fixture, ids, out }) => {
@@ -96,9 +107,9 @@ const coverage = ({ fixture, ids, out }) => {
   for (const id of pick(fixture, ids)) {
     const defect = readDefect(fixture, id)
     if (defect.clean === true) continue
-    const { holder, repo } = prepare(fixture, id)
+    const { holder, repo, env } = prepare(fixture, id)
     try {
-      const bundle = JSON.parse(execFileSync(process.execPath, [CONTEXT, '--json', '--no-gh'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }))
+      const bundle = JSON.parse(execFileSync(process.execPath, [CONTEXT, '--json'], { cwd: repo, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }))
       result[id] = coverageOf({ bundle, defect })
     } finally {
       rmSync(holder, { recursive: true, force: true })
@@ -118,10 +129,10 @@ const coverage = ({ fixture, ids, out }) => {
   return result
 }
 
-const runClaude = ({ claude, args, cwd }) =>
+const runClaude = ({ claude, args, cwd, env }) =>
   new Promise((done) => {
     const started = Date.now()
-    const child = spawn(claude, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(claude, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''
     let stderr = ''
     const timer = setTimeout(() => child.kill('SIGTERM'), RUN_TIMEOUT_MS)
@@ -146,7 +157,7 @@ const runReviews = async ({ fixture, ids, options }) => {
   mkdirSync(folder, { recursive: true })
   for (const id of pick(fixture, ids)) {
     for (let n = 1; n <= options.runs; n++) {
-      const { holder, repo } = prepare(fixture, id)
+      const { holder, repo, env } = prepare(fixture, id)
       const prompt = reviewer.prompt
       const args = [
         '-p',
@@ -169,7 +180,7 @@ const runReviews = async ({ fixture, ids, options }) => {
         ...(reviewer.plugin ? ['--plugin-dir', ROOT] : []),
       ]
       try {
-        const result = await runClaude({ claude: options.claude, args, cwd: repo })
+        const result = await runClaude({ claude: options.claude, args, cwd: repo, env })
         let parsed = null
         try {
           parsed = JSON.parse(result.stdout)

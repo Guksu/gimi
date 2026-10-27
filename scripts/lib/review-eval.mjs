@@ -116,13 +116,14 @@ const usagesIn = (value, out = []) => {
 /**
  * 결함의 정답·근거가 맥락 묶음에 있는가 — 모델 없이 맥락 수집을 점검한다
  * @param {{ bundle: any, defect: any, tolerance?: number }} args
- * @returns {{ answer: number, kind: 'location' | 'commit', what: string, covered: boolean, where: '바뀐 조각' | '영향 범위' | '바뀐 파일' | '이력' | null }[]}
+ * @returns {{ answer: number, kind: 'location' | 'commit' | 'issue', what: string, covered: boolean, where: '바뀐 조각' | '영향 범위' | '바뀐 파일' | '이력' | '의도' | null }[]}
  */
 export const coverageOf = ({ bundle, defect, tolerance = TOLERANCE }) => {
   const hunks = (bundle.files ?? []).flatMap((file) => (file.hunks ?? []).map((hunk) => ({ path: file.newPath ?? file.path, from: hunk.newStart, to: hunk.newStart + Math.max(hunk.newLines, 1) - 1 })))
   const changedFiles = new Set((bundle.files ?? []).map((file) => file.newPath ?? file.path))
   const usages = usagesIn(bundle.impact ?? {})
   const subjects = Object.values(bundle.history?.commits ?? {}).map((commit) => commit.subject ?? '')
+  const readIssues = new Set((bundle.intent?.issues ?? []).filter((issue) => typeof issue?.body === 'string' && issue.body.trim()).map((issue) => issue.number))
   const locate = ({ path, line, endLine }) => {
     const span = { path, line, endLine: endLine ?? line }
     if (hunks.some((hunk) => overlaps(span, hunk, tolerance))) return '바뀐 조각'
@@ -132,6 +133,10 @@ export const coverageOf = ({ bundle, defect, tolerance = TOLERANCE }) => {
     return null
   }
   return (defect.findings ?? []).flatMap((answer, index) => [answer, ...(answer.evidence ?? [])].map((item) => {
+    if (Number.isInteger(item?.issue)) {
+      const covered = readIssues.has(item.issue)
+      return { answer: index, kind: 'issue', what: `#${item.issue}`, covered, where: covered ? '의도' : null }
+    }
     if (typeof item?.commit === 'string') {
       const covered = subjects.some((subject) => subject.startsWith(item.commit))
       return { answer: index, kind: 'commit', what: item.commit, covered, where: covered ? '이력' : null }

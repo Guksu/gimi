@@ -31,10 +31,11 @@ before(() => {
   repo.write({ 'app/src/label.ts': "export const label = '장바구니에 담기'\n" })
   const cleanPatch = repo.git('diff')
   repo.git('checkout', '--', 'app/src/label.ts')
-  const pr = { title: 'feat: 재고 부족을 알린다', body: '요구사항 — 남은 수량을 알린다' }
+  const pr = { title: 'feat: 재고 부족을 알린다', body: 'closes #41' }
   repo.write({
     'defects/COM-007/change.patch': patch,
-    'defects/COM-007/defect.json': JSON.stringify({ id: 'COM-007', rules: ['COM-007'], context: '도메인 규칙', layer: '백엔드', pr, findings: [{ level: '고쳐야 함', summary: '재고를 읽고 앱에서 비교해 저장한다', path: 'app/src/stock.ts', line: 3 }] }),
+    // 요구사항은 이슈 #41에만 있다 — 평가 도구의 가짜 gh가 두 리뷰어에게 같은 이슈를 준다
+    'defects/COM-007/defect.json': JSON.stringify({ id: 'COM-007', rules: ['COM-007'], context: '도메인 규칙', layer: '백엔드', pr, issues: [{ number: 41, title: '재고 부족 알림', body: '남은 수량을 알리되 재고 확인과 차감은 한 번에 한다' }], findings: [{ level: '고쳐야 함', summary: '재고를 읽고 앱에서 비교해 저장한다', path: 'app/src/stock.ts', line: 3, evidence: [{ issue: 41 }] }] }),
     'defects/CLEAN-001/change.patch': cleanPatch,
     'defects/CLEAN-001/defect.json': JSON.stringify({ id: 'CLEAN-001', rules: [], context: '영향 범위', layer: '프론트', clean: true, pr: { title: 'chore: 담기 문구', body: '문구만 바꾼다' }, findings: [] }),
   })
@@ -48,7 +49,11 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 const args = process.argv.slice(2)
 const branch = execFileSync('git', ['branch', '--show-current'], { encoding: 'utf8' }).trim()
-appendFileSync(${JSON.stringify(join(out, 'calls.jsonl'))}, JSON.stringify({ args, cwd: process.cwd(), branch }) + '\\n')
+let ghBody = null
+try {
+  ghBody = execFileSync('gh', ['issue', 'view', '41', '--json', 'body', '--jq', '.body'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+} catch {}
+appendFileSync(${JSON.stringify(join(out, 'calls.jsonl'))}, JSON.stringify({ args, cwd: process.cwd(), branch, ghBody }) + '\\n')
 const gimi = args.includes('--plugin-dir')
 if (gimi) {
   mkdirSync('docs/gimi/reviews', { recursive: true })
@@ -70,8 +75,9 @@ describe('review-eval.mjs', () => {
   it('coverage — 모델 없이 결함마다 정답·근거가 맥락 묶음에 있는지 본다', () => {
     const result = run(['coverage', 'COM-007', '--fixture', repo.dir, '--out', join(out, 'cov')])
     assert.equal(result.status, 0, result.stdout + result.stderr)
-    assert.match(result.stdout, /COM-007 +도메인 규칙 +1\/1/)
-    assert.equal(JSON.parse(readFileSync(join(out, 'cov/coverage.json'), 'utf8'))['COM-007'][0].covered, true)
+    assert.match(result.stdout, /COM-007 +도메인 규칙 +2\/2/)
+    const items = JSON.parse(readFileSync(join(out, 'cov/coverage.json'), 'utf8'))['COM-007']
+    assert.deepEqual(items.map((item) => [item.kind, item.covered, item.where]), [['location', true, '바뀐 조각'], ['issue', true, '의도']])
   })
 
   it('run — 리뷰어마다 같은 지시로 claude -p를 돌린다. gimi만 플러그인을 받고, 사용자 설정은 읽지 않으며, 폴더·브랜치 이름에 결함 ID가 없다', () => {
@@ -81,6 +87,8 @@ describe('review-eval.mjs', () => {
     }
     const calls = readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line))
     assert.equal(calls.length, 4)
+    // 가짜 gh가 PATH 앞에 있다 — 이슈가 있는 결함만 본문을 읽는다
+    assert.deepEqual(calls.map((call) => call.ghBody), ['남은 수량을 알리되 재고 확인과 차감은 한 번에 한다', null, '남은 수량을 알리되 재고 확인과 차감은 한 번에 한다', null])
     for (const call of calls) {
       assert.equal(call.branch, 'feature/pr')
       assert.doesNotMatch(call.cwd, /COM-007|CLEAN-001|defect/)
