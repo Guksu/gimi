@@ -1,0 +1,68 @@
+diff --git a/web/src/pages/MenuPage.tsx b/web/src/pages/MenuPage.tsx
+index 66c2e75..953ad57 100644
+--- a/web/src/pages/MenuPage.tsx
++++ b/web/src/pages/MenuPage.tsx
+@@ -7,6 +7,8 @@ export const MenuPage = () => {
+   const cart = useCart()
+   const [products, setProducts] = useState<Product[] | null>(null)
+   const [error, setError] = useState(false)
++  // 다시 시도할 때마다 올려 목록을 다시 불러온다
++  const [attempt, setAttempt] = useState(0)
+ 
+   useEffect(() => {
+     let alive = true
+@@ -17,9 +19,23 @@ export const MenuPage = () => {
+     return () => {
+       alive = false
+     }
+-  }, [])
++  }, [attempt])
+ 
+-  if (error) return <p role="alert">메뉴를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요</p>
++  if (error)
++    return (
++      <>
++        <p role="alert">메뉴를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요</p>
++        <button
++          type="button"
++          onClick={() => {
++            setError(false)
++            setAttempt((n) => n + 1)
++          }}
++        >
++          다시 시도
++        </button>
++      </>
++    )
+   if (!products) return <p>메뉴를 불러오고 있어요</p>
+   return (
+     <section aria-label="메뉴">
+diff --git a/web/src/pages/menu.test.tsx b/web/src/pages/menu.test.tsx
+index ecf8c5e..9f49cc8 100644
+--- a/web/src/pages/menu.test.tsx
++++ b/web/src/pages/menu.test.tsx
+@@ -1,5 +1,7 @@
+ import { screen, within } from '@testing-library/react'
++import { http, HttpResponse } from 'msw'
+ import { describe, expect, it } from 'vitest'
++import { API, products, server } from '../test/server'
+ import { openAt } from '../test/render'
+ 
+ describe('메뉴', () => {
+@@ -15,6 +17,16 @@ describe('메뉴', () => {
+     expect(within(card).getByText('단순 변심으로 반품할 수 없는 상품이에요')).toBeInTheDocument()
+   })
+ 
++  it('메뉴를 불러오지 못하면 알리고, 다시 시도하면 다시 불러온다', async () => {
++    let calls = 0
++    server.use(http.get(`${API}/products`, () => (++calls === 1 ? HttpResponse.json({ code: 'UNAVAILABLE' }, { status: 503 }) : HttpResponse.json({ items: products }))))
++    const { user } = openAt('/')
++    expect(await screen.findByRole('alert')).toHaveTextContent('메뉴를 불러오지 못했어요')
++    await user.click(screen.getByRole('button', { name: '다시 시도' }))
++    expect(await screen.findByRole('heading', { name: '잔치국수' })).toBeInTheDocument()
++    expect(calls).toBe(2)
++  })
++
+   it('담으면 장바구니 수가 늘어난다', async () => {
+     const { user } = openAt('/')
+     const card = (await screen.findByRole('heading', { name: '잔치국수' })).closest('article') as HTMLElement
