@@ -95,6 +95,18 @@ describe('slop-eval.mjs', () => {
     assert.ok(record.check.slop.findings.some((finding) => finding.id === 'test/tautology'), JSON.stringify(record.check?.slop))
   })
 
+  it('run --run N — 그 실행 하나만 다시 돌린다(다른 실행의 결과는 그대로)', () => {
+    const before = readFileSync(join(out, 'm/without/F1-1.json'), 'utf8')
+    const result = run(['run', 'F1', '--arm', 'without', '--run', '2', '--requests', requests, '--fixture', repo.dir, '--out', join(out, 'm'), '--claude', fake])
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    assert.equal(readFileSync(join(out, 'm/without/F1-1.json'), 'utf8'), before)
+    assert.equal(JSON.parse(readFileSync(join(out, 'm/without/F1-2.json'), 'utf8')).run, 2)
+    rmSync(join(out, 'm/without/F1-2.json'))
+    rmSync(join(out, 'm/without/F1-2.patch'))
+    const calls = readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n')
+    writeFileSync(join(out, 'calls.jsonl'), `${calls.slice(0, -1).join('\n')}\n`)
+  })
+
   it('judge — 실행마다 도구 없이 판정 모델을 부르고 답을 남긴다', () => {
     const result = run(['judge', join(out, 'm'), '--requests', requests, '--claude', fake])
     assert.equal(result.status, 0, result.stdout + result.stderr)

@@ -2,9 +2,10 @@
 /**
  * 슬롭 금지선 측정(설계 결정 16·34·49) — 같은 요청을 gimi 없이·있이 실행하고, 금지선 줄이 몇 번의 실행에 나왔는지 센다.
  *
- *   node scripts/slop-eval.mjs run [ID…] --arm without|with [--runs N] [--model M] [--out <폴더>] [--claude <실행 파일>]
+ *   node scripts/slop-eval.mjs run [ID…] --arm without|with [--runs N | --run N] [--model M] [--out <폴더>] [--claude <실행 파일>]
  *        요청마다 정상 버전 저장소를 만들어 claude -p로 실행한다. 끝나면 diff를 남기고 끝내기 전 검사(check.mjs --json)를 돌린다.
- *        두 쪽에 같은 지시를 주고, gimi 있이만 --plugin-dir로 이 저장소를 받는다. 실행은 하나씩 한다(테스트 DB를 함께 쓴다)
+ *        두 쪽에 같은 지시를 주고, gimi 있이만 --plugin-dir로 이 저장소를 받는다. 실행은 하나씩 한다(테스트 DB를 함께 쓴다).
+ *        --run N은 그 번째 실행 하나만 다시 돌린다(다른 일이 테스트 DB를 건드려 망친 실행을 바꿀 때)
  *   node scripts/slop-eval.mjs judge <폴더> [--model M] [--claude <실행 파일>]
  *        실행마다 판정 모델(도구 없음)이 diff·보고를 읽고, 검사가 error·warn만이 아닌 금지선 줄을 고른다. 판정한 실행은 건너뛴다
  *   node scripts/slop-eval.mjs score <폴더>
@@ -53,7 +54,7 @@ class UsageError extends Error {}
 
 const parseArgs = (argv) => {
   const positional = []
-  const options = { fixture: join(ROOT, 'evals/shop-fixture'), requests: join(ROOT, 'evals/slop/requests.json'), out: null, arm: null, runs: 1, model: null, claude: 'claude' }
+  const options = { fixture: join(ROOT, 'evals/shop-fixture'), requests: join(ROOT, 'evals/slop/requests.json'), out: null, arm: null, runs: 1, only: null, model: null, claude: 'claude' }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     const value = () => {
@@ -66,6 +67,7 @@ const parseArgs = (argv) => {
     else if (arg === '--out') options.out = resolve(value())
     else if (arg === '--arm') options.arm = value()
     else if (arg === '--runs') options.runs = Number(value())
+    else if (arg === '--run') options.only = Number(value())
     else if (arg === '--model') options.model = value()
     else if (arg === '--claude') options.claude = value()
     else if (arg.startsWith('--')) throw new UsageError(`모르는 옵션: ${arg}`)
@@ -136,11 +138,13 @@ const collect = ({ git, base }) => {
 const runAll = async ({ options, ids }) => {
   if (!ARMS[options.arm]) throw new UsageError(`--arm은 ${Object.keys(ARMS).join('·')} 중 하나다`)
   if (!Number.isInteger(options.runs) || options.runs < 1) throw new UsageError('--runs는 1 이상의 정수다')
+  if (options.only !== null && (!Number.isInteger(options.only) || options.only < 1)) throw new UsageError('--run은 1 이상의 정수다')
+  const numbers = options.only !== null ? [options.only] : Array.from({ length: options.runs }, (_, i) => i + 1)
   const out = options.out ?? join(ROOT, 'evals/slop/runs', new Date().toISOString().slice(0, 10))
   const folder = join(out, options.arm)
   mkdirSync(folder, { recursive: true })
   for (const request of pick(loadRequests(options.requests), ids)) {
-    for (let n = 1; n <= options.runs; n++) {
+    for (const n of numbers) {
       const { holder, repo, git, base } = prepare(options.fixture)
       const args = [
         '-p',
@@ -251,7 +255,7 @@ const main = async () => {
   if (command === 'run') return runAll({ options, ids: args })
   if (command === 'judge') return judgeAll({ dir: args[0] ? resolve(args[0]) : null, options })
   if (command === 'score') return score({ dir: args[0] ? resolve(args[0]) : null })
-  throw new UsageError('사용법: slop-eval.mjs run [ID…] --arm without|with [--runs N] [--model M] [--out <폴더>] [--claude <실행 파일>] | judge <폴더> [--model M] | score <폴더>  [--fixture <폴더>] [--requests <파일>]')
+  throw new UsageError('사용법: slop-eval.mjs run [ID…] --arm without|with [--runs N | --run N] [--model M] [--out <폴더>] [--claude <실행 파일>] | judge <폴더> [--model M] | score <폴더>  [--fixture <폴더>] [--requests <파일>]')
 }
 
 main().then(
