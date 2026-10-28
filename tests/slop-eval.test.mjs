@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseRuleFile } from '../skills/gimi-test/scripts/lib/rulefile.mjs'
-import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, scoreSlop, skillTableRows, slopResults, staticFindings } from '../scripts/lib/slop-eval.mjs'
+import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, parseStream, scoreSlop, skillTableRows, slopResults, staticFindings } from '../scripts/lib/slop-eval.mjs'
 
 const RULES = `# 코드 금지선
 
@@ -38,6 +38,47 @@ describe('judgedRules — 판정 모델이 볼 줄', () => {
   })
 })
 
+describe('parseStream — 실행 기록(stream-json)', () => {
+  const event = (value) => JSON.stringify(value)
+  const use = (id, command) => event({ type: 'assistant', message: { content: [{ type: 'text', text: '돌려 본다' }, { type: 'tool_use', id, name: 'Bash', input: { command, description: 'x' } }] } })
+  const answer = (id, content, isError) => event({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content, is_error: isError }] } })
+
+  it('에이전트가 돌린 Bash 명령을 부른 순서대로 성공·실패·막힘으로 꺼내고, 마지막 결과를 읽는다', () => {
+    const stdout = [
+      event({ type: 'system', subtype: 'init' }),
+      use('a', 'ls web/src'),
+      use('b', 'npm test -w web'),
+      event({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'r', name: 'Read', input: { file_path: 'a.ts' } }] } }),
+      use('c', 'npm run lint'),
+      answer('b', 'Exit code 1\n실패 1', true),
+      answer('a', [{ type: 'text', text: 'cart.ts' }], false),
+      answer('r', '파일 내용', false),
+      answer('c', "Permission to use Bash has been denied because Claude Code is running in don't ask mode.", true),
+      use('d', 'npx tsc --noEmit'),
+      '깨진 줄',
+      event({ type: 'result', result: '구현했습니다', total_cost_usd: 0.5, duration_ms: 10, num_turns: 4, permission_denials: [] }),
+    ].join('\n')
+    const { result, commands } = parseStream(stdout)
+    assert.equal(result.result, '구현했습니다')
+    assert.equal(result.total_cost_usd, 0.5)
+    assert.deepEqual(commands, [
+      { command: 'ls web/src', status: 'ok', output: 'cart.ts' },
+      { command: 'npm test -w web', status: 'failed', output: 'Exit code 1\n실패 1' },
+      { command: 'npm run lint', status: 'denied', output: "Permission to use Bash has been denied because Claude Code is running in don't ask mode." },
+      { command: 'npx tsc --noEmit', status: 'no-result', output: '' },
+    ])
+  })
+
+  it('명령 출력은 끝부분만 남긴다. 결과 한 줄(json 형식)도 읽는다', () => {
+    const long = Array.from({ length: 3000 }, (_, i) => `줄 ${i}`).join('\n')
+    const { commands } = parseStream([use('a', 'npm test'), answer('a', long, false)].join('\n'))
+    assert.ok(commands[0].output.length <= 4000)
+    assert.ok(commands[0].output.endsWith('줄 2999'))
+    assert.deepEqual(parseStream(event({ type: 'result', result: '끝' })), { result: { type: 'result', result: '끝' }, commands: [] })
+    assert.deepEqual(parseStream('형식 없음'), { result: null, commands: [] })
+  })
+})
+
 describe('judgePrompt — 판정 지시', () => {
   it('요청·보고·검사 결과·diff·규칙을 담고, 답 형식을 정한다', () => {
     const text = judgePrompt({
@@ -49,6 +90,34 @@ describe('judgePrompt — 판정 지시', () => {
     })
     for (const part of ['주문 생성 API에 메모를 더해 줘', '구현했고 테스트가 통과했습니다', 'test(server) fail', 'code/debug-leftover server/src/a.ts:3', '+console.log(1)', '## code/fire-and-forget 비동기 작업을 기다리지 않는다', '- 확인: await 없이 부른 Promise', 'SLOP <ID> <경로>:<줄> <근거>', 'SLOP <ID> 보고 <근거>', 'SLOP 없음']) assert.ok(text.includes(part), part)
     assert.ok(!text.includes('## code/debug-leftover'), '자동 검사만 하는 줄은 판정 목록에 넣지 않는다')
+  })
+})
+
+describe('judgePrompt — 에이전트가 돌린 명령', () => {
+  const base = { request: '요청', finalMessage: '테스트 20개가 모두 통과했습니다', report: { runs: [] }, patch: '', rules: judgedRules(rules) }
+
+  it('명령마다 성공·실패·막힘을 보이고, 테스트·타입 검사·check.mjs 명령만 출력 끝 20줄을 붙인다', () => {
+    const tail = Array.from({ length: 30 }, (_, i) => `테스트 줄 ${i}`).join('\n')
+    const text = judgePrompt({
+      ...base,
+      commands: [
+        { command: 'cat web/src/cart.ts', status: 'ok', output: '읽은 파일 내용' },
+        { command: 'cd server && npm test', status: 'failed', output: tail },
+        { command: 'npm run lint', status: 'denied', output: 'Permission to use Bash has been denied' },
+        { command: 'node /x/skills/gimi-test/scripts/check.mjs', status: 'ok', output: '검사 통과' },
+        { command: 'npx tsc --noEmit', status: 'no-result', output: '' },
+      ],
+    })
+    for (const part of ['# 에이전트가 돌린 명령', '- 성공 `cat web/src/cart.ts`', '- 실패 `cd server && npm test`', '테스트 줄 29', '- 막힘 `npm run lint`', '- 성공 `node /x/skills/gimi-test/scripts/check.mjs`', '검사 통과', '- 결과 없음 `npx tsc --noEmit`']) assert.ok(text.includes(part), part)
+    assert.ok(!text.includes('테스트 줄 9\n'), '끝 20줄만')
+    assert.ok(!text.includes('읽은 파일 내용'), '읽기 명령의 출력은 붙이지 않는다')
+    // 완료 보고 줄은 에이전트가 돌린 명령과 견준다 — 평가 도구가 끝난 뒤 돌린 검사는 근거가 아니다
+    assert.match(text, /완료 보고 줄\(done\/\)은 마지막 보고를 "에이전트가 돌린 명령"과 견준다/)
+  })
+
+  it('명령 기록이 없는 실행(예전 형식)은 기록 없음, 돌린 명령이 없으면 없다고 적는다', () => {
+    assert.match(judgePrompt(base), /# 에이전트가 돌린 명령\n\(기록 없음\)/)
+    assert.match(judgePrompt({ ...base, commands: [] }), /# 에이전트가 돌린 명령\n- 돌린 명령 없음/)
   })
 })
 
@@ -122,6 +191,12 @@ describe('scoreSlop — 줄마다 몇 번의 실행에서 나왔나', () => {
         { id: 'code/debug-leftover', without: 0, with: 0 },
       ],
     })
+  })
+
+  it('slopResults — 일부 영역만 센 측정은 영역을 남긴다(apply가 그 영역의 근거만 바꾼다)', () => {
+    const results = slopResults({ score: scoreSlop({ runs, rules: ruleList }), date: '2026-10-28', areas: ['code'] })
+    assert.deepEqual(results.areas, ['code'])
+    assert.equal('areas' in slopResults({ score: scoreSlop({ runs, rules: ruleList }), date: '2026-10-28' }), false)
   })
 
   it('formatSlopScore — 나온 줄은 표로, 나오지 않은 줄은 이름만', () => {

@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -37,13 +37,17 @@ const args = process.argv.slice(2)
 const log = (entry) => appendFileSync(${JSON.stringify(join(out, 'calls.jsonl'))}, JSON.stringify(entry) + '\\n')
 if (args.includes('--tools')) {
   const stdin = readFileSync(0, 'utf8')
-  log({ mode: 'judge', args, cwd: process.cwd(), stdinHasDiff: stdin.includes('diff --git'), stdinHasRequest: stdin.includes('합계 함수에 테스트를 써 줘') })
+  log({ mode: 'judge', args, cwd: process.cwd(), stdinHasDiff: stdin.includes('diff --git'), stdinHasRequest: stdin.includes('합계 함수에 테스트를 써 줘'), stdinHasCommand: stdin.includes('- 성공 \`npx vitest run\`'), stdinRules: [...stdin.matchAll(/^## (\\S+)/gm)].map((match) => match[1]) })
   console.log(JSON.stringify({ type: 'result', result: 'SLOP code/fire-and-forget web/src/cart.ts:1 기다리지 않는다', total_cost_usd: 0.01, duration_ms: 3, num_turns: 1 }))
 } else {
   const branch = execFileSync('git', ['branch', '--show-current'], { encoding: 'utf8' }).trim()
   log({ mode: 'run', args, cwd: process.cwd(), branch, config: existsSync('.agents/gimi.json') ? JSON.parse(readFileSync('.agents/gimi.json', 'utf8')) : null })
   mkdirSync('web/src', { recursive: true })
   writeFileSync('web/src/cart.test.ts', "import { expect, it } from 'vitest'\\nimport { total } from './cart'\\n\\nit('합계', () => {\\n  total(1, 2)\\n  expect(true).toBe(true)\\n})\\n")
+  // stream-json — 돌린 명령이 결과 앞에 이벤트로 나온다
+  console.log(JSON.stringify({ type: 'system', subtype: 'init' }))
+  console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'npx vitest run' } }] } }))
+  console.log(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'Tests 1 passed', is_error: false }] } }))
   console.log(JSON.stringify({ type: 'result', result: '테스트를 썼습니다', total_cost_usd: 0.02, duration_ms: 5, num_turns: 2, permission_denials: [] }))
 }
 `,
@@ -70,6 +74,9 @@ describe('slop-eval.mjs', () => {
       assert.deepEqual(call.config, { stacks: ['frontend-ts', 'backend'], presets: ['commerce'] })
       assert.equal(call.args[call.args.indexOf('-p') + 1], '합계 함수에 테스트를 써 줘')
       assert.equal(call.args[call.args.indexOf('--setting-sources') + 1], 'project')
+      // 돌린 명령을 남기려고 stream-json으로 받는다(--verbose가 있어야 나온다)
+      assert.equal(call.args[call.args.indexOf('--output-format') + 1], 'stream-json')
+      assert.ok(call.args.includes('--verbose'))
       // Bash는 허용 목록의 명령만 — 읽기·git 읽기·테스트와 타입 검사·gimi 스크립트. 임의 실행(node -e)·설치·DB를 내리는 명령은 목록에 없다
       const allowed = call.args[call.args.indexOf('--allowedTools') + 1]
       assert.doesNotMatch(` ${allowed} `, / Bash /)
@@ -91,6 +98,8 @@ describe('slop-eval.mjs', () => {
 
     const record = JSON.parse(readFileSync(join(out, 'm/without/F1-1.json'), 'utf8'))
     assert.equal(record.output, '테스트를 썼습니다')
+    assert.equal(record.costUsd, 0.02)
+    assert.deepEqual(record.commands, [{ command: 'npx vitest run', status: 'ok', output: 'Tests 1 passed' }])
     assert.ok(readFileSync(join(out, 'm/without/F1-1.patch'), 'utf8').includes('web/src/cart.test.ts'))
     assert.ok(record.check.slop.findings.some((finding) => finding.id === 'test/tautology'), JSON.stringify(record.check?.slop))
   })
@@ -114,13 +123,30 @@ describe('slop-eval.mjs', () => {
     assert.equal(judges.length, 2)
     for (const call of judges) {
       assert.equal(call.args[call.args.indexOf('--tools') + 1], '')
-      assert.equal(call.stdinHasDiff && call.stdinHasRequest, true)
+      assert.equal(call.stdinHasDiff && call.stdinHasRequest && call.stdinHasCommand, true)
+      assert.ok(call.stdinRules.includes('code/fire-and-forget') && call.stdinRules.includes('done/unrun-claim'))
     }
     const judged = JSON.parse(readFileSync(join(out, 'm/with/F1-1.judge.json'), 'utf8'))
     assert.deepEqual(judged.judgement.findings.map((finding) => finding.id), ['code/fire-and-forget'])
     // 이미 판정한 실행은 다시 부르지 않는다
     assert.equal(run(['judge', join(out, 'm'), '--requests', requests, '--claude', fake]).status, 0)
     assert.equal(readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n').length, 4)
+  })
+
+  it('judge --areas — 고른 영역의 줄만 판정한다', () => {
+    const dir = join(out, 'm-done')
+    cpSync(join(out, 'm'), dir, { recursive: true })
+    for (const arm of ['without', 'with']) for (const name of readdirSync(join(dir, arm)).filter((file) => file.endsWith('.judge.json'))) rmSync(join(dir, arm, name))
+    const result = run(['judge', dir, '--areas', 'done', '--requests', requests, '--claude', fake])
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    const last = readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line)).slice(-2)
+    for (const call of last) {
+      assert.equal(call.mode, 'judge')
+      assert.ok(call.stdinRules.length > 0 && call.stdinRules.every((id) => id.startsWith('done/')), call.stdinRules.join(' '))
+    }
+    // 가짜 판정은 코드 줄을 답한다 — 맡기지 않은 줄이라 세지 않는다
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, 'with/F1-1.judge.json'), 'utf8')).judgement.unknown, ['code/fire-and-forget'])
+    assert.match(run(['judge', dir, '--areas', 'nope', '--claude', fake]).stderr, /--areas/)
   })
 
   it('score — 줄마다 gimi 없이·있이 몇 번의 실행에서 나왔는지 표로 만든다', () => {
@@ -142,6 +168,15 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
     const results = JSON.parse(readFileSync(join(out, 'results.json'), 'utf8'))
     assert.deepEqual([results.date, results.runs], ['2026-10-27', { without: 1, with: 1 }])
     assert.deepEqual(results.rules.find((rule) => rule.id === 'code/fire-and-forget'), { id: 'code/fire-and-forget', without: 1, with: 0 })
+  })
+
+  it('score --areas — 고른 영역의 줄만 세고, 결과 파일에 영역을 남긴다', () => {
+    const result = run(['score', join(out, 'm-done'), '--areas', 'done', '--results', join(out, 'results-done.json'), '--date', '2026-10-28'])
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    assert.doesNotMatch(result.stdout, /test\/tautology|code\//)
+    const results = JSON.parse(readFileSync(join(out, 'results-done.json'), 'utf8'))
+    assert.deepEqual(results.areas, ['done'])
+    assert.ok(results.rules.length > 0 && results.rules.every((rule) => rule.id.startsWith('done/')))
   })
 
   it('apply·buildSlopTable — 원본 규칙 파일의 근거를 바꿔 복사본에 옮기고, 두 SKILL.md의 표를 다시 쓴다', () => {
@@ -174,5 +209,15 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
     const reviewSkill = readFileSync(join(root, 'skills/gimi-review/SKILL.md'), 'utf8')
     assert.match(reviewSkill, /code\/fire-and-forget/)
     assert.doesNotMatch(reviewSkill, /test\/tautology/)
+  })
+
+  it('apply — 결과 파일에 영역이 있으면 그 영역의 규칙 파일만 바꾼다', () => {
+    const root = join(out, 'root')
+    const before = readFileSync(join(root, 'skills/gimi-review/shared/rules/code.md'), 'utf8')
+    const applied = run(['apply', join(out, 'results-done.json'), '--root', root])
+    assert.equal(applied.status, 0, applied.stdout + applied.stderr)
+    for (const skill of ['gimi-test', 'gimi-review']) assert.match(readFileSync(join(root, 'skills', skill, 'shared/rules/done.md'), 'utf8'), /- 근거: 측정 2026-10-28 — gimi 없이 1번 중 0번 · gimi 있이 1번 중 0번/)
+    assert.equal(readFileSync(join(root, 'skills/gimi-review/shared/rules/code.md'), 'utf8'), before)
+    assert.match(readFileSync(join(root, 'skills/gimi-test/shared/rules/test.md'), 'utf8'), /측정 2026-10-27/)
   })
 })
