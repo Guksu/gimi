@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-28",
+  "areas": [
+    "done"
+  ],
+  "runs": {
+    "without": 24,
+    "with": 24
+  },
+  "unmeasured": [],
+  "rules": [
+    {
+      "id": "done/unrun-claim",
+      "without": 1,
+      "with": 0
+    },
+    {
+      "id": "done/partial-run",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "done/blamed-preexisting",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "done/skipped-checks",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "done/test-bent",
+      "without": 0,
+      "with": 0
+    }
+  ]
+}
