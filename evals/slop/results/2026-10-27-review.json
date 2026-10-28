@@ -116,6 +116,105 @@
       "path": "보고",
       "line": null,
       "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "B1",
+      "run": 1,
+      "id": "code/single-use-abstraction",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 49,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 입력 검사 parse* 함수 — 저장소에 parseItems·parseMethod(각각 한 번 씀)가 있다"
+    },
+    {
+      "arm": "without",
+      "request": "B1",
+      "run": 2,
+      "id": "code/single-use-abstraction",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 54,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 입력 검사 parse* 함수 — 저장소에 parseItems·parseMethod(각각 한 번 씀)가 있다"
+    },
+    {
+      "arm": "without",
+      "request": "B5",
+      "run": 2,
+      "id": "code/single-use-abstraction",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 48,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 입력 검사 parse* 함수 — 저장소에 parseItems·parseMethod(각각 한 번 씀)가 있다"
+    },
+    {
+      "arm": "without",
+      "request": "B5",
+      "run": 2,
+      "id": "code/single-use-abstraction",
+      "path": "server/src/money.ts",
+      "line": 22,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: money.ts의 금액 계산 함수 — 원 미만 계산은 이 파일의 함수에서만 한다는 관례(discountByRate·pointsToEarn도 한 번 씀)"
+    },
+    {
+      "arm": "without",
+      "request": "F5",
+      "run": 2,
+      "id": "code/single-use-abstraction",
+      "path": "web/src/pages/OrdersPage.tsx",
+      "line": 11,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 금액·날짜 표시 함수 — 저장소에 lastDay(한 번 씀)·formatPrice가 있다"
+    },
+    {
+      "arm": "with",
+      "request": "B1",
+      "run": 1,
+      "id": "code/single-use-abstraction",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 52,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 입력 검사 parse* 함수 — 저장소에 parseItems·parseMethod(각각 한 번 씀)가 있다"
+    },
+    {
+      "arm": "with",
+      "request": "B1",
+      "run": 2,
+      "id": "code/single-use-abstraction",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 47,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 입력 검사 parse* 함수 — 저장소에 parseItems·parseMethod(각각 한 번 씀)가 있다"
+    },
+    {
+      "arm": "with",
+      "request": "B5",
+      "run": 2,
+      "id": "code/single-use-abstraction",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 47,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 입력 검사 parse* 함수 — 저장소에 parseItems·parseMethod(각각 한 번 씀)가 있다"
+    },
+    {
+      "arm": "with",
+      "request": "F1",
+      "run": 1,
+      "id": "code/single-use-abstraction",
+      "path": "web/src/pages/MenuPage.tsx",
+      "line": 9,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 선택지 표 상수 — 저장소에 METHODS·STATUS_LABEL(각각 한 번 씀)이 있다"
+    },
+    {
+      "arm": "with",
+      "request": "F4",
+      "run": 2,
+      "id": "code/single-use-abstraction",
+      "path": "web/src/money/format.ts",
+      "line": 6,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 금액·날짜 표시 함수 — 저장소에 lastDay(한 번 씀)·formatPrice가 있다"
+    },
+    {
+      "arm": "with",
+      "request": "F5",
+      "run": 1,
+      "id": "code/single-use-abstraction",
+      "path": "web/src/orders/status.ts",
+      "line": 20,
+      "reason": "좁힌 확인(2026-10-28) — 관례를 따른 것: 금액·날짜 표시 함수 — 저장소에 lastDay(한 번 씀)·formatPrice가 있다"
     }
   ],
   "unmeasured": [
