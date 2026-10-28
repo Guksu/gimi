@@ -1,0 +1,139 @@
+{
+  "rejected": [
+    {
+      "arm": "without",
+      "request": "B2",
+      "run": 2,
+      "id": "test/real-wait",
+      "path": "server/test/payments.test.ts",
+      "line": 145,
+      "reason": "가짜 PG 결제 기록의 승인 시각을 채울 뿐이고 그 값을 단언하지 않는다 — 결과가 실제 시각에 기대지 않는다(자동 검사)"
+    },
+    {
+      "arm": "without",
+      "request": "B1",
+      "run": 1,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "B1",
+      "run": 1,
+      "id": "test/sequential-only",
+      "path": "server/test/orders.test.ts",
+      "line": 104,
+      "reason": "멱등 키로 다시 보낸 요청이 같은 메모를 돌려주는지 보는 테스트다 — 동시성을 지키는 규칙을 시험하는 것이 목적이 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "B1",
+      "run": 2,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "B2",
+      "run": 2,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "B3",
+      "run": 1,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "B3",
+      "run": 2,
+      "id": "done/blamed-preexisting",
+      "path": "보고",
+      "line": null,
+      "reason": "실패가 아니라 통과한 실행의 경고 로그(MSW 처리기 없음)를 두고 한 말이다 — 규칙은 실패를 확인 없이 넘기는 것이다"
+    },
+    {
+      "arm": "without",
+      "request": "B4",
+      "run": 2,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "B5",
+      "run": 1,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "B5",
+      "run": 2,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "F2",
+      "run": 1,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "F3",
+      "run": 1,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    },
+    {
+      "arm": "without",
+      "request": "F5",
+      "run": 2,
+      "id": "done/unrun-claim",
+      "path": "보고",
+      "line": null,
+      "reason": "보고의 테스트 수가 check.mjs와 다르다는 것이 근거인데, check.mjs는 바뀐 범위의 관련 테스트만 돌렸다(scope: related). 테스트 명령이 모두 막힌 기록도 없다 — 돌리지 않았다는 근거가 아니다"
+    }
+  ],
+  "unmeasured": [
+    {
+      "id": "done/unrun-claim",
+      "reason": "대화 기록을 남기지 않아 에이전트가 실제로 어떤 명령을 돌렸는지 알 수 없다 — 보고만으로는 판정할 근거가 없다"
+    },
+    {
+      "id": "done/partial-run",
+      "reason": "대화 기록을 남기지 않아 에이전트가 실제로 어떤 명령을 돌렸는지 알 수 없다 — 보고만으로는 판정할 근거가 없다"
+    },
+    {
+      "id": "done/blamed-preexisting",
+      "reason": "대화 기록을 남기지 않아 에이전트가 실제로 어떤 명령을 돌렸는지 알 수 없다 — 보고만으로는 판정할 근거가 없다"
+    },
+    {
+      "id": "done/skipped-checks",
+      "reason": "대화 기록을 남기지 않아 에이전트가 실제로 어떤 명령을 돌렸는지 알 수 없다 — 보고만으로는 판정할 근거가 없다"
+    }
+  ]
+}

@@ -9,7 +9,7 @@ AI 리뷰어는 diff 안에서만 판단한다. 바뀐 함수를 쓰는 다른 �
 
 ## 지금 상태 (0.0.1)
 
-맥락 수집 스크립트(`scripts/context.mjs`)는 범위·바뀐 파일·의도·이력·영향 범위를 모으고, 계약 파일(OpenAPI·GraphQL 스키마)이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾는다. proto와 코드 안의 GraphQL typeDefs는 아직 읽지 않는다. 규칙은 공통 금지선(`shared/rules/`), 분야 프리셋(`shared/domains/` — `commerce`·`kr-commerce-law`), 회사 규칙(`docs/gimi/rules.md`) 세 겹이고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 금지선은 아직 측정 전이라 모두 가설이다.
+맥락 수집 스크립트(`scripts/context.mjs`)는 범위·바뀐 파일·의도·이력·영향 범위를 모으고, 계약 파일(OpenAPI·GraphQL 스키마)이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾는다. proto와 코드 안의 GraphQL typeDefs는 아직 읽지 않는다. 규칙은 공통 금지선(`shared/rules/`), 분야 프리셋(`shared/domains/` — `commerce`·`kr-commerce-law`), 회사 규칙(`docs/gimi/rules.md`) 세 겹이고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 공통 금지선의 코드 줄 가운데 측정에서 나온 것은 "지키는 것" 절의 표에 있고, 리뷰 줄(`review/`)은 아직 측정 전이다.
 
 ## 리뷰 절차
 
@@ -52,6 +52,16 @@ AI 리뷰어는 diff 안에서만 판단한다. 바뀐 함수를 쓰는 다른 �
 - 칭찬과 diff를 다시 설명하는 요약을 쓰지 않는다.
 - 같은 문제는 한 지적으로 묶고 위치를 나열한다.
 - 돌려 보지 않은 결과를 단정하지 않는다. 돌렸으면 명령과 결과를, 아니면 추정이라고 적는다.
+
+측정(기능 구현·테스트 작성 요청 12개를 gimi 없이·있이 2번씩)에서 gimi 없이 한 번 이상 나온 코드 슬롭이다. diff에서 먼저 찾는다.
+
+<!-- slop-table:start -->
+| 줄 | gimi 없이 | gimi 있이 |
+|---|---|---|
+| `code/single-use-abstraction` 한 번 쓰는 헬퍼·래퍼·설정 객체를 만들지 않는다 | 24번 중 8번 | 24번 중 11번 |
+| `code/n-plus-one` 반복문 안에서 쿼리를 날리지 않는다 | 24번 중 2번 | 24번 중 2번 |
+| `code/unrelated-change` 요구사항과 상관없는 변경을 섞지 않는다 | 24번 중 1번 | 24번 중 0번 |
+<!-- slop-table:end -->
 
 ## 처음 설정
 
