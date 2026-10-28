@@ -160,8 +160,8 @@
     },
     {
       "id": "code/single-use-abstraction",
-      "without": 8,
-      "with": 11
+      "without": 4,
+      "with": 6
     },
     {
       "id": "code/effect-derived-state",

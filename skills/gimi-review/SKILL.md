@@ -58,7 +58,7 @@ AI 리뷰어는 diff 안에서만 판단한다. 바뀐 함수를 쓰는 다른 �
 <!-- slop-table:start -->
 | 줄 | gimi 없이 | gimi 있이 |
 |---|---|---|
-| `code/single-use-abstraction` 한 번 쓰는 헬퍼·래퍼·설정 객체를 만들지 않는다 | 24번 중 8번 | 24번 중 11번 |
+| `code/single-use-abstraction` 한 번 쓰는 헬퍼·래퍼·설정 객체를 만들지 않는다 | 24번 중 4번 | 24번 중 6번 |
 | `code/n-plus-one` 반복문 안에서 쿼리를 날리지 않는다 | 24번 중 2번 | 24번 중 2번 |
 | `code/unrelated-change` 요구사항과 상관없는 변경을 섞지 않는다 | 24번 중 1번 | 24번 중 0번 |
 <!-- slop-table:end -->
