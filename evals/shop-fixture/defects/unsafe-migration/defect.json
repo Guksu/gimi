@@ -1,0 +1,21 @@
+{
+  "id": "unsafe-migration",
+  "rules": ["code/unsafe-migration"],
+  "context": "슬롭",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 주문 메모를 저장한다",
+    "body": "## 배경\n배송 요청 사항(문 앞에 두기 등)을 주문에 남기고 싶다는 요청이 있었다. 화면에 보이는 것은 다음 PR에서 한다.\n\n## 변경\n- 주문 표에 메모 열을 더한다(100자 이하)\n- 주문 생성에서 메모를 받아 저장한다. 없으면 빈 문자열\n\n## 확인\n- 서버 테스트 통과"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "주문이 있는 표에 기본값 없는 NOT NULL 열을 더한다. 기존 주문의 메모가 null이라 운영 DB에서 마이그레이션이 실패한다. 테스트는 빈 DB에 올려 통과한다. 기본값(빈 문자열)을 주거나 열 추가 → 채우기 → 제약으로 나눈다",
+      "path": "server/db/migrations/002_order_memo.sql",
+      "line": 2,
+      "evidence": [
+        { "path": "server/test/global-setup.ts", "line": 16 }
+      ]
+    }
+  ]
+}
