@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { coverageOf, formatScore, hunksOf, scoreRuns } from './lib/review-eval.mjs'
+import { parseStream } from './lib/stream.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
 const DEFECTS = join(ROOT, 'scripts/defects.mjs')
@@ -167,8 +168,10 @@ const runReviews = async ({ fixture, ids, options }) => {
       const args = [
         '-p',
         prompt,
+        // 리뷰어가 돌린 명령을 남기려고 stream-json으로 받는다 — print 모드에서는 --verbose가 있어야 나온다
         '--output-format',
-        'json',
+        'stream-json',
+        '--verbose',
         '--no-session-persistence',
         '--setting-sources',
         'project',
@@ -186,12 +189,7 @@ const runReviews = async ({ fixture, ids, options }) => {
       ]
       try {
         const result = await runClaude({ claude: options.claude, args, cwd: repo, env })
-        let parsed = null
-        try {
-          parsed = JSON.parse(result.stdout)
-        } catch {
-          parsed = null
-        }
+        const { result: parsed, commands } = parseStream(result.stdout)
         const record = {
           reviewer: options.reviewer,
           id,
@@ -205,7 +203,9 @@ const runReviews = async ({ fixture, ids, options }) => {
           durationMs: parsed?.duration_ms ?? result.durationMs,
           costUsd: parsed?.total_cost_usd ?? null,
           numTurns: parsed?.num_turns ?? null,
-          output: parsed?.result ?? result.stdout,
+          output: parsed?.result ?? result.stdout.slice(-4000),
+          // 리뷰어가 돌린 Bash 명령과 결과 — 리뷰 금지선(무엇을 읽고 찾았는지)을 판정할 때 본다
+          commands,
           // 막힌 도구 호출 — 리뷰어가 diff를 못 봤는지 확인할 때 본다
           permissionDenials: (parsed?.permission_denials ?? []).map((denial) => ({ tool: denial.tool_name, input: typeof denial.tool_input?.command === 'string' ? denial.tool_input.command : JSON.stringify(denial.tool_input ?? {}) })),
           stderr: result.stderr.slice(-4000),

@@ -28,7 +28,8 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseRuleFile } from '../skills/gimi-test/scripts/lib/rulefile.mjs'
-import { ARMS, formatSlopScore, judgePrompt, judgedRules, parseJudgement, parseStream, scoreSlop, slopResults } from './lib/slop-eval.mjs'
+import { ARMS, formatSlopScore, judgePrompt, judgedRules, parseJudgement, scoreSlop, slopResults } from './lib/slop-eval.mjs'
+import { parseStream } from './lib/stream.mjs'
 import { applyEvidence } from './lib/slop-table.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
