@@ -1,0 +1,22 @@
+{
+  "id": "COM-007-rollback",
+  "rules": ["COM-007"],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "refactor: 포인트 차감을 한 함수로 모은다",
+    "body": "## 배경\n반품·취소에서도 포인트를 쓰거나 돌려줄 일이 생겨, 포인트 차감 쿼리를 주문 생성 안에 두지 않고 함수로 뺀다.\n\n## 변경\n- 포인트 차감을 `spendPoints`로 옮긴다. 잔액 확인과 차감은 지금처럼 조건부 UPDATE 하나로 한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "포인트 차감이 주문 트랜잭션(tx)이 아니라 풀의 다른 연결로 바로 커밋된다. 그 뒤 단계(주문·쿠폰 사용·주문 상품 저장)가 실패하면 재고·쿠폰은 되돌아가도 포인트는 깎인 채 남는다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 100,
+      "evidence": [
+        { "path": "server/src/orders/orders.service.ts", "line": 71 },
+        { "path": "server/src/orders/orders.service.ts", "line": 61 }
+      ]
+    }
+  ]
+}
