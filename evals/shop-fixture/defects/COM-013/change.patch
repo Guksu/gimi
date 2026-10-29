@@ -1,0 +1,14 @@
+diff --git a/server/src/orders/order-state.ts b/server/src/orders/order-state.ts
+index aee9c15..28b92fa 100644
+--- a/server/src/orders/order-state.ts
++++ b/server/src/orders/order-state.ts
+@@ -15,7 +15,8 @@ export const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+   preparing: ['shipped', 'partially_refunded', 'cancelled'],
+   shipped: ['delivered'],
+   delivered: [],
+-  cancelled: [],
++  // 취소한 뒤에 온 승인 — 결제창 승인이 취소보다 늦게 도착하면 결제 완료로 반영한다
++  cancelled: ['paid'],
+ }
+ 
+ export const canTransition = (from: OrderStatus, to: OrderStatus) => TRANSITIONS[from]?.includes(to) ?? false

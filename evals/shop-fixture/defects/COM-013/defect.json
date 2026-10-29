@@ -1,0 +1,22 @@
+{
+  "id": "COM-013",
+  "rules": ["COM-013"],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: 취소한 뒤에 온 결제 승인을 반영한다",
+    "body": "## 배경\n주문을 취소한 직후 결제창 승인이 늦게 도착해, 돈은 빠졌는데 주문은 취소로 남았다는 문의가 있었다.\n\n## 변경\n- 전이표에 취소 → 결제 완료를 더한다. 늦게 온 승인 웹훅이 주문을 결제 완료로 바꾼다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "취소한 주문은 이미 재고·쿠폰·포인트를 돌려줬다. 늦게 온 승인으로 결제 완료로 되살리면 재고를 다시 잡지 않은 채 배송 준비로 넘어갈 수 있다. 늦은 승인은 주문을 되살리지 말고 결제를 취소(환불)해야 한다",
+      "path": "server/src/orders/order-state.ts",
+      "line": 19,
+      "evidence": [
+        { "path": "server/src/orders/orders.service.ts", "line": 179 },
+        { "path": "server/src/payments/payments.service.ts", "line": 83 }
+      ]
+    }
+  ]
+}
