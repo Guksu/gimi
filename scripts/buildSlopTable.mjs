@@ -16,10 +16,10 @@ import { fileURLToPath } from 'node:url'
 import { renderSlopTable, replaceSlopBlock } from './lib/slop-table.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const ORIGIN = { test: 'gimi-test', done: 'gimi-test', code: 'gimi-review' }
+const ORIGIN = { test: 'gimi-test', done: 'gimi-test', code: 'gimi-review', review: 'gimi-review' }
 export const SLOP_TABLES = [
   { skill: 'gimi-test', areas: ['test', 'done', 'code'] },
-  { skill: 'gimi-review', areas: ['code'] },
+  { skill: 'gimi-review', areas: ['code', 'review'] },
 ]
 
 /** 스킬마다 지금 SKILL.md와 규칙 파일로 만든 SKILL.md — 표시가 없으면 expected가 null */

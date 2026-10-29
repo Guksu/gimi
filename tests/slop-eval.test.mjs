@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseRuleFile } from '../skills/gimi-test/scripts/lib/rulefile.mjs'
-import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, scoreSlop, skillTableRows, slopResults, staticFindings } from '../scripts/lib/slop-eval.mjs'
+import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, reviewJudgePrompt, scoreSlop, skillTableRows, slopResults, staticFindings } from '../scripts/lib/slop-eval.mjs'
 
 const RULES = `# 코드 금지선
 
@@ -77,6 +77,49 @@ describe('judgePrompt — 에이전트가 돌린 명령', () => {
   it('명령 기록이 없는 실행(예전 형식)은 기록 없음, 돌린 명령이 없으면 없다고 적는다', () => {
     assert.match(judgePrompt(base), /# 에이전트가 돌린 명령\n\(기록 없음\)/)
     assert.match(judgePrompt({ ...base, commands: [] }), /# 에이전트가 돌린 명령\n- 돌린 명령 없음/)
+  })
+})
+
+describe('reviewJudgePrompt — 리뷰 금지선 판정 지시', () => {
+  const REVIEW_RULES = `# 리뷰 금지선
+
+## review/filler 칭찬과 diff를 다시 설명하는 요약을 쓰지 않는다
+- 대상: 둘 다
+- 왜: 읽는 시간을 쓴다
+- 대신: 지적만 쓴다
+- 확인: "잘 작성됐습니다"
+- 검사: 리뷰
+- 근거: 측정 전
+
+## review/hidden-skip 찾기를 건너뛰고 "사용처 없음"이라고 하지 않는다
+- 대상: 둘 다
+- 왜: 없다고 믿는다
+- 대신: 건너뜀을 적는다
+- 확인: 건너뜀에 있는 것을 "없음"으로 보고한다
+- 검사: 기록
+- 근거: 측정 전
+`
+  const reviewRules = judgedRules(parseRuleFile(REVIEW_RULES).rules.map((rule) => ({ ...rule, area: 'review' })))
+  const base = {
+    pr: { title: 'feat: 재고 부족을 알린다', body: 'closes #41' },
+    issues: [{ number: 41, title: '재고 알림', body: '재고 확인과 차감은 한 번에 한다' }],
+    patch: 'diff --git a/app/src/stock.ts b/app/src/stock.ts\n+const x = 1\n',
+    review: '잘 작성된 PR입니다.\nFINDING 고쳐야 함 app/src/stock.ts:3 덮어쓴다',
+    commands: [{ command: 'git diff main...HEAD', status: 'ok', output: 'diff' }, { command: 'grep -rn take app/src', status: 'ok', output: 'app/src/stock.ts:1' }],
+    rules: reviewRules,
+  }
+
+  it('PR·이슈·diff·리뷰어가 돌린 명령·리뷰 기록·리뷰 출력과 판정할 줄을 담는다', () => {
+    const text = reviewJudgePrompt({ ...base, record: '## 맥락\n- 건너뜀: 영향 범위(시간 초과)' })
+    for (const part of ['feat: 재고 부족을 알린다', 'closes #41', '#41 재고 알림', '재고 확인과 차감은 한 번에 한다', '+const x = 1', '- 성공 `git diff main...HEAD`', '- 성공 `grep -rn take app/src`', '건너뜀: 영향 범위(시간 초과)', '잘 작성된 PR입니다.', '## review/filler 칭찬과 diff를 다시 설명하는 요약을 쓰지 않는다', '## review/hidden-skip', 'SLOP <ID> 보고 <근거>', 'SLOP 없음']) assert.ok(text.includes(part), part)
+    // 리뷰어는 테스트·설치 명령을 쓸 수 없었다 — 돌려 보지 않은 실행 결과를 판정할 때 알아야 한다
+    assert.match(text, /npm·npx/)
+  })
+
+  it('이슈·리뷰 기록이 없으면 없다고 적는다', () => {
+    const text = reviewJudgePrompt({ ...base, issues: [], record: null })
+    assert.match(text, /# 이슈\n\(없음\)/)
+    assert.match(text, /# 리뷰 기록\(gimi-review가 남긴 파일\)\n\(없음\)/)
   })
 })
 

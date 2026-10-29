@@ -11,11 +11,14 @@ node scripts/slop-eval.mjs run [ID…] --arm without|with --runs 2 --model <모�
 node scripts/slop-eval.mjs run B1 --arm without --run 2 --model <모델>   # 실행 하나만 다시
 node scripts/slop-eval.mjs judge <폴더> --model <모델> [--areas done]      # 판정한 실행은 건너뛴다. --areas는 그 영역의 줄만
 node scripts/slop-eval.mjs score <폴더> --rejected <걸러 낸 파일> --results <결과 파일> --date YYYY-MM-DD [--areas done]
+node scripts/review-eval.mjs run $(node -p "require('./evals/slop/review-prs.json').prs.join(' ')") --reviewer code-review --runs 2 --model <모델> --out evals/slop/runs/<날짜>-review
+node scripts/slop-eval.mjs judge evals/slop/runs/<날짜>-review --reviews --model <모델>   # 리뷰 줄 — code-review는 gimi 없이, gimi는 있이
+node scripts/slop-eval.mjs score evals/slop/runs/<날짜>-review --reviews --results <결과 파일> --date YYYY-MM-DD
 node scripts/slop-eval.mjs apply <결과 파일>      # 규칙 파일의 근거를 바꾸고 복사본에 옮긴다(결과 파일에 영역이 있으면 그 영역만)
 node scripts/buildSlopTable.mjs                 # 두 SKILL.md의 금지선 표를 근거로 다시 쓴다(--check)
 ```
 
-요청문은 `requests.json`(프론트 F1~F6, 백엔드 B1~B6)이다. 원본 실행 결과는 `runs/`(커밋하지 않는다), 결과 파일과 해석은 `results/`다.
+요청문은 `requests.json`(프론트 F1~F6, 백엔드 B1~B6)이다. 리뷰 줄(`review/`)은 구현 요청이 아니라 리뷰 평가의 PR로 잰다 — `review-prs.json`의 12개(결함 7 + 결함 없음 5)를 내장 `/code-review`(gimi 없이)와 gimi-review(gimi 있이)로 리뷰한다. 원본 실행 결과는 `runs/`(커밋하지 않는다), 결과 파일과 해석은 `results/`다.
 
 ## 실행 조건
 
