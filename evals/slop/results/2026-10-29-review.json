@@ -1,0 +1,8 @@
+{
+  "rejected": [
+    { "arm": "without", "request": "CLEAN-002", "run": 1, "id": "review/filler", "path": "보고", "line": null, "reason": "결함 없는 리팩터링 PR에서 확인한 것(검사 순서·오류 코드·타입·스키마 제약·부르는 곳 하나)을 적은 목록이다 — 변경을 다시 풀어 쓴 것이 아니라 확인 결과다" },
+    { "arm": "without", "request": "CLEAN-002", "run": 2, "id": "review/filler", "path": "보고", "line": null, "reason": "결함 없는 리팩터링 PR에서 확인한 것(같은 검사·같은 결과·부르는 곳 없음)을 적은 목록이다 — 확인 결과다" },
+    { "arm": "without", "request": "CLEAN-003", "run": 1, "id": "review/diff-only", "path": "보고", "line": null, "reason": "결함 없는 PR이라 diff 밖에서 놓칠 깨지는 곳이 없다. 지적(포커스·테스트 경로)은 diff 자체에 대한 것이다" }
+  ],
+  "unmeasured": []
+}

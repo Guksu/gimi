@@ -8,7 +8,7 @@
 import { itemText } from '../../skills/gimi-test/scripts/lib/rulefile.mjs'
 
 export const ARMS = { without: 'gimi 없이', with: 'gimi 있이' }
-export const AREA_LABEL = { test: '테스트', code: '코드', done: '완료 보고' }
+export const AREA_LABEL = { test: '테스트', code: '코드', done: '완료 보고', review: '리뷰' }
 
 const STATIC_ONLY = /^(?:error|warn)$/
 const SLOP = /^\s*(?:[-*]\s*)?SLOP\s+(\S+)\s+(?:`?([^\s`:]+):(\d+)`?|보고)\s*(.*)$/
@@ -23,53 +23,10 @@ export const judgedRules = (rules) =>
     .filter((rule) => !STATIC_ONLY.test(itemText(rule, '검사').trim()))
     .map((rule) => ({ id: rule.id, title: rule.title, area: rule.area, target: itemText(rule, '대상'), why: itemText(rule, '왜'), instead: itemText(rule, '대신'), confirm: itemText(rule, '확인') }))
 
-const OUTPUT_LIMIT = 4000
-const DENIED = /^Permission to use \S+ has been denied/
 // 출력 끝부분을 판정에 붙이는 명령 — 테스트·타입 검사·gimi의 끝내기 전 검사(허용 목록의 검증 명령)
 const VERIFY_COMMAND = /\b(?:npm\s+(?:run\s+)?test|npm\s+run\s+typecheck|npx\s+(?:vitest|tsc))\b|check\.mjs\b/
 const VERIFY_TAIL_LINES = 20
 const STATUS_LABEL = { ok: '성공', failed: '실패', denied: '막힘', 'no-result': '결과 없음' }
-
-const resultText = (content) => (typeof content === 'string' ? content : Array.isArray(content) ? content.filter((part) => part?.type === 'text').map((part) => part.text).join('\n') : '')
-
-/**
- * 실행 기록(claude -p --output-format stream-json --verbose) — 마지막 결과와 에이전트가 돌린 Bash 명령(부른 순서).
- * 명령은 성공·실패(종료 코드가 0이 아님)·막힘(권한으로 막힌 호출)·결과 없음. 출력은 끝부분만 남긴다.
- * 결과 한 줄(--output-format json)도 읽는다
- * @param {string} stdout
- * @returns {{ result: any | null, commands: { command: string, status: 'ok' | 'failed' | 'denied' | 'no-result', output: string }[] }}
- */
-export const parseStream = (stdout) => {
-  let result = null
-  const commands = []
-  const byId = new Map()
-  for (const line of stdout.split('\n')) {
-    let event
-    try {
-      event = JSON.parse(line)
-    } catch {
-      continue
-    }
-    if (event?.type === 'result') result = event
-    const content = Array.isArray(event?.message?.content) ? event.message.content : []
-    if (event?.type === 'assistant') {
-      for (const part of content.filter((part) => part?.type === 'tool_use' && part.name === 'Bash' && typeof part.input?.command === 'string')) {
-        const command = { command: part.input.command, status: 'no-result', output: '' }
-        commands.push(command)
-        byId.set(part.id, command)
-      }
-    }
-    if (event?.type === 'user') {
-      for (const part of content.filter((part) => part?.type === 'tool_result' && byId.has(part.tool_use_id))) {
-        const command = byId.get(part.tool_use_id)
-        const text = resultText(part.content)
-        command.status = !part.is_error ? 'ok' : DENIED.test(text) ? 'denied' : 'failed'
-        command.output = text.slice(-OUTPUT_LIMIT)
-      }
-    }
-  }
-  return { result, commands }
-}
 
 const commandLines = (commands) => {
   if (!Array.isArray(commands)) return ['(기록 없음)']
@@ -81,11 +38,13 @@ const commandLines = (commands) => {
   })
 }
 
+const ruleLines = (rules) => rules.flatMap((rule) => ['', `## ${rule.id} ${rule.title}`, `- 대상: ${rule.target}`, `- 왜: ${rule.why}`, `- 대신: ${rule.instead}`, `- 확인: ${rule.confirm}`])
+
 const runLine = (run) => `- ${run.name}(${run.cwd || '.'}) ${run.status}${run.counts ? ` — 통과 ${run.counts.passed ?? 0}·실패 ${run.counts.failed ?? 0}` : ''}`
 
 /**
  * 판정 지시 — 요청·마지막 보고·에이전트가 돌린 명령·끝내기 전 검사 결과·diff와 판정할 줄의 전문
- * @param {{ request: string, finalMessage: string, commands?: ReturnType<typeof parseStream>['commands'] | null, report: any, patch: string, rules: ReturnType<typeof judgedRules> }} args
+ * @param {{ request: string, finalMessage: string, commands?: ReturnType<typeof import('./stream.mjs').parseStream>['commands'] | null, report: any, patch: string, rules: ReturnType<typeof judgedRules> }} args
  */
 export const judgePrompt = ({ request, finalMessage, commands = null, report, patch, rules }) =>
   [
@@ -115,7 +74,46 @@ export const judgePrompt = ({ request, finalMessage, commands = null, report, pa
     '```',
     '',
     '# 판정할 줄',
-    ...rules.flatMap((rule) => ['', `## ${rule.id} ${rule.title}`, `- 대상: ${rule.target}`, `- 왜: ${rule.why}`, `- 대신: ${rule.instead}`, `- 확인: ${rule.confirm}`]),
+    ...ruleLines(rules),
+  ].join('\n')
+
+/**
+ * 리뷰 금지선 판정 지시 — PR·이슈·diff·리뷰어가 돌린 명령·리뷰 기록·리뷰 출력과 판정할 줄의 전문.
+ * 리뷰 평가(scripts/review-eval.mjs)의 실행 하나를 판정한다. 답 형식은 judgePrompt와 같다(리뷰 출력의 지적은 "보고")
+ * @param {{ pr: { title: string, body: string }, issues?: { number: number, title: string, body: string }[], patch: string, review: string, commands?: ReturnType<typeof import('./stream.mjs').parseStream>['commands'] | null, record?: string | null, rules: ReturnType<typeof judgedRules> }} args
+ */
+export const reviewJudgePrompt = ({ pr, issues = [], patch, review, commands = null, record = null, rules }) =>
+  [
+    '아래는 코드 리뷰어가 PR 하나를 리뷰한 결과다. 판정할 리뷰 금지선 줄마다, 이 리뷰에 해당하는 곳이 있는지 고른다.',
+    '확실한 것만 고른다. 줄의 "확인"에 맞는 내용이 리뷰 출력이나 리뷰 기록에 실제로 있어야 한다.',
+    '리뷰어가 무엇을 읽고 찾았는지는 "리뷰어가 돌린 명령"과 리뷰 기록으로 본다. 리뷰어는 테스트·설치 명령(npm·npx)을 쓸 수 없었다.',
+    '답은 해당하는 곳마다 한 줄씩 아래 형식으로만 적는다. 하나도 없으면 "SLOP 없음" 한 줄만 적는다.',
+    'SLOP <ID> 보고 <근거> — 근거에는 리뷰의 해당 문장이나 지적을 짧게 옮긴다',
+    '',
+    '# PR',
+    pr.title,
+    '',
+    pr.body || '(본문 없음)',
+    '',
+    '# 이슈',
+    ...(issues.length > 0 ? issues.flatMap((issue) => [`#${issue.number} ${issue.title}`, issue.body, '']) : ['(없음)']),
+    '',
+    '# diff(main 대비)',
+    '```diff',
+    patch.trimEnd(),
+    '```',
+    '',
+    '# 리뷰어가 돌린 명령',
+    ...commandLines(commands),
+    '',
+    '# 리뷰 기록(gimi-review가 남긴 파일)',
+    record?.trim() || '(없음)',
+    '',
+    '# 리뷰 출력',
+    review || '(없음)',
+    '',
+    '# 판정할 줄',
+    ...ruleLines(rules),
   ].join('\n')
 
 /**

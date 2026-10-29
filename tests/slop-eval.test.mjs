@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseRuleFile } from '../skills/gimi-test/scripts/lib/rulefile.mjs'
-import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, parseStream, scoreSlop, skillTableRows, slopResults, staticFindings } from '../scripts/lib/slop-eval.mjs'
+import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, reviewJudgePrompt, scoreSlop, skillTableRows, slopResults, staticFindings } from '../scripts/lib/slop-eval.mjs'
 
 const RULES = `# 코드 금지선
 
@@ -35,47 +35,6 @@ describe('judgedRules — 판정 모델이 볼 줄', () => {
   it('검사가 error·warn만인 줄은 뺀다 — 리뷰가 섞인 줄은 판정한다', () => {
     assert.deepEqual(judgedRules(rules).map((rule) => rule.id), ['code/empty-catch', 'code/fire-and-forget'])
     assert.equal(judgedRules(rules)[1].confirm, 'await 없이 부른 Promise')
-  })
-})
-
-describe('parseStream — 실행 기록(stream-json)', () => {
-  const event = (value) => JSON.stringify(value)
-  const use = (id, command) => event({ type: 'assistant', message: { content: [{ type: 'text', text: '돌려 본다' }, { type: 'tool_use', id, name: 'Bash', input: { command, description: 'x' } }] } })
-  const answer = (id, content, isError) => event({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content, is_error: isError }] } })
-
-  it('에이전트가 돌린 Bash 명령을 부른 순서대로 성공·실패·막힘으로 꺼내고, 마지막 결과를 읽는다', () => {
-    const stdout = [
-      event({ type: 'system', subtype: 'init' }),
-      use('a', 'ls web/src'),
-      use('b', 'npm test -w web'),
-      event({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'r', name: 'Read', input: { file_path: 'a.ts' } }] } }),
-      use('c', 'npm run lint'),
-      answer('b', 'Exit code 1\n실패 1', true),
-      answer('a', [{ type: 'text', text: 'cart.ts' }], false),
-      answer('r', '파일 내용', false),
-      answer('c', "Permission to use Bash has been denied because Claude Code is running in don't ask mode.", true),
-      use('d', 'npx tsc --noEmit'),
-      '깨진 줄',
-      event({ type: 'result', result: '구현했습니다', total_cost_usd: 0.5, duration_ms: 10, num_turns: 4, permission_denials: [] }),
-    ].join('\n')
-    const { result, commands } = parseStream(stdout)
-    assert.equal(result.result, '구현했습니다')
-    assert.equal(result.total_cost_usd, 0.5)
-    assert.deepEqual(commands, [
-      { command: 'ls web/src', status: 'ok', output: 'cart.ts' },
-      { command: 'npm test -w web', status: 'failed', output: 'Exit code 1\n실패 1' },
-      { command: 'npm run lint', status: 'denied', output: "Permission to use Bash has been denied because Claude Code is running in don't ask mode." },
-      { command: 'npx tsc --noEmit', status: 'no-result', output: '' },
-    ])
-  })
-
-  it('명령 출력은 끝부분만 남긴다. 결과 한 줄(json 형식)도 읽는다', () => {
-    const long = Array.from({ length: 3000 }, (_, i) => `줄 ${i}`).join('\n')
-    const { commands } = parseStream([use('a', 'npm test'), answer('a', long, false)].join('\n'))
-    assert.ok(commands[0].output.length <= 4000)
-    assert.ok(commands[0].output.endsWith('줄 2999'))
-    assert.deepEqual(parseStream(event({ type: 'result', result: '끝' })), { result: { type: 'result', result: '끝' }, commands: [] })
-    assert.deepEqual(parseStream('형식 없음'), { result: null, commands: [] })
   })
 })
 
@@ -118,6 +77,49 @@ describe('judgePrompt — 에이전트가 돌린 명령', () => {
   it('명령 기록이 없는 실행(예전 형식)은 기록 없음, 돌린 명령이 없으면 없다고 적는다', () => {
     assert.match(judgePrompt(base), /# 에이전트가 돌린 명령\n\(기록 없음\)/)
     assert.match(judgePrompt({ ...base, commands: [] }), /# 에이전트가 돌린 명령\n- 돌린 명령 없음/)
+  })
+})
+
+describe('reviewJudgePrompt — 리뷰 금지선 판정 지시', () => {
+  const REVIEW_RULES = `# 리뷰 금지선
+
+## review/filler 칭찬과 diff를 다시 설명하는 요약을 쓰지 않는다
+- 대상: 둘 다
+- 왜: 읽는 시간을 쓴다
+- 대신: 지적만 쓴다
+- 확인: "잘 작성됐습니다"
+- 검사: 리뷰
+- 근거: 측정 전
+
+## review/hidden-skip 찾기를 건너뛰고 "사용처 없음"이라고 하지 않는다
+- 대상: 둘 다
+- 왜: 없다고 믿는다
+- 대신: 건너뜀을 적는다
+- 확인: 건너뜀에 있는 것을 "없음"으로 보고한다
+- 검사: 기록
+- 근거: 측정 전
+`
+  const reviewRules = judgedRules(parseRuleFile(REVIEW_RULES).rules.map((rule) => ({ ...rule, area: 'review' })))
+  const base = {
+    pr: { title: 'feat: 재고 부족을 알린다', body: 'closes #41' },
+    issues: [{ number: 41, title: '재고 알림', body: '재고 확인과 차감은 한 번에 한다' }],
+    patch: 'diff --git a/app/src/stock.ts b/app/src/stock.ts\n+const x = 1\n',
+    review: '잘 작성된 PR입니다.\nFINDING 고쳐야 함 app/src/stock.ts:3 덮어쓴다',
+    commands: [{ command: 'git diff main...HEAD', status: 'ok', output: 'diff' }, { command: 'grep -rn take app/src', status: 'ok', output: 'app/src/stock.ts:1' }],
+    rules: reviewRules,
+  }
+
+  it('PR·이슈·diff·리뷰어가 돌린 명령·리뷰 기록·리뷰 출력과 판정할 줄을 담는다', () => {
+    const text = reviewJudgePrompt({ ...base, record: '## 맥락\n- 건너뜀: 영향 범위(시간 초과)' })
+    for (const part of ['feat: 재고 부족을 알린다', 'closes #41', '#41 재고 알림', '재고 확인과 차감은 한 번에 한다', '+const x = 1', '- 성공 `git diff main...HEAD`', '- 성공 `grep -rn take app/src`', '건너뜀: 영향 범위(시간 초과)', '잘 작성된 PR입니다.', '## review/filler 칭찬과 diff를 다시 설명하는 요약을 쓰지 않는다', '## review/hidden-skip', 'SLOP <ID> 보고 <근거>', 'SLOP 없음']) assert.ok(text.includes(part), part)
+    // 리뷰어는 테스트·설치 명령을 쓸 수 없었다 — 돌려 보지 않은 실행 결과를 판정할 때 알아야 한다
+    assert.match(text, /npm·npx/)
+  })
+
+  it('이슈·리뷰 기록이 없으면 없다고 적는다', () => {
+    const text = reviewJudgePrompt({ ...base, issues: [], record: null })
+    assert.match(text, /# 이슈\n\(없음\)/)
+    assert.match(text, /# 리뷰 기록\(gimi-review가 남긴 파일\)\n\(없음\)/)
   })
 })
 

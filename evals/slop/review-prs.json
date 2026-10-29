@@ -1,0 +1,4 @@
+{
+  "note": "리뷰 줄 측정에 쓰는 리뷰 평가 PR — 맥락 종류마다 결함 PR을 한두 개(영향 범위·의도·이력·도메인 규칙·슬롭)와 결함 없는 PR 전부",
+  "prs": ["IMPACT-001", "INTENT-001", "INTENT-003", "HIST-001", "COM-016", "COM-018", "missing-ownership", "CLEAN-001", "CLEAN-002", "CLEAN-003", "CLEAN-004", "CLEAN-005"]
+}

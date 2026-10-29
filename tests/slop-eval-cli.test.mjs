@@ -37,6 +37,11 @@ const args = process.argv.slice(2)
 const log = (entry) => appendFileSync(${JSON.stringify(join(out, 'calls.jsonl'))}, JSON.stringify(entry) + '\\n')
 if (args.includes('--tools')) {
   const stdin = readFileSync(0, 'utf8')
+  if (stdin.includes('## review/filler')) {
+    log({ mode: 'judge-review', args, stdin })
+    console.log(JSON.stringify({ type: 'result', result: 'SLOP review/filler 보고 칭찬으로 시작한다', total_cost_usd: 0.01, duration_ms: 3, num_turns: 1 }))
+    process.exit(0)
+  }
   log({ mode: 'judge', args, cwd: process.cwd(), stdinHasDiff: stdin.includes('diff --git'), stdinHasRequest: stdin.includes('합계 함수에 테스트를 써 줘'), stdinHasCommand: stdin.includes('- 성공 \`npx vitest run\`'), stdinRules: [...stdin.matchAll(/^## (\\S+)/gm)].map((match) => match[1]) })
   console.log(JSON.stringify({ type: 'result', result: 'SLOP code/fire-and-forget web/src/cart.ts:1 기다리지 않는다', total_cost_usd: 0.01, duration_ms: 3, num_turns: 1 }))
 } else {
@@ -186,6 +191,7 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
       test: `<!-- @shared test.md origin: gimi-test -->\n# 테스트\n\n${rule('test/tautology', '늘 참인 단언을 쓰지 않는다')}`,
       done: `<!-- @shared done.md origin: gimi-test -->\n# 완료\n\n${rule('done/unrun-claim', '돌리지 않고 통과했다고 하지 않는다')}`,
       code: `<!-- @shared code.md origin: gimi-review -->\n# 코드\n\n${rule('code/fire-and-forget', '비동기 작업을 기다리지 않는다')}`,
+      review: `<!-- @shared review.md origin: gimi-review -->\n# 리뷰\n\n${rule('review/filler', '칭찬과 요약을 쓰지 않는다')}`,
     }
     for (const skill of ['gimi-test', 'gimi-review']) {
       mkdirSync(join(root, 'skills', skill, 'shared/rules'), { recursive: true })
@@ -219,5 +225,43 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
     for (const skill of ['gimi-test', 'gimi-review']) assert.match(readFileSync(join(root, 'skills', skill, 'shared/rules/done.md'), 'utf8'), /- 근거: 측정 2026-10-28 — gimi 없이 1번 중 0번 · gimi 있이 1번 중 0번/)
     assert.equal(readFileSync(join(root, 'skills/gimi-review/shared/rules/code.md'), 'utf8'), before)
     assert.match(readFileSync(join(root, 'skills/gimi-test/shared/rules/test.md'), 'utf8'), /측정 2026-10-27/)
+  })
+
+  it('judge·score --reviews — 리뷰 평가의 실행(code-review는 gimi 없이, gimi는 있이)을 리뷰 줄로 판정하고 센다', () => {
+    const dir = join(out, 'reviews')
+    repo.write({
+      'defects/COM-007/defect.json': JSON.stringify({ id: 'COM-007', rules: ['COM-007'], context: '도메인 규칙', layer: '백엔드', pr: { title: 'feat: 재고 부족을 알린다', body: 'closes #41' }, issues: [{ number: 41, title: '재고 알림', body: '확인과 차감은 한 번에' }], findings: [] }),
+      'defects/COM-007/change.patch': 'diff --git a/web/src/cart.ts b/web/src/cart.ts\n+export const x = 1\n',
+    })
+    const record = (reviewer) => ({ reviewer, id: 'COM-007', run: 1, output: '잘 작성됐습니다.\nFINDING 없음', commands: [{ command: 'git diff main...HEAD', status: 'ok', output: '' }] })
+    mkdirSync(join(dir, 'code-review'), { recursive: true })
+    mkdirSync(join(dir, 'gimi/COM-007-1/docs/gimi/reviews'), { recursive: true })
+    writeFileSync(join(dir, 'code-review/COM-007-1.json'), JSON.stringify(record('code-review')))
+    writeFileSync(join(dir, 'gimi/COM-007-1.json'), JSON.stringify(record('gimi')))
+    writeFileSync(join(dir, 'gimi/COM-007-1/docs/gimi/reviews/2026-10-29.md'), '## 맥락\n- 건너뜀: 이력\n')
+
+    const judged = run(['judge', dir, '--reviews', '--fixture', repo.dir, '--claude', fake])
+    assert.equal(judged.status, 0, judged.stdout + judged.stderr)
+    const calls = readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line)).filter((call) => call.mode === 'judge-review')
+    assert.equal(calls.length, 2)
+    for (const call of calls) for (const part of ['feat: 재고 부족을 알린다', '확인과 차감은 한 번에', '+export const x = 1', '잘 작성됐습니다.', '- 성공 `git diff main...HEAD`']) assert.ok(call.stdin.includes(part), part)
+    // 리뷰 줄만 판정한다 — 구현 줄(code·test·done)은 넣지 않는다
+    assert.doesNotMatch(calls[0].stdin, /## (?:code|test|done)\//)
+    // gimi 쪽만 리뷰 기록이 있다
+    assert.equal(calls.filter((call) => call.stdin.includes('건너뜀: 이력')).length, 1)
+
+    const scored = run(['score', dir, '--reviews', '--results', join(out, 'results-review.json'), '--date', '2026-10-29'])
+    assert.equal(scored.status, 0, scored.stdout + scored.stderr)
+    assert.match(scored.stdout, /\| `review\/filler` [^|]+\| 리뷰 \| [^|]+\| 1\/1 \| 1\/1 \|/)
+    const results = JSON.parse(readFileSync(join(out, 'results-review.json'), 'utf8'))
+    assert.deepEqual([results.areas, results.runs], [['review'], { without: 1, with: 1 }])
+
+    // 근거는 리뷰 줄의 원본(gimi-review)에 쓰고, gimi-review SKILL.md 표에 리뷰 줄이 올라간다
+    const root = join(out, 'root')
+    assert.equal(run(['apply', join(out, 'results-review.json'), '--root', root]).status, 0)
+    assert.match(readFileSync(join(root, 'skills/gimi-test/shared/rules/review.md'), 'utf8'), /- 근거: 측정 2026-10-29 — gimi 없이 1번 중 1번 · gimi 있이 1번 중 1번/)
+    assert.equal(spawnSync(process.execPath, [join(ROOT, 'scripts/buildSlopTable.mjs'), '--root', root], { encoding: 'utf8' }).status, 0)
+    assert.match(readFileSync(join(root, 'skills/gimi-review/SKILL.md'), 'utf8'), /\| `review\/filler` 칭찬과 요약을 쓰지 않는다 \| 1번 중 1번 \| 1번 중 1번 \|/)
+    assert.doesNotMatch(readFileSync(join(root, 'skills/gimi-test/SKILL.md'), 'utf8'), /review\/filler/)
   })
 })

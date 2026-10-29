@@ -61,6 +61,9 @@ if (gimi) {
 }
 const result = gimi ? 'FINDING 고쳐야 함 app/src/stock.ts:3 재고를 읽고 비교해 덮어쓴다' : '문제 없어 보입니다.\\nFINDING 없음'
 const permission_denials = gimi ? [] : [{ tool_name: 'Bash', tool_input: { command: 'git diff main...HEAD | head -50' } }]
+// stream-json — 리뷰어가 돌린 명령이 결과 앞에 이벤트로 나온다
+console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'git diff main...HEAD' } }] } }))
+console.log(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'diff --git a/x b/x', is_error: false }] } }))
 console.log(JSON.stringify({ type: 'result', result, total_cost_usd: 0.01, duration_ms: 5, num_turns: 3, permission_denials }))
 `,
   )
@@ -94,6 +97,9 @@ describe('review-eval.mjs', () => {
       assert.doesNotMatch(call.cwd, /COM-007|CLEAN-001|defect/)
       for (const flag of ['-p', '--output-format', '--setting-sources', '--no-session-persistence', '--append-system-prompt']) assert.ok(call.args.includes(flag), `${flag} — ${call.args.join(' ')}`)
       assert.equal(call.args[call.args.indexOf('--setting-sources') + 1], 'project')
+      // 리뷰어가 돌린 명령을 남기려고 stream-json으로 받는다
+      assert.equal(call.args[call.args.indexOf('--output-format') + 1], 'stream-json')
+      assert.ok(call.args.includes('--verbose'))
       // Bash는 모두 허용한다(code-review는 git diff에 find·~/.claude 읽기를 이어 붙여, 명령 이름 규칙으로는 막힌다). 테스트 실행만 막는다
       assert.equal(call.args[call.args.indexOf('--allowedTools') + 1], 'Read Grep Glob Write Skill Agent Bash')
       assert.equal(call.args[call.args.indexOf('--disallowedTools') + 1], 'Bash(npm *) Bash(npx *) Bash(pnpm *) Bash(yarn *)')
@@ -110,6 +116,8 @@ describe('review-eval.mjs', () => {
     // 막힌 도구 호출을 남긴다 — 리뷰어가 diff를 못 봤는지 확인할 때 본다
     const baseline = JSON.parse(readFileSync(join(out, 'runs/code-review/COM-007-1.json'), 'utf8'))
     assert.deepEqual(baseline.permissionDenials, [{ tool: 'Bash', input: 'git diff main...HEAD | head -50' }])
+    assert.deepEqual(baseline.commands, [{ command: 'git diff main...HEAD', status: 'ok', output: 'diff --git a/x b/x' }])
+    assert.equal(baseline.costUsd, 0.01)
     // 어떤 도구 조건으로 돌았는지 남긴다 — 조건이 다른 실행을 한 표에 섞지 않으려고
     assert.deepEqual(baseline.tools, { allowed: ['Read', 'Grep', 'Glob', 'Write', 'Skill', 'Agent', 'Bash'], disallowed: ['Bash(npm *)', 'Bash(npx *)', 'Bash(pnpm *)', 'Bash(yarn *)'] })
     // 리뷰 기록은 평가용 저장소를 지우기 전에 결과 옆에 복사한다
