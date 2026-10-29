@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-29",
+  "areas": [
+    "review"
+  ],
+  "runs": {
+    "without": 24,
+    "with": 24
+  },
+  "unmeasured": [],
+  "rules": [
+    {
+      "id": "review/diff-only",
+      "without": 1,
+      "with": 0
+    },
+    {
+      "id": "review/no-evidence",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "review/style-nits",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "review/filler",
+      "without": 2,
+      "with": 2
+    },
+    {
+      "id": "review/false-certainty",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "review/guessed-intent",
+      "without": 1,
+      "with": 0
+    },
+    {
+      "id": "review/hidden-skip",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "review/repeated-finding",
+      "without": 3,
+      "with": 1
+    },
+    {
+      "id": "review/generic-checklist",
+      "without": 0,
+      "with": 0
+    },
+    {
+      "id": "review/unverified-claim",
+      "without": 1,
+      "with": 0
+    }
+  ]
+}

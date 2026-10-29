@@ -41,3 +41,4 @@ node scripts/buildSlopTable.mjs                 # 두 SKILL.md의 금지선 표�
 |---|---|---|
 | 2026-10-27 | 요청 12개 × gimi 없이·있이 × 2번 | `results/2026-10-27.md`(해석), `2026-10-27.json`(결과), `2026-10-27-review.json`(걸러 낸 지적·셀 수 없던 줄) |
 | 2026-10-28 | 완료 보고 줄만(`--areas done`) — 같은 요청·같은 실행 수, 에이전트가 돌린 명령을 남김 | `results/2026-10-28.md`(해석), `2026-10-28.json`(결과), `2026-10-28-review.json`(걸러 낸 지적) |
+| 2026-10-29 | 리뷰 줄 — PR 12개 × 내장 `/code-review`·gimi-review × 2번(`--reviews`) | `results/2026-10-29.md`(해석), `2026-10-29.json`(결과), `2026-10-29-review.json`(걸러 낸 지적) |
