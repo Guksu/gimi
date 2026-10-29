@@ -33,6 +33,11 @@ describe('parseStream — 실행 기록(stream-json)', () => {
     ])
   })
 
+  it('막는 규칙(--disallowedTools)에 걸린 명령도 막힘이다 — 메시지에 명령이 들어 있다', () => {
+    const stdout = [use('a', 'cd web && npx vitest run'), answer('a', 'Permission to use Bash with command cd web && npx vitest run has been denied.', true)].join('\n')
+    assert.equal(parseStream(stdout).commands[0].status, 'denied')
+  })
+
   it('명령 출력은 끝부분만 남긴다. 결과 한 줄(json 형식)도 읽는다', () => {
     const long = Array.from({ length: 3000 }, (_, i) => `줄 ${i}`).join('\n')
     const { commands } = parseStream([use('a', 'npm test'), answer('a', long, false)].join('\n'))

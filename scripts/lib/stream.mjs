@@ -3,7 +3,8 @@
  * 슬롭 측정(scripts/slop-eval.mjs)과 리뷰 평가(scripts/review-eval.mjs)가 함께 쓴다.
  */
 const OUTPUT_LIMIT = 4000
-const DENIED = /^Permission to use \S+ has been denied/
+// 권한으로 막힌 호출 — dontAsk("Permission to use Bash has been denied …")와 막는 규칙("Permission to use Bash with command … has been denied.")
+const DENIED = /^Permission to use \S+ (?:with command [\s\S]* )?has been denied/
 
 const resultText = (content) => (typeof content === 'string' ? content : Array.isArray(content) ? content.filter((part) => part?.type === 'text').map((part) => part.text).join('\n') : '')
 
