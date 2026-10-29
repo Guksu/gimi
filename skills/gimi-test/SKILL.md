@@ -9,7 +9,7 @@ AI가 쓴 테스트는 통과하지만 아무것도 지키지 않는 경우가 �
 
 ## 지금 상태 (0.0.1)
 
-끝내기 전 검사 스크립트(`scripts/check.mjs`)는 바뀐 범위의 테스트·타입 검사·린트를 찾아 돌리고, 바뀐 JS·TS 줄에서 테스트·코드 슬롭을 찾아 보고한다. `--baseline`으로 실패를 기준에서 다시 돌려 보고, `scripts/connect.mjs`로 프로젝트별로 자동 실행을 연결한다. 테스트 금지선(`shared/rules/test.md`·`done.md`)과 분야 프리셋(`shared/domains/`)이 들어 있고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 테스트 패턴은 바탕 2개(`test-principles`·`test-audit`)와 1차 가운데 14개(프론트 `api-boundary`·`async-ui-states`·`user-interaction`·`race-and-duplicate`·`fake-time`, 백엔드 `concurrency`·`idempotency`·`webhook-contract`·`external-api-fake`·`db-integration`·`api-contract`, 둘 다 `requirement-cases`·`domain-boundaries`·`regression-first`)가 들어 있다. 나머지는 차례로 더한다. 슬롭 검사는 정규식 수준이라 놓치는 것이 있으니 아래 "쓰지 않을 테스트"도 직접 확인한다.
+끝내기 전 검사 스크립트(`scripts/check.mjs`)는 바뀐 범위의 테스트·타입 검사·린트를 찾아 돌리고, 바뀐 JS·TS 줄에서 테스트·코드 슬롭을 찾아 보고한다. `--baseline`으로 실패를 기준에서 다시 돌려 보고, `scripts/connect.mjs`로 프로젝트별로 자동 실행을 연결한다. 테스트 금지선(`shared/rules/test.md`·`done.md`)과 분야 프리셋(`shared/domains/`)이 들어 있고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 테스트 패턴은 바탕 2개(`test-principles`·`test-audit`)와 1차 가운데 14개(프론트 `api-boundary`·`async-ui-states`·`user-interaction`·`race-and-duplicate`·`fake-time`, 백엔드 `concurrency`·`idempotency`·`webhook-contract`·`external-api-fake`·`db-integration`·`api-contract`, 둘 다 `requirement-cases`·`domain-boundaries`·`regression-first`)와 2차 백엔드 `transaction-boundary`·`state-transition`·`migration`이 들어 있다. 나머지는 차례로 더한다. 슬롭 검사는 정규식 수준이라 놓치는 것이 있으니 아래 "쓰지 않을 테스트"도 직접 확인한다.
 
 ## 테스트를 쓸 때
 
@@ -42,6 +42,9 @@ AI가 쓴 테스트는 통과하지만 아무것도 지키지 않는 경우가 �
 | [`db-integration`](patterns/db-integration/PATTERN.md) | 백엔드 | 저장소·SQL을 쓰는 백엔드 코드를 실제 DB(테스트 전용 데이터베이스·컨테이너)로 테스트한다 — 조회 조건(남의 데이터가 안 보이는지), 유니크·CHECK·외래키 제약이 막는지를 DB에 직접 써 보고 단언하며, 테스트마다 데이터를 비워 격리한다. 저장소·ORM·쿼리 함수를 mock하지 않는다. "DB 테스트, 실제 DB로 테스트, 저장소 테스트, 통합 테스트, 유니크 제약, CHECK 제약, 외래키, 테스트 격리, PostgreSQL 테스트, Testcontainers" 요청에 쓴다. |
 | [`external-api-fake`](patterns/external-api-fake/PATTERN.md) | 백엔드 | PG·배송·알림 같은 외부 API를 부르는 백엔드 코드를 HTTP 가짜 서버(fake)로 테스트한다 — 승인·4xx 거절·5xx·타임아웃(늦은 응답)을 가짜 서버의 동작으로 만들고, 주문 상태, 다시 시도할 수 있는지, 늦으면 다시 조회해 결과를 정하는지를 단언한다. HTTP 클라이언트 모듈을 mock하지 않는다. "외부 API 테스트, PG 연동 테스트, 결제사 연동, 가짜 서버, fake server, 타임아웃 테스트, 응답 지연, 5xx 처리, 외부 연동 실패" 요청에 쓴다. |
 | [`idempotency`](patterns/idempotency/PATTERN.md) | 백엔드 | 같은 요청이 다시 오거나(재시도·새로고침·같은 멱등 키) 결제 확정이 확정 요청과 웹훅으로 겹쳐 와도 부수효과(주문 생성·재고 차감·포인트 적립·결제 기록)가 한 번인지 테스트한다 — 응답 코드가 아니라 부수효과를 센다. "멱등성 테스트, 같은 멱등 키, 재시도, 새로고침, 중복 처리, 두 번 불려도 한 번, 결제 확정 두 번, 웹훅과 승인이 겹침, 포인트 두 번 적립" 요청에 쓴다. |
+| [`migration`](patterns/migration/PATTERN.md) | 백엔드 | DB 마이그레이션을 빈 DB가 아니라 데이터가 있는 DB에 올려, 실패하지 않고 있던 데이터가 남는지 테스트한다 — 따로 만든 스키마에 이전 마이그레이션까지 올리고 운영처럼 데이터를 넣은 뒤 새 마이그레이션을 하나씩 올린다. "마이그레이션 테스트, 데이터가 있는 DB에서 올리기, NOT NULL 열 추가, 스키마 변경 뒤 기존 데이터, 마이그레이션 올리기·내리기, 열 이름 바꾸기·지우기" 요청에 쓴다. |
+| [`state-transition`](patterns/state-transition/PATTERN.md) | 백엔드 | 주문·결제 상태 전이를 허용·금지 쌍의 표로 모두 테스트하고, 늦게 온 이벤트(취소 뒤 승인, 완료 뒤 처리 중)가 끝난 상태를 되돌리지 못하는지 테스트한다 — 성공 경로 하나가 아니라 막아야 하는 쌍까지 본다. "상태 전이 테스트, 상태 머신, 전이표, 허용·금지 전이, 되돌아가는 전이, 취소된 주문이 되살아나지 않는지, 배송 시작한 주문은 취소 불가, 결제 실패에서 승인으로" 요청에 쓴다. |
+| [`transaction-boundary`](patterns/transaction-boundary/PATTERN.md) | 백엔드 | 여러 단계를 저장하는 작업(주문 생성·취소·환불)이 중간에 실패하면 앞 단계에서 바꾼 재고·쿠폰·포인트까지 모두 되돌아가는지, PG 같은 외부 호출은 결과를 받은 뒤에 저장하는지 테스트한다 — 뒤 단계에 실패를 일부러 넣고 건드린 값을 모두 센다. "트랜잭션 롤백 테스트, 중간에 실패하면 되돌아가는지, 반쯤 저장된 데이터, 실패했을 때 재고·쿠폰·포인트 원상복구, 외부 호출을 커밋 뒤에, PG 취소가 실패하면 그대로인지" 요청에 쓴다. |
 | [`webhook-contract`](patterns/webhook-contract/PATTERN.md) | 백엔드 | PG·외부 서비스가 보내는 웹훅을 받는 핸들러를 계약대로 테스트한다 — 서명이 틀린 요청, 본문과 실제 상태가 다른 요청(위조), 같은 이벤트 두 번, 순서가 바뀐 이벤트, 모르는 type을 테스트가 직접 만들어 보내고 주문 상태와 처리 기록을 단언한다. 정상 이벤트 하나만 보내지 않는다. "웹훅 테스트, 웹훅 서명 검증, 위조 웹훅, 중복 이벤트, 순서가 바뀐 이벤트, 모르는 이벤트 type, 웹훅 본문을 믿지 않음" 요청에 쓴다. |
 <!-- catalog:end -->
 

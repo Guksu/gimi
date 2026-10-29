@@ -1,0 +1,7 @@
+{
+  "pattern": "state-transition",
+  "assets": [
+    { "file": "order-state.test.ts", "at": "server/test/order-state.test.ts", "defect": "COM-013" },
+    { "file": "order-state.slop.test.ts", "at": "server/test/order-state.slop.test.ts", "defect": "COM-013" }
+  ]
+}
