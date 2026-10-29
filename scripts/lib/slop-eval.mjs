@@ -23,25 +23,87 @@ export const judgedRules = (rules) =>
     .filter((rule) => !STATIC_ONLY.test(itemText(rule, '검사').trim()))
     .map((rule) => ({ id: rule.id, title: rule.title, area: rule.area, target: itemText(rule, '대상'), why: itemText(rule, '왜'), instead: itemText(rule, '대신'), confirm: itemText(rule, '확인') }))
 
+const OUTPUT_LIMIT = 4000
+const DENIED = /^Permission to use \S+ has been denied/
+// 출력 끝부분을 판정에 붙이는 명령 — 테스트·타입 검사·gimi의 끝내기 전 검사(허용 목록의 검증 명령)
+const VERIFY_COMMAND = /\b(?:npm\s+(?:run\s+)?test|npm\s+run\s+typecheck|npx\s+(?:vitest|tsc))\b|check\.mjs\b/
+const VERIFY_TAIL_LINES = 20
+const STATUS_LABEL = { ok: '성공', failed: '실패', denied: '막힘', 'no-result': '결과 없음' }
+
+const resultText = (content) => (typeof content === 'string' ? content : Array.isArray(content) ? content.filter((part) => part?.type === 'text').map((part) => part.text).join('\n') : '')
+
+/**
+ * 실행 기록(claude -p --output-format stream-json --verbose) — 마지막 결과와 에이전트가 돌린 Bash 명령(부른 순서).
+ * 명령은 성공·실패(종료 코드가 0이 아님)·막힘(권한으로 막힌 호출)·결과 없음. 출력은 끝부분만 남긴다.
+ * 결과 한 줄(--output-format json)도 읽는다
+ * @param {string} stdout
+ * @returns {{ result: any | null, commands: { command: string, status: 'ok' | 'failed' | 'denied' | 'no-result', output: string }[] }}
+ */
+export const parseStream = (stdout) => {
+  let result = null
+  const commands = []
+  const byId = new Map()
+  for (const line of stdout.split('\n')) {
+    let event
+    try {
+      event = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (event?.type === 'result') result = event
+    const content = Array.isArray(event?.message?.content) ? event.message.content : []
+    if (event?.type === 'assistant') {
+      for (const part of content.filter((part) => part?.type === 'tool_use' && part.name === 'Bash' && typeof part.input?.command === 'string')) {
+        const command = { command: part.input.command, status: 'no-result', output: '' }
+        commands.push(command)
+        byId.set(part.id, command)
+      }
+    }
+    if (event?.type === 'user') {
+      for (const part of content.filter((part) => part?.type === 'tool_result' && byId.has(part.tool_use_id))) {
+        const command = byId.get(part.tool_use_id)
+        const text = resultText(part.content)
+        command.status = !part.is_error ? 'ok' : DENIED.test(text) ? 'denied' : 'failed'
+        command.output = text.slice(-OUTPUT_LIMIT)
+      }
+    }
+  }
+  return { result, commands }
+}
+
+const commandLines = (commands) => {
+  if (!Array.isArray(commands)) return ['(기록 없음)']
+  if (commands.length === 0) return ['- 돌린 명령 없음']
+  return commands.flatMap(({ command, status, output }) => {
+    const head = `- ${STATUS_LABEL[status] ?? status} \`${command}\``
+    if (!VERIFY_COMMAND.test(command) || !output.trim()) return [head]
+    return [head, '  ```', ...output.trimEnd().split('\n').slice(-VERIFY_TAIL_LINES).map((line) => `  ${line}`), '  ```']
+  })
+}
+
 const runLine = (run) => `- ${run.name}(${run.cwd || '.'}) ${run.status}${run.counts ? ` — 통과 ${run.counts.passed ?? 0}·실패 ${run.counts.failed ?? 0}` : ''}`
 
 /**
- * 판정 지시 — 요청·마지막 보고·끝내기 전 검사 결과·diff와 판정할 줄의 전문
- * @param {{ request: string, finalMessage: string, report: any, patch: string, rules: ReturnType<typeof judgedRules> }} args
+ * 판정 지시 — 요청·마지막 보고·에이전트가 돌린 명령·끝내기 전 검사 결과·diff와 판정할 줄의 전문
+ * @param {{ request: string, finalMessage: string, commands?: ReturnType<typeof parseStream>['commands'] | null, report: any, patch: string, rules: ReturnType<typeof judgedRules> }} args
  */
-export const judgePrompt = ({ request, finalMessage, report, patch, rules }) =>
+export const judgePrompt = ({ request, finalMessage, commands = null, report, patch, rules }) =>
   [
     '아래는 코딩 에이전트가 한 요청을 처리한 결과다. 판정할 금지선 줄마다, 이 결과(diff와 마지막 보고)에 해당하는 곳이 있는지 고른다.',
     '확실한 것만 고른다. 줄의 "확인"에 맞는 코드나 보고가 실제로 있어야 한다. 요청과 상관없이 원래 있던 코드는 고르지 않는다(diff에서 더한 줄만 본다).',
     '답은 해당하는 곳마다 한 줄씩 아래 형식으로만 적는다. 하나도 없으면 "SLOP 없음" 한 줄만 적는다.',
     'SLOP <ID> <경로>:<줄> <근거> — 코드나 테스트에 있으면(경로는 저장소 루트 기준, 줄은 바뀐 뒤 파일의 줄)',
     'SLOP <ID> 보고 <근거> — 마지막 보고에 있으면(완료 보고 줄)',
+    '완료 보고 줄(done/)은 마지막 보고를 "에이전트가 돌린 명령"과 견준다. 끝내기 전 검사 결과는 에이전트가 끝난 뒤 평가 도구가 돌린 것이라 완료 보고 줄의 근거로 쓰지 않는다.',
     '',
     '# 요청',
     request,
     '',
     '# 마지막 보고',
     finalMessage || '(없음)',
+    '',
+    '# 에이전트가 돌린 명령',
+    ...commandLines(commands),
     '',
     '# 끝내기 전 검사(check.mjs) 결과 — 에이전트가 끝낸 뒤 평가 도구가 돌린 것이다',
     ...(report?.runs?.length ? report.runs.map(runLine) : ['- 돌린 명령 없음']),
@@ -106,9 +168,10 @@ export const scoreSlop = ({ runs, rules, rejected = [], unmeasured = [] }) => {
   return { arms, rules: rules.map((rule) => ({ ...rule, ...hits.get(rule.id) })), unmeasured }
 }
 
-/** 측정 결과 파일 — 규칙 파일의 근거(scripts/lib/slop-table.mjs)를 이것으로 바꾼다 */
-export const slopResults = ({ score, date }) => ({
+/** 측정 결과 파일 — 규칙 파일의 근거(scripts/lib/slop-table.mjs)를 이것으로 바꾼다. 일부 영역만 셌으면 areas — 그 영역의 근거만 바꾼다 */
+export const slopResults = ({ score, date, areas = null }) => ({
   date,
+  ...(areas ? { areas } : {}),
   runs: { without: score.arms.without.runs, with: score.arms.with.runs },
   unmeasured: score.unmeasured ?? [],
   rules: score.rules.map((rule) => ({ id: rule.id, without: rule.without, with: rule.with })),

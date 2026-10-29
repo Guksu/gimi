@@ -4,15 +4,18 @@
  *
  *   node scripts/slop-eval.mjs run [ID…] --arm without|with [--runs N | --run N] [--model M] [--out <폴더>] [--claude <실행 파일>]
  *        요청마다 정상 버전 저장소를 만들어 claude -p로 실행한다. 끝나면 diff를 남기고 끝내기 전 검사(check.mjs --json)를 돌린다.
+ *        실행 기록(stream-json)에서 에이전트가 돌린 Bash 명령과 결과를 남긴다(완료 보고 줄의 판정 근거).
  *        두 쪽에 같은 지시를 주고, gimi 있이만 --plugin-dir로 이 저장소를 받는다. 실행은 하나씩 한다(테스트 DB를 함께 쓴다).
  *        --run N은 그 번째 실행 하나만 다시 돌린다(다른 일이 테스트 DB를 건드려 망친 실행을 바꿀 때)
- *   node scripts/slop-eval.mjs judge <폴더> [--model M] [--claude <실행 파일>]
- *        실행마다 판정 모델(도구 없음)이 diff·보고를 읽고, 검사가 error·warn만이 아닌 금지선 줄을 고른다. 판정한 실행은 건너뛴다
- *   node scripts/slop-eval.mjs score <폴더> [--rejected <파일>] [--results <파일>] [--date YYYY-MM-DD]
+ *   node scripts/slop-eval.mjs judge <폴더> [--areas test,code,done] [--model M] [--claude <실행 파일>]
+ *        실행마다 판정 모델(도구 없음)이 diff·보고·돌린 명령을 읽고, 검사가 error·warn만이 아닌 금지선 줄을 고른다. 판정한 실행은 건너뛴다.
+ *        --areas는 그 영역의 줄만 판정한다
+ *   node scripts/slop-eval.mjs score <폴더> [--areas …] [--rejected <파일>] [--results <파일>] [--date YYYY-MM-DD]
  *        줄마다 "N번 중 M번" 표(<폴더>/score.md). --rejected는 사람이 읽고 틀렸다고 걸러 낸 지적(세지 않는다),
- *        --results는 규칙 파일에 옮길 측정 결과 파일을 쓴다
+ *        --results는 규칙 파일에 옮길 측정 결과 파일을 쓴다. --areas는 그 영역의 줄만 센다(결과 파일에 영역을 남긴다)
  *   node scripts/slop-eval.mjs apply <결과 파일> [--root <폴더>]
  *        원본 규칙 파일(test·done은 gimi-test, code는 gimi-review)의 근거를 "N번 중 M번"으로 바꾸고 다른 스킬의 복사본에 옮긴다.
+ *        결과 파일에 영역이 있으면 그 영역의 파일만 바꾼다.
  *        SKILL.md의 금지선 표는 scripts/buildSlopTable.mjs가 다시 쓴다
  *   공통: --fixture <폴더>(기본 evals/shop-fixture), --requests <파일>(기본 evals/slop/requests.json)
  *
@@ -25,7 +28,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseRuleFile } from '../skills/gimi-test/scripts/lib/rulefile.mjs'
-import { ARMS, formatSlopScore, judgePrompt, judgedRules, parseJudgement, scoreSlop, slopResults } from './lib/slop-eval.mjs'
+import { ARMS, formatSlopScore, judgePrompt, judgedRules, parseJudgement, parseStream, scoreSlop, slopResults } from './lib/slop-eval.mjs'
 import { applyEvidence } from './lib/slop-table.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
@@ -62,7 +65,7 @@ class UsageError extends Error {}
 
 const parseArgs = (argv) => {
   const positional = []
-  const options = { fixture: join(ROOT, 'evals/shop-fixture'), requests: join(ROOT, 'evals/slop/requests.json'), out: null, arm: null, runs: 1, only: null, model: null, claude: 'claude', rejected: null, results: null, date: new Date().toISOString().slice(0, 10), root: ROOT }
+  const options = { fixture: join(ROOT, 'evals/shop-fixture'), requests: join(ROOT, 'evals/slop/requests.json'), out: null, arm: null, runs: 1, only: null, model: null, claude: 'claude', rejected: null, results: null, date: new Date().toISOString().slice(0, 10), root: ROOT, areas: null }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     const value = () => {
@@ -82,6 +85,7 @@ const parseArgs = (argv) => {
     else if (arg === '--results') options.results = resolve(value())
     else if (arg === '--date') options.date = value()
     else if (arg === '--root') options.root = resolve(value())
+    else if (arg === '--areas') options.areas = value().split(',').map((area) => area.trim()).filter(Boolean)
     else if (arg.startsWith('--')) throw new UsageError(`모르는 옵션: ${arg}`)
     else positional.push(arg)
   }
@@ -94,8 +98,13 @@ const pick = (requests, ids) => {
   if (unknown.length > 0) throw new UsageError(`없는 요청: ${unknown.join(', ')}`)
   return ids.length > 0 ? requests.filter((request) => ids.includes(request.id)) : requests
 }
-const loadRules = () =>
-  RULE_AREAS.flatMap((area) => parseRuleFile(readFileSync(join(ROOT, 'skills/gimi-test/shared/rules', `${area}.md`), 'utf8')).rules.map((rule) => ({ ...rule, area })))
+const checkAreas = (areas) => {
+  const unknown = (areas ?? []).filter((area) => !RULE_AREAS.includes(area))
+  if (areas?.length === 0 || unknown.length > 0) throw new UsageError(`--areas는 ${RULE_AREAS.join('·')} 중에서 고른다: ${unknown.join(', ')}`)
+  return areas ?? RULE_AREAS
+}
+const loadRules = (areas = RULE_AREAS) =>
+  areas.flatMap((area) => parseRuleFile(readFileSync(join(ROOT, 'skills/gimi-test/shared/rules', `${area}.md`), 'utf8')).rules.map((rule) => ({ ...rule, area })))
 
 const spawnText = ({ command, args, cwd, input = null, timeoutMs }) =>
   new Promise((done) => {
@@ -161,8 +170,10 @@ const runAll = async ({ options, ids }) => {
       const args = [
         '-p',
         request.prompt,
+        // 돌린 명령을 남기려고 stream-json으로 받는다 — print 모드에서는 --verbose가 있어야 나온다
         '--output-format',
-        'json',
+        'stream-json',
+        '--verbose',
         '--no-session-persistence',
         '--setting-sources',
         'project',
@@ -181,7 +192,7 @@ const runAll = async ({ options, ids }) => {
       ]
       try {
         const result = await spawnText({ command: options.claude, args, cwd: repo, timeoutMs: RUN_TIMEOUT_MS })
-        const parsed = parseResult(result.stdout)
+        const { result: parsed, commands } = parseStream(result.stdout)
         const patch = collect({ git, base })
         const checked = await spawnText({ command: process.execPath, args: [CHECK, '--json', '--base', 'main'], cwd: repo, timeoutMs: CHECK_TIMEOUT_MS })
         const record = {
@@ -195,7 +206,8 @@ const runAll = async ({ options, ids }) => {
           durationMs: parsed?.duration_ms ?? result.durationMs,
           costUsd: parsed?.total_cost_usd ?? null,
           numTurns: parsed?.num_turns ?? null,
-          output: parsed?.result ?? result.stdout,
+          output: parsed?.result ?? result.stdout.slice(-4000),
+          commands,
           permissionDenials: (parsed?.permission_denials ?? []).map((denial) => ({ tool: denial.tool_name, input: typeof denial.tool_input?.command === 'string' ? denial.tool_input.command : JSON.stringify(denial.tool_input ?? {}) })),
           stderr: result.stderr.slice(-4000),
           check: parseResult(checked.stdout),
@@ -225,13 +237,13 @@ const recordsIn = (dir) =>
 
 const judgeAll = async ({ dir, options }) => {
   if (!dir || !existsSync(dir)) throw new UsageError(`결과 폴더가 없다: ${dir}`)
-  const rules = judgedRules(loadRules())
+  const rules = judgedRules(loadRules(checkAreas(options.areas)))
   const ids = rules.map((rule) => rule.id)
   for (const { path, record } of recordsIn(dir)) {
     const target = path.replace(/\.json$/, '.judge.json')
     if (existsSync(target)) continue
     const patch = readFileSync(path.replace(/\.json$/, '.patch'), 'utf8')
-    const prompt = judgePrompt({ request: record.prompt, finalMessage: record.output, report: record.check, patch, rules })
+    const prompt = judgePrompt({ request: record.prompt, finalMessage: record.output, commands: record.commands ?? null, report: record.check, patch, rules })
     const neutral = mkdtempSync(join(tmpdir(), 'judge-'))
     try {
       const args = ['-p', '--output-format', 'json', '--no-session-persistence', '--setting-sources', 'project', '--strict-mcp-config', '--tools', '', ...(options.model ? ['--model', options.model] : [])]
@@ -255,7 +267,7 @@ const score = ({ dir, options }) => {
   const review = options.rejected ? JSON.parse(readFileSync(options.rejected, 'utf8')) : []
   const rejected = Array.isArray(review) ? review : (review.rejected ?? [])
   const unmeasured = Array.isArray(review) ? [] : (review.unmeasured ?? [])
-  const rules = loadRules().map((rule) => ({ id: rule.id, title: rule.title, area: rule.area, check: rule.items.get('검사')?.value ?? '' }))
+  const rules = loadRules(checkAreas(options.areas)).map((rule) => ({ id: rule.id, title: rule.title, area: rule.area, check: rule.items.get('검사')?.value ?? '' }))
   const runs = recordsIn(dir).map(({ path, record }) => {
     const judgePath = path.replace(/\.json$/, '.judge.json')
     const judged = existsSync(judgePath) ? JSON.parse(readFileSync(judgePath, 'utf8')) : null
@@ -264,7 +276,7 @@ const score = ({ dir, options }) => {
   const result = scoreSlop({ runs, rules, rejected, unmeasured })
   const text = `${formatSlopScore(result)}\n${rejected.length > 0 ? `\n걸러 낸 지적 ${rejected.length}개는 세지 않았다\n` : ''}`
   writeFileSync(join(dir, 'score.md'), text)
-  if (options.results) writeFileSync(options.results, `${JSON.stringify(slopResults({ score: result, date: options.date }), null, 2)}\n`)
+  if (options.results) writeFileSync(options.results, `${JSON.stringify(slopResults({ score: result, date: options.date, areas: options.areas }), null, 2)}\n`)
   console.log(text.trimEnd())
   return 0
 }
@@ -272,7 +284,7 @@ const score = ({ dir, options }) => {
 const apply = ({ file, root }) => {
   if (!file || !existsSync(file)) throw new UsageError(`결과 파일이 없다: ${file}`)
   const results = JSON.parse(readFileSync(file, 'utf8'))
-  for (const area of RULE_AREAS) {
+  for (const area of checkAreas(results.areas ?? null)) {
     const origin = join(root, 'skills', RULE_ORIGIN[area], 'shared/rules', `${area}.md`)
     const text = applyEvidence({ text: readFileSync(origin, 'utf8'), results })
     writeFileSync(origin, text)
@@ -288,7 +300,7 @@ const main = async () => {
   if (command === 'judge') return judgeAll({ dir: args[0] ? resolve(args[0]) : null, options })
   if (command === 'score') return score({ dir: args[0] ? resolve(args[0]) : null, options })
   if (command === 'apply') return apply({ file: args[0] ? resolve(args[0]) : null, root: options.root })
-  throw new UsageError('사용법: slop-eval.mjs run [ID…] --arm without|with [--runs N | --run N] [--model M] [--out <폴더>] [--claude <실행 파일>] | judge <폴더> [--model M] | score <폴더> [--rejected <파일>] [--results <파일>] [--date YYYY-MM-DD] | apply <결과 파일> [--root <폴더>]  [--fixture <폴더>] [--requests <파일>]')
+  throw new UsageError('사용법: slop-eval.mjs run [ID…] --arm without|with [--runs N | --run N] [--model M] [--out <폴더>] [--claude <실행 파일>] | judge <폴더> [--areas test,code,done] [--model M] | score <폴더> [--areas …] [--rejected <파일>] [--results <파일>] [--date YYYY-MM-DD] | apply <결과 파일> [--root <폴더>]  [--fixture <폴더>] [--requests <파일>]')
 }
 
 main().then(
