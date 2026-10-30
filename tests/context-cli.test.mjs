@@ -1,7 +1,7 @@
 import { after, before, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,6 +32,24 @@ describe('context.mjs', () => {
     assert.match(file, /^\d{4}-\d{2}-\d{2}-feat-x\.context\.json$/)
     assert.match(result.stdout, new RegExp(`^전체 {4}docs/gimi/reviews/${file.replaceAll('.', '\\.')}$`, 'm'))
     assert.equal(JSON.parse(readFileSync(join(dir, file), 'utf8')).version, 1)
+  })
+
+  it('같은 브랜치의 예전 맥락 묶음을 지운다 — 다른 브랜치의 묶음과 리뷰 기록은 남기고, --out으로 쓸 때는 지우지 않는다', () => {
+    const dir = join(repo.dir, 'docs/gimi/reviews')
+    mkdirSync(dir, { recursive: true })
+    for (const name of ['2020-01-01-feat-x.context.json', '2020-01-01-feat-y.context.json', '2020-01-01-feat-x.md']) writeFileSync(join(dir, name), '{}\n')
+    const result = run({ cwd: repo.dir, args: ['--no-gh'] })
+    assert.equal(result.status, 0, result.stderr)
+    const files = readdirSync(dir).sort()
+    assert.equal(files.includes('2020-01-01-feat-x.context.json'), false)
+    assert.ok(files.includes('2020-01-01-feat-y.context.json') && files.includes('2020-01-01-feat-x.md'))
+    assert.equal(files.filter((name) => /-feat-x\.context\.json$/.test(name)).length, 1)
+    assert.match(result.stdout, /^참고 {4}예전 맥락 묶음 1개를 지웠다/m)
+
+    writeFileSync(join(dir, '2020-01-01-feat-x.context.json'), '{}\n')
+    assert.equal(run({ cwd: repo.dir, args: ['--no-gh', '--out', 'out.context.json'] }).status, 0)
+    assert.ok(readdirSync(dir).includes('2020-01-01-feat-x.context.json'))
+    rmSync(join(repo.dir, 'out.context.json'), { force: true })
   })
 
   it('맥락 묶음 파일이 .gitignore에 없으면 참고로 알린다', () => {
