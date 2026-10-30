@@ -1,5 +1,5 @@
 {
-  "note": "함께 깔릴 법한 스킬의 description. gimi 두 스킬과 섞어 순위를 매긴다. 테스트 일반 스킬은 넣지 않는다 — gimi-test가 맡을 일과 같아 구별을 시험하지 못한다.",
+  "note": "함께 깔릴 법한 스킬의 description. gimi-review와 섞어 순위를 매긴다. 테스트 작성·끝내기 전 확인 스킬도 넣는다 — gimi가 테스트를 맡지 않으므로(설계 결정 52) 그 요청에 gimi-review가 걸리지 않는지 본다.",
   "decoys": [
     {
       "name": "code-review",
@@ -70,6 +70,16 @@
       "name": "data-files",
       "source": "Guksu/suta evals/trigger.json의 가상 decoy",
       "description": "CSV·엑셀·JSON 데이터 파일을 읽어 정리·집계·변환한다. \"CSV 파싱, 합계 내줘, 엑셀 정리\" 요청과 spreadsheet, csv, data cleaning 작업에 쓴다."
+    },
+    {
+      "name": "test-writing",
+      "source": "가상 — 흔한 테스트 작성 스킬",
+      "description": "기능이나 버그 수정에 맞는 단위·통합 테스트를 쓰고 돌린다. \"이 함수 단위 테스트 써줘, 테스트 추가해줘, 테스트 커버리지 올려줘\" 요청과 unit test, integration test, vitest, jest 작업에 쓴다."
+    },
+    {
+      "name": "verify-before-done",
+      "source": "가상 — 흔한 끝내기 전 확인 스킬",
+      "description": "작업을 끝냈다고 말하기 전에 테스트·타입 검사·린트를 실제로 돌려 결과를 확인한다. \"끝내기 전에 테스트 돌려서 확인해줘, 다 통과하는지 봐줘\" 요청과 verification, run tests, before completion 작업에 쓴다."
     }
   ]
 }

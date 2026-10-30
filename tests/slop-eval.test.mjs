@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseRuleFile } from '../skills/gimi-test/scripts/lib/rulefile.mjs'
+import { parseRuleFile } from '../skills/gimi-review/scripts/lib/rulefile.mjs'
 import { formatSlopScore, judgePrompt, judgedRules, parseJudgement, reviewJudgePrompt, scoreSlop, skillTableRows, slopResults, staticFindings } from '../scripts/lib/slop-eval.mjs'
 
 const RULES = `# 코드 금지선

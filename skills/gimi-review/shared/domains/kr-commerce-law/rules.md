@@ -1,7 +1,6 @@
-<!-- @shared rules.md origin: gimi-review -->
 # 분야 프리셋 — `kr-commerce-law` (국내 전자상거래·개인정보 법령)
 
-국내 전자상거래·개인정보 법령이 코드에 직접 요구하는 것이다. 설정 `.agents/gimi.json`의 `presets`에 `kr-commerce-law`를 넣으면 리뷰(gimi-review)와 테스트 작성(gimi-test)이 쓴다. 형식은 `commerce` 프리셋과 같다.
+국내 전자상거래·개인정보 법령이 코드에 직접 요구하는 것이다. 설정 `.agents/gimi.json`의 `presets`에 `kr-commerce-law`를 넣으면 리뷰(gimi-review)가 쓴다. 형식은 `commerce` 프리셋과 같다.
 
 **이 프리셋은 법률 자문이 아니다.** 법령·고시가 코드에 직접 요구하는 것만 골라 조문과 함께 적었다. 팀이 조문을 확인하고, 회사의 해석이 다르면 회사 규칙의 `## 끈 프리셋 규칙` 절에 `- KCL-006 — 이유`처럼 적어 끄거나 회사 규칙으로 바꾼다.
 

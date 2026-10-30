@@ -1,4 +1,3 @@
-<!-- @shared review.md origin: gimi-review -->
 # 리뷰 금지선 — `review/`
 
 AI 리뷰어가 흔히 하는 슬롭이다. gimi-review가 리뷰를 쓰기 전에 스스로 확인한다. 형식은 `code.md`와 같다.

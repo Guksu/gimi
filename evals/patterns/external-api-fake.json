@@ -1,7 +1,0 @@
-{
-  "pattern": "external-api-fake",
-  "assets": [
-    { "file": "pg-confirm.test.ts", "at": "server/test/pg-confirm.test.ts", "defect": "COM-019" },
-    { "file": "pg-confirm.slop.test.ts", "at": "server/test/pg-confirm.slop.test.ts", "defect": "COM-019" }
-  ]
-}

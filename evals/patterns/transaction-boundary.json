@@ -1,7 +1,0 @@
-{
-  "pattern": "transaction-boundary",
-  "assets": [
-    { "file": "order-rollback.test.ts", "at": "server/test/order-rollback.test.ts", "defect": "COM-007-rollback" },
-    { "file": "order-rollback.slop.test.ts", "at": "server/test/order-rollback.slop.test.ts", "defect": "COM-007-rollback" }
-  ]
-}

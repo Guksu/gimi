@@ -1,12 +1,11 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { makeRepo } from './helpers/repo.mjs'
 
-const cli = (skill) => fileURLToPath(new URL(`../skills/${skill}/scripts/rules.mjs`, import.meta.url))
-const run = ({ cwd, args = [], skill = 'gimi-review' }) => spawnSync(process.execPath, [cli(skill), ...args], { cwd, encoding: 'utf8' })
+const CLI = fileURLToPath(new URL('../skills/gimi-review/scripts/rules.mjs', import.meta.url))
+const run = ({ cwd, args = [] }) => spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8' })
 const withRepo = (files, fn) => {
   const repo = makeRepo()
   try {
@@ -38,7 +37,7 @@ describe('rules.mjs — 설정에 맞는 규칙만 보이기', () => {
       const result = run({ cwd: repo.dir })
       assert.equal(result.status, 0, result.stderr)
       assert.match(result.stdout, /^규칙 {6}stacks frontend-ts · 프리셋 없음 · 회사 규칙 없음$/m)
-      assert.match(result.stdout, /^ {2}test\/only-left {2}\.only·fit을 남기지 않는다 {2}\[둘 다 · 검사 error\]$/m)
+      assert.match(result.stdout, /^ {2}test\/only-left {2}\.only·fit을 남기지 않는다 {2}\[둘 다 · 검사 리뷰\]$/m)
       assert.match(result.stdout, /^ {2}test\/implementation-detail /m)
       assert.doesNotMatch(result.stdout, /test\/mock-repository|code\/n-plus-one/)
       assert.doesNotMatch(result.stdout, /^프리셋/m)
@@ -72,10 +71,11 @@ describe('rules.mjs — 설정에 맞는 규칙만 보이기', () => {
 
   it('모르는 프리셋은 알린다. --area로 공통 금지선의 영역을 고른다', () => {
     withRepo({ '.agents/gimi.json': JSON.stringify({ presets: ['banking'] }) }, (repo) => {
-      const { stdout } = run({ cwd: repo.dir, args: ['--area', 'test,done'] })
+      const { stdout } = run({ cwd: repo.dir, args: ['--area', 'test,review'] })
       assert.match(stdout, /^참고 {6}프리셋 banking이 없다 — 있는 프리셋은 commerce·kr-commerce-law다$/m)
-      assert.match(stdout, /done\/test-bent/)
-      assert.doesNotMatch(stdout, /code\/|review\//)
+      assert.match(stdout, /review\/diff-only/)
+      assert.doesNotMatch(stdout, /code\//)
+      assert.match(run({ cwd: repo.dir, args: ['--area', 'done'] }).stderr, /모르는 영역 done/)
     })
   })
 })
@@ -108,13 +108,12 @@ describe('rules.mjs — 전문과 경계값', () => {
     })
   })
 
-  it('--json은 거른 규칙과 참고를 담는다. gimi-test의 복사본도 같게 동작한다', () => {
+  it('--json은 거른 규칙과 참고를 담는다', () => {
     withRepo({ '.agents/gimi.json': JSON.stringify({ presets: ['commerce'] }) }, (repo) => {
-      const report = JSON.parse(run({ cwd: repo.dir, args: ['--json'], skill: 'gimi-test' }).stdout)
+      const report = JSON.parse(run({ cwd: repo.dir, args: ['--json'] }).stdout)
       assert.deepEqual(report.stacks, ['frontend-ts'])
       assert.ok(report.rules.some((r) => r.id === 'COM-001' && r.source === 'commerce' && r.target === '둘 다'))
-      assert.ok(report.rules.some((r) => r.id === 'test/only-left' && r.check === 'error'))
-      assert.equal(readFileSync(cli('gimi-test'), 'utf8'), readFileSync(cli('gimi-review'), 'utf8'))
+      assert.ok(report.rules.some((r) => r.id === 'test/only-left' && r.check === '리뷰'))
     })
   })
 })

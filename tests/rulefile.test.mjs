@@ -2,8 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { checkRuleFile, matchesStacks, parseRuleFile } from '../skills/gimi-review/scripts/lib/rulefile.mjs'
 
-const SLOP = `<!-- @shared test.md origin: gimi-test -->
-# 테스트 금지선
+const SLOP = `# 테스트 금지선
 
 머리 글은 규칙이 아니다.
 
@@ -12,7 +11,7 @@ const SLOP = `<!-- @shared test.md origin: gimi-test -->
 - 왜: 다른 테스트가 돌지 않는다
 - 대신: 지운다
 - 확인: it.only·fit
-- 검사: error
+- 검사: 리뷰
 - 근거: 측정 전
 
 ## test/real-wait 실제 시간을 기다리지 않는다
@@ -21,7 +20,7 @@ const SLOP = `<!-- @shared test.md origin: gimi-test -->
   가끔 깨진다
 - 대신: 가짜 타이머
 - 확인: setTimeout
-- 검사: warn
+- 검사: 기록
 - 근거: 측정 전
 `
 
@@ -54,11 +53,11 @@ describe('parseRuleFile', () => {
   it('## ID 한 줄 절과 - 이름: 값 항목을 읽는다 — 이어지는 줄은 값에 붙고, ID가 아닌 ## 제목은 묶음 제목이다', () => {
     const file = parseRuleFile(SLOP)
     assert.deepEqual(file.rules.map((r) => [r.id, r.title, r.line]), [
-      ['test/only-left', '.only·fit을 남기지 않는다', 6],
-      ['test/real-wait', '실제 시간을 기다리지 않는다', 14],
+      ['test/only-left', '.only·fit을 남기지 않는다', 5],
+      ['test/real-wait', '실제 시간을 기다리지 않는다', 13],
     ])
     assert.equal(file.rules[1].items.get('왜').value, '느리고 가끔 깨진다')
-    assert.equal(file.rules[0].items.get('검사').value, 'error')
+    assert.equal(file.rules[0].items.get('검사').value, '리뷰')
   })
 
   it('들여쓴 하위 줄(경계값의 프론트·백엔드, 근거 목록)은 항목의 목록으로 읽는다', () => {
@@ -86,17 +85,19 @@ describe('checkRuleFile', () => {
   })
 
   it('필수 항목이 빠지거나, ID가 겹치거나, 영역·머리가 다르면 오류다', () => {
-    const broken = `${SLOP.replace('- 대신: 지운다\n', '')}\n## code/empty-catch 빈 catch\n- 대상: 둘 다\n- 왜: a\n- 대신: b\n- 확인: c\n- 검사: error\n- 근거: 측정 전\n\n## test/only-left 다시\n- 대상: 둘 다\n- 왜: a\n- 대신: b\n- 확인: c\n- 검사: error\n- 근거: 측정 전\n`
+    const broken = `${SLOP.replace('- 대신: 지운다\n', '')}\n## code/empty-catch 빈 catch\n- 대상: 둘 다\n- 왜: a\n- 대신: b\n- 확인: c\n- 검사: 리뷰\n- 근거: 측정 전\n\n## test/only-left 다시\n- 대상: 둘 다\n- 왜: a\n- 대신: b\n- 확인: c\n- 검사: 리뷰\n- 근거: 측정 전\n`
     const errors = checkRuleFile({ path: 'shared/rules/test.md', text: broken, kind: 'slop', area: 'test' })
     assert.ok(errors.some((e) => /test\/only-left.*대신/.test(e)))
     assert.ok(errors.some((e) => /code\/empty-catch.*test 영역/.test(e)))
     assert.ok(errors.some((e) => /test\/only-left.*겹친다/.test(e)))
   })
 
-  it('대상은 프론트·백엔드·둘 다로 시작하고, 슬롭의 검사는 error·warn·리뷰·기록·출력으로 시작한다', () => {
-    const errors = checkRuleFile({ path: 'shared/rules/test.md', text: SLOP.replace('- 대상: 프론트', '- 대상: 웹').replace('- 검사: warn', '- 검사: 가끔'), kind: 'slop', area: 'test' })
+  it('대상은 프론트·백엔드·둘 다로 시작하고, 슬롭의 검사는 리뷰·기록으로 시작한다 — 정적 검사(error·warn)는 없다(설계 결정 52)', () => {
+    const errors = checkRuleFile({ path: 'shared/rules/test.md', text: SLOP.replace('- 대상: 프론트', '- 대상: 웹').replace('- 검사: 기록', '- 검사: 가끔'), kind: 'slop', area: 'test' })
     assert.ok(errors.some((e) => /test\/real-wait.*대상/.test(e)))
     assert.ok(errors.some((e) => /test\/real-wait.*검사/.test(e)))
+    const old = checkRuleFile({ path: 'shared/rules/test.md', text: SLOP.replace('- 검사: 리뷰', '- 검사: error'), kind: 'slop', area: 'test' })
+    assert.ok(old.some((e) => /test\/only-left.*검사는 리뷰·기록/.test(e)), old.join('\n'))
   })
 
   it('프리셋의 근거는 URL이나 "출처 없음"이 있어야 하고, "URL 확인 필요"가 남으면 오류다', () => {

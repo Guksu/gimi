@@ -4,7 +4,7 @@
 
 공통 지침은 위에서 가져온 `AGENTS.md`가 단일 출처다. 이 파일에는 Claude Code에서만 해당하는 것만 적는다.
 
-**스킬 이름:** 플러그인으로 설치하면 `gimi:gimi-review`·`gimi:gimi-test`로 보인다. 이 저장소에서 스킬 자체를 고치는 작업에는 두 스킬을 쓰지 않는다(아직 구현 중이다).
+**스킬 이름:** 플러그인으로 설치하면 `gimi:gimi-review`로 보인다. 이 저장소에서 스킬 자체를 고치는 작업에는 이 스킬을 쓰지 않는다(아직 구현 중이다).
 
 **변경 이력:**
 | 날짜 | 변경 내용 | 대상 | 사유 |
@@ -36,3 +36,4 @@
 | 2026-10-28 | 슬롭 금지선 — 완료 보고 줄 측정. slop-eval.mjs run이 stream-json으로 에이전트가 돌린 명령을 남기고(parseStream) 판정 지시에 넣음, judge·score·apply에 --areas. 요청 12개 × 없이·있이 × 2번 다시 실행해 done 5줄만 셈(`done/unrun-claim` 없이 1번·있이 0번, 나머지 0번), 근거·gimi-test SKILL.md 표·결과 문서 | scripts·skills/*/shared/rules/done.md·skills/gimi-test/SKILL.md·evals/slop·tests·docs/design | 사용자 요청 — "1부터 가자."(완료 보고 줄 측정). 사용자가 고른 것 — "48번 (추천)"·"완료 보고 5줄만 (추천)"·"검증 명령만 끝부분 (추천)"·"이대로 진행 (추천)" |
 | 2026-10-29 | 2차 테스트 패턴 순서(결정 51)와 첫 묶음 — transaction-boundary↔COM-007-rollback(포인트 차감을 트랜잭션 밖 연결로)·state-transition↔COM-013(취소 → 결제 완료 허용)·migration↔unsafe-migration(기본값 없는 NOT NULL). 결함 README에 같은 규칙의 두 번째 결함 이름 규칙 | docs/design·skills/gimi-test/patterns·evals·evals/shop-fixture/defects | 사용자 요청 — "2로 가자". 사용자가 고른 것 — "커머스 백엔드 먼저 (추천)"·"순서 정하고 첫 묶음 3개 (추천)", 구성에 "이대로 진행". 결함 내용·ID(`COM-007-rollback`)와 마이그레이션은 올리기만 다루는 것은 제가 정했다 |
 | 2026-10-29 | 슬롭 금지선 — 리뷰 줄 측정. 실행 기록 읽기를 scripts/lib/stream.mjs로 옮기고 리뷰 평가도 리뷰어의 명령을 남김, slop-eval judge·score --reviews(reviewJudgePrompt, review 영역), gimi-review SKILL.md 표에 리뷰 줄. PR 12개 × 내장 /code-review·gimi-review × 2번, 5줄이 나옴(repeated-finding 없이 3·있이 1 등) | scripts·tests·skills/*/shared/rules/review.md·skills/gimi-review/SKILL.md·evals/slop·AGENTS.md·docs/design | 사용자가 고른 것 — "리뷰 줄 측정 (추천)"·"새로 실행 + 명령 기록 (추천)"·"내장 /code-review (추천)"·"12개 × 2번 (추천)", 구성에 "이대로 진행". PR 12개 고르기와 걸러 낸 기준(filler는 변경 설명만, diff-only는 결함 PR만)은 제가 정했다 |
+| 2026-10-30 | 범위를 코드 리뷰로 좁힘(결정 52) — gimi-test(테스트 패턴 19개·끝내기 전 검사·옵트인 연결)와 그 테스트·패턴 선택 평가·패턴 예시 검증·카탈로그, 완료 보고 금지선(done.md), 두 스킬 사이의 복사본 장치(@shared)와 check.mjs 대조, 슬롭 측정의 구현 실행(run)을 지움. 테스트 금지선은 리뷰 규칙으로 남기고 검사 값을 리뷰로, 금지선 표는 gimi-review 하나에 테스트·코드·리뷰 줄. 트리거 평가에 테스트 작성·끝내기 전 확인 decoy | 전체 | 사용자 요청 — "테스트는 다 제거하고 오로지 pr리뷰쪽을 개선하는걸로하자.", 이어서 "pr쪽은 제거하고 오로지 코드리뷰 및 우리 원래 의도만가자. pr까지 가는건 좀 오바였어". 사용자가 고른 것 — "리뷰 규칙으로 남김 (추천)"·"제거 PR 먼저 (추천)", 계획에 "이대로 진행". 복사본 장치를 지운 것, 구현 실행(run)을 지운 것, 검사 값을 리뷰로 바꾼 것, decoy를 더한 것은 제가 정했다 |

@@ -1,7 +1,0 @@
-{
-  "pattern": "api-boundary",
-  "assets": [
-    { "file": "checkout-api.test.tsx", "at": "web/src/pages/checkout-api.test.tsx", "defect": "COM-016" },
-    { "file": "checkout-api.slop.test.tsx", "at": "web/src/pages/checkout-api.slop.test.tsx", "defect": "COM-016" }
-  ]
-}

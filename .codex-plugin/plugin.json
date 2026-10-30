@@ -1,17 +1,17 @@
 {
   "name": "gimi",
   "version": "0.0.1",
-  "description": "Code review that reads beyond the diff, and tests without AI slop, for Claude Code and Codex.",
+  "description": "Code review that reads beyond the diff — impact scope, requirements and change history — for Claude Code and Codex.",
   "author": { "name": "Guksu", "url": "https://github.com/Guksu" },
   "homepage": "https://github.com/Guksu/gimi",
   "repository": "https://github.com/Guksu/gimi",
   "license": "MIT",
-  "keywords": ["code-review", "testing", "ai-slop", "frontend", "backend", "commerce"],
+  "keywords": ["code-review", "ai-slop", "frontend", "backend", "commerce"],
   "skills": "./skills/",
   "interface": {
     "displayName": "gimi",
-    "shortDescription": "Context-aware code review and slop-free tests",
-    "longDescription": "Code review that reads beyond the diff, and tests without AI slop, for Claude Code and Codex.",
+    "shortDescription": "Context-aware code review",
+    "longDescription": "Code review that reads beyond the diff — impact scope, requirements and change history — for Claude Code and Codex.",
     "developerName": "Guksu",
     "category": "Coding",
     "websiteURL": "https://github.com/Guksu/gimi"

@@ -1,7 +1,0 @@
-{
-  "pattern": "async-ui-states",
-  "assets": [
-    { "file": "payment-result.test.tsx", "at": "web/src/pages/payment-result.test.tsx", "defect": "COM-015" },
-    { "file": "payment-result.slop.test.tsx", "at": "web/src/pages/payment-result.slop.test.tsx", "defect": "COM-015" }
-  ]
-}
