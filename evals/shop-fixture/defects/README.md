@@ -105,6 +105,7 @@ node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 �
 | COM-007-rollback | 백엔드 | 포인트 차감을 한 함수로 모으며 주문 트랜잭션이 아닌 풀의 다른 연결로 바꾼다 — 뒤 단계가 실패하면 포인트만 깎인 채 남는다 | 없음 · `transaction-boundary` |
 | COM-013 | 백엔드 | 전이표에 취소 → 결제 완료를 더한다 — 늦게 온 승인이 재고·포인트를 돌려준 취소 주문을 되살린다 | 없음 · `state-transition` |
 | unsafe-migration | 백엔드 | 주문 메모 열을 기본값 없는 NOT NULL로 더한다 — 빈 DB 테스트는 통과하고 주문이 있는 DB에서는 마이그레이션이 실패한다 | 없음 · `migration` |
+| COM-001 | 백엔드 | PG에 보내는 금액을 모든 통화에서 × 100(최소 단위)으로 바꾼다 — 원화 1,000원이 100,000원으로 청구되고 결제 기록도 100배로 남는다 | `server/test/payments.test.ts` · 없음 |
 
 ## 결함 없는 PR
 
