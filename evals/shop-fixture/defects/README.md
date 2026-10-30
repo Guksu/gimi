@@ -106,6 +106,7 @@ node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 �
 | COM-013 | 백엔드 | 전이표에 취소 → 결제 완료를 더한다 — 늦게 온 승인이 재고·포인트를 돌려준 취소 주문을 되살린다 | 없음 · `state-transition` |
 | unsafe-migration | 백엔드 | 주문 메모 열을 기본값 없는 NOT NULL로 더한다 — 빈 DB 테스트는 통과하고 주문이 있는 DB에서는 마이그레이션이 실패한다 | 없음 · `migration` |
 | COM-014 | 백엔드 | PG 상태 매핑을 switch로 바꾸고 모르는 상태에 예외를 던진다 — 웹훅이 500으로 실패하고 재전송은 중복으로 무시된다 | `server/test/webhooks.test.ts` · 없음 |
+| COM-017 | 백엔드 | PG 승인·조회를 모두 확인하지 못하면 리다이렉트 결과로 결제 완료를 반영한다 | 없음 · 없음 |
 
 ## 결함 없는 PR
 
