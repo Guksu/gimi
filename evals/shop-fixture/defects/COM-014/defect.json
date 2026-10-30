@@ -1,0 +1,33 @@
+{
+  "id": "COM-014",
+  "rules": [
+    "COM-014"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "refactor: PG 상태 매핑을 switch로 바꿔 빠짐없이 나열한다",
+    "body": "## 배경\nPG 상태가 늘어날 때 매핑을 빠뜨리기 쉽다.\n\n## 변경\n- PG 상태 → 주문 상태 매핑을 switch로 바꾸고, 모르는 상태는 예외로 알린다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "외부(PG)에서 온 모르는 상태에 예외를 던진다. 예전에는 보류(held)로 기록했는데, 이제 웹훅이 500으로 실패하고 이벤트는 received로 남아 PG 재전송이 중복으로 무시된다. 망라 검사는 우리 상태 union에 할 일이다",
+      "path": "server/src/payments/payments.service.ts",
+      "line": 25,
+      "evidence": [
+        {
+          "path": "server/src/webhooks/webhooks.controller.ts",
+          "line": 40
+        },
+        {
+          "path": "server/src/webhooks/webhooks.controller.ts",
+          "line": 34
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/webhooks.test.ts"
+  ]
+}

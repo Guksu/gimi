@@ -105,6 +105,7 @@ node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 �
 | COM-007-rollback | 백엔드 | 포인트 차감을 한 함수로 모으며 주문 트랜잭션이 아닌 풀의 다른 연결로 바꾼다 — 뒤 단계가 실패하면 포인트만 깎인 채 남는다 | 없음 · `transaction-boundary` |
 | COM-013 | 백엔드 | 전이표에 취소 → 결제 완료를 더한다 — 늦게 온 승인이 재고·포인트를 돌려준 취소 주문을 되살린다 | 없음 · `state-transition` |
 | unsafe-migration | 백엔드 | 주문 메모 열을 기본값 없는 NOT NULL로 더한다 — 빈 DB 테스트는 통과하고 주문이 있는 DB에서는 마이그레이션이 실패한다 | 없음 · `migration` |
+| COM-014 | 백엔드 | PG 상태 매핑을 switch로 바꾸고 모르는 상태에 예외를 던진다 — 웹훅이 500으로 실패하고 재전송은 중복으로 무시된다 | `server/test/webhooks.test.ts` · 없음 |
 
 ## 결함 없는 PR
 
