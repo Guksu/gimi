@@ -1,0 +1,30 @@
+{
+  "id": "COM-022",
+  "rules": [
+    "COM-022"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "perf: 웹훅은 먼저 200을 돌려주고 반영은 뒤에서 한다",
+    "body": "## 배경\nPG는 응답이 늦으면 웹훅을 다시 보낸다. 반영이 오래 걸리면 같은 이벤트가 여러 번 온다.\n\n## 변경\n- 웹훅에 먼저 200을 돌려주고, 결제 상태 반영은 응답 뒤에 한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "반영하기 전에 200을 돌려주고 실패는 삼킨다. 반영(PG 조회·DB 저장)이 실패하면 PG는 다시 보내지 않고, 이벤트는 이미 received로 기록돼 다음 재전송도 중복으로 무시된다 — 입금이 누락된다",
+      "path": "server/src/webhooks/webhooks.controller.ts",
+      "line": 41,
+      "evidence": [
+        {
+          "path": "server/src/webhooks/webhooks.controller.ts",
+          "line": 34
+        },
+        {
+          "path": "server/src/webhooks/webhooks.controller.ts",
+          "line": 44
+        }
+      ]
+    }
+  ]
+}
