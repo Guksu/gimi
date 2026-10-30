@@ -1,4 +1,3 @@
-<!-- @shared rules.md origin: gimi-review -->
 # 분야 프리셋 — `commerce` (커머스·결제 기술 규칙)
 
 커머스·결제에서 깨지기 쉬운 곳의 기술 규칙이다. 설정 `.agents/gimi.json`의 `presets`에 `commerce`를 넣으면 리뷰(gimi-review)와 테스트 작성(gimi-test)이 쓴다. 규칙 하나가 `## {ID} {한 줄}` 절 하나이고, 회사 규칙(`docs/gimi/rules.md`)과 형식이 같다.

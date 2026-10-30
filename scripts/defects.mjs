@@ -2,25 +2,22 @@
 /**
  * 예제 저장소의 결함 PR(설계 결정 15·41) — 검사하고, 리뷰 평가용 임시 git 저장소로 만든다.
  *
- *   node scripts/defects.mjs check [ID…] [--no-tests]   패치가 붙는지, defect.json 형식·정답 위치, 잡는 테스트(정상 통과·결함 실패),
- *                                                        패턴 예시(evals/patterns/{패턴}.json — 좋은 예시는 결함 실패, 슬롭 예시는 결함 통과)
+ *   node scripts/defects.mjs check [ID…] [--no-tests]   패치가 붙는지, defect.json 형식·정답 위치, 잡는 테스트(정상 통과·결함 실패)
  *   node scripts/defects.mjs materialize <ID> <폴더>      main = 정상 버전, defect/<ID> = 결함 PR(체크아웃)
  *        --branch <이름>   결함 브랜치 이름(기본 defect/<ID>) — 리뷰 평가에서 결함 ID가 드러나지 않게
  *        --link-deps       예제 저장소의 node_modules를 링크한다(맥락 수집이 프로젝트의 typescript를 쓰게)
  *   node scripts/defects.mjs base <폴더>                  정상 버전만 — 새 결함 패치를 만들 때 쓴다
  *   공통: --fixture <폴더>(기본 evals/shop-fixture)
- *   check: --patterns <폴더>(기본 skills/gimi-test/patterns), --pattern-specs <폴더>(기본 evals/patterns — 예제 저장소가 기본일 때만.
- *          --fixture로 다른 저장소를 주면 --pattern-specs를 함께 줄 때만 패턴 예시를 본다)
  *
  * 잡는 테스트는 예제 저장소의 의존성(npm ci)과 PostgreSQL(npm run db:up)이 있어야 돌린다. 판단은 lib/defects.mjs가 맡는다.
  */
 import { execFileSync, spawn } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseRuleFile } from '../skills/gimi-review/scripts/lib/rulefile.mjs'
-import { assetsFor, formatCheck, patchedPaths, runAssets, runCatches, validateDefect, validatePatternAssets } from './lib/defects.mjs'
+import { formatCheck, patchedPaths, runCatches, validateDefect } from './lib/defects.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BASE_MESSAGE = 'feat: 국수집 주문 앱'
@@ -46,20 +43,16 @@ class UsageError extends Error {}
 const parseArgs = (argv) => {
   const positional = []
   const defaultFixture = join(ROOT, 'evals/shop-fixture')
-  const options = { fixture: defaultFixture, tests: true, patterns: join(ROOT, 'skills/gimi-test/patterns'), patternSpecs: null, branch: null, linkDeps: false }
+  const options = { fixture: defaultFixture, tests: true, branch: null, linkDeps: false }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--fixture') options.fixture = resolve(argv[++i] ?? '')
-    else if (arg === '--patterns') options.patterns = resolve(argv[++i] ?? '')
-    else if (arg === '--pattern-specs') options.patternSpecs = resolve(argv[++i] ?? '')
     else if (arg === '--no-tests') options.tests = false
     else if (arg === '--branch') options.branch = argv[++i] ?? ''
     else if (arg === '--link-deps') options.linkDeps = true
     else if (arg.startsWith('--')) throw new UsageError(`모르는 옵션: ${arg}`)
     else positional.push(arg)
   }
-  // 패턴 예시 검증 설정은 gimi 예제 저장소 기준이다 — 다른 저장소에 대면 워크스페이스·결함이 맞지 않는다
-  if (options.patternSpecs === null && options.fixture === defaultFixture) options.patternSpecs = join(ROOT, 'evals/patterns')
   return { command: positional[0], args: positional.slice(1), options }
 }
 
@@ -164,11 +157,10 @@ const linkNodeModules = (fixture, dir) => {
   }
 }
 
-/** 예제 저장소의 vitest·tsc를 돌린다 — 출력은 outputs에 `${cwd}\0${file}`(tsc는 file이 'tsc')로 남긴다 */
+/** 예제 저장소의 vitest를 돌린다 — 출력은 outputs에 `${cwd}\0${file}`로 남긴다 */
 const runners = (fixture, outputs) => {
   const vitest = join(fixture, 'node_modules/vitest/vitest.mjs')
-  const tsc = join(fixture, 'node_modules/typescript/bin/tsc')
-  if (!existsSync(vitest) || !existsSync(tsc)) throw new UsageError(`예제 저장소에 의존성이 없다 — ${fixture}에서 npm ci를 먼저 돌린다(또는 --no-tests)`)
+  if (!existsSync(vitest)) throw new UsageError(`예제 저장소에 의존성이 없다 — ${fixture}에서 npm ci를 먼저 돌린다(또는 --no-tests)`)
   const exec = (cwd, key, args) =>
     new Promise((done) => {
       const child = spawn(process.execPath, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -182,43 +174,12 @@ const runners = (fixture, outputs) => {
     })
   return {
     run: ({ cwd, file }) => exec(cwd, file, [vitest, 'run', file]),
-    typecheck: ({ cwd }) => exec(cwd, 'tsc', [tsc, '-p', 'tsconfig.json']),
   }
 }
 
 const printTail = ({ id, label, output }) => {
   const tail = (output ?? '').trimEnd().split('\n').slice(-30)
   process.stderr.write(`--- ${id} ${label} ---\n${tail.join('\n')}\n`)
-}
-
-/**
- * 패턴 예시 검증 설정을 읽어 검사한다 — 오류가 없는 설정만 돌린다
- * @returns {{ specs: any[], errors: string[] }}
- */
-const loadPatternSpecs = ({ fixture, patterns, patternSpecs, defectIds }) => {
-  const files = patternSpecs && existsSync(patternSpecs) ? readdirSync(patternSpecs).filter((name) => name.endsWith('.json')).sort() : []
-  const assetsOf = (pattern) => {
-    if (typeof pattern !== 'string' || !existsSync(join(patterns, pattern, 'PATTERN.md'))) return null
-    const dir = join(patterns, pattern, 'assets')
-    return existsSync(dir) ? readdirSync(dir).sort() : []
-  }
-  const specs = []
-  const errors = []
-  for (const name of files) {
-    const file = relative(ROOT, join(patternSpecs, name))
-    let spec
-    try {
-      spec = JSON.parse(readFileSync(join(patternSpecs, name), 'utf8'))
-    } catch (error) {
-      errors.push(`${file}: 읽지 못했다 — ${error.message}`)
-      continue
-    }
-    const found = validatePatternAssets({ file, spec, assetsOf, defectIds, workspaces: workspacesOf(fixture), baseHas: (path) => existsSync(join(fixture, path)) })
-    if (spec.pattern !== name.replace(/\.json$/, '')) found.push(`${file}: 파일 이름과 pattern(${spec.pattern})이 다르다`)
-    errors.push(...found)
-    if (found.length === 0) specs.push(spec)
-  }
-  return { specs, errors }
 }
 
 const ruleIds = () => {
@@ -232,8 +193,8 @@ const ruleIds = () => {
   return ids
 }
 
-const checkOne = async ({ fixture, id, ids, tests, patterns, assets }) => {
-  const result = { id, defect: null, errors: [], catches: null, assets: null }
+const checkOne = async ({ fixture, id, ids, tests }) => {
+  const result = { id, defect: null, errors: [], catches: null }
   let loaded
   try {
     loaded = readDefect(fixture, id)
@@ -259,11 +220,11 @@ const checkOne = async ({ fixture, id, ids, tests, patterns, assets }) => {
     const catches = Array.isArray(loaded.json.catches) ? loaded.json.catches : []
     if (!tests || result.errors.length > 0) return result
     result.catches = []
-    if (catches.length === 0 && assets.length === 0) return result
+    if (catches.length === 0) return result
     linkNodeModules(fixture, base)
     linkNodeModules(fixture, patched)
     const outputs = new Map()
-    const { run, typecheck } = runners(fixture, outputs)
+    const { run } = runners(fixture, outputs)
     const outputOf = (dir, path, key) => outputs.get(`${dir}/${path.split('/')[0]}\0${key ?? path.split('/').slice(1).join('/')}`)
     if (catches.length > 0) {
       result.catches = await runCatches({ base, patched, catches, run })
@@ -273,44 +234,27 @@ const checkOne = async ({ fixture, id, ids, tests, patterns, assets }) => {
         if (failed.base !== 0) printTail({ id, label: `${failed.path} (정상 버전)`, output: outputOf(base, failed.path) })
       }
     }
-    if (assets.length > 0) {
-      // 패턴 예시는 정본(skills/gimi-test/patterns)을 두 버전의 at 자리에 복사해 돌린다 — 예제 저장소에는 복사본을 두지 않는다(설계 결정 30)
-      for (const dir of [base, patched]) {
-        for (const asset of assets) {
-          mkdirSync(dirname(join(dir, asset.at)), { recursive: true })
-          copyFileSync(join(patterns, asset.pattern, 'assets', asset.file), join(dir, asset.at))
-        }
-      }
-      result.assets = await runAssets({ base, patched, assets, run, typecheck })
-      for (const failed of result.assets.filter((r) => !r.ok)) {
-        result.errors.push(failed.error)
-        if (failed.kind === 'typecheck') printTail({ id, label: `${failed.path} 타입 검사 (정상 버전)`, output: outputOf(base, `${failed.path}/`, 'tsc') })
-        else if (failed.base !== 0) printTail({ id, label: `${failed.path} (정상 버전)`, output: outputOf(base, failed.path) })
-        else if (failed.kind === 'slop') printTail({ id, label: `${failed.path} (결함 버전)`, output: outputOf(patched, failed.path) })
-      }
-    }
     return result
   } finally {
     rmSync(tmp, { recursive: true, force: true })
   }
 }
 
-const check = async ({ fixture, ids: selected, tests, patterns, patternSpecs }) => {
+const check = async ({ fixture, ids: selected, tests }) => {
   const folder = join(fixture, 'defects')
   const all = existsSync(folder) ? readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort() : []
   const unknown = selected.filter((id) => !all.includes(id))
   if (unknown.length > 0) throw new UsageError(`없는 결함: ${unknown.join(', ')} (있는 것: ${all.join(', ') || '없음'})`)
   const ids = ruleIds()
-  const loaded = loadPatternSpecs({ fixture, patterns, patternSpecs, defectIds: new Set(all) })
   const results = []
-  for (const id of selected.length > 0 ? selected : all) results.push(await checkOne({ fixture, id, ids, tests, patterns, assets: assetsFor(loaded.specs, id) }))
-  console.log(formatCheck(results, { tests, setupErrors: loaded.errors }))
-  return results.some((result) => result.errors.length > 0) || loaded.errors.length > 0 ? 1 : 0
+  for (const id of selected.length > 0 ? selected : all) results.push(await checkOne({ fixture, id, ids, tests }))
+  console.log(formatCheck(results, { tests }))
+  return results.some((result) => result.errors.length > 0) ? 1 : 0
 }
 
 const main = async () => {
   const { command, args, options } = parseArgs(process.argv.slice(2))
-  if (command === 'check') return check({ fixture: options.fixture, ids: args, tests: options.tests, patterns: options.patterns, patternSpecs: options.patternSpecs })
+  if (command === 'check') return check({ fixture: options.fixture, ids: args, tests: options.tests })
   if (command === 'materialize' && args.length === 2) {
     const dir = resolve(args[1])
     const branch = options.branch || `defect/${args[0]}`
@@ -328,7 +272,7 @@ const main = async () => {
     console.log(`${dir}\n  main = 정상 버전 — 고친 뒤 git diff > defects/<ID>/change.patch`)
     return 0
   }
-  throw new UsageError('사용법: defects.mjs check [ID…] [--no-tests] [--patterns <폴더>] [--pattern-specs <폴더>] | materialize <ID> <폴더> [--branch <이름>] [--link-deps] | base <폴더> [--link-deps]  [--fixture <폴더>]')
+  throw new UsageError('사용법: defects.mjs check [ID…] [--no-tests] | materialize <ID> <폴더> [--branch <이름>] [--link-deps] | base <폴더> [--link-deps]  [--fixture <폴더>]')
 }
 
 main().then(

@@ -1,4 +1,3 @@
-// @shared rulefile.mjs origin: gimi-review
 /**
  * 규칙 파일 읽기(설계 결정 26·35·40·43) — 공통 금지선(shared/rules/*.md), 분야 프리셋(shared/domains/{이름}/rules.md),
  * 회사 규칙(docs/gimi/rules.md)은 같은 형식이다. 규칙 하나가 "## {ID} {한 줄}" 절 하나이고, 절 안에 "- 이름: 값" 항목을 둔다.

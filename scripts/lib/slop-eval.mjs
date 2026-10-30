@@ -5,7 +5,7 @@
  * 사람이 읽고 틀렸다고 걸러 낸 지적(rejected — 같은 실행·같은 줄·같은 위치)은 세지 않는다.
  * 실행(모델 부르기·저장소·파일)은 scripts/slop-eval.mjs가 맡는다.
  */
-import { itemText } from '../../skills/gimi-test/scripts/lib/rulefile.mjs'
+import { itemText } from '../../skills/gimi-review/scripts/lib/rulefile.mjs'
 
 export const ARMS = { without: 'gimi 없이', with: 'gimi 있이' }
 export const AREA_LABEL = { test: '테스트', code: '코드', done: '완료 보고', review: '리뷰' }

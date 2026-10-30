@@ -1,64 +1,17 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkAgentDocs, checkManifests, checkRoot, checkRules, checkSharedCopies, checkSkillDoc, checkSkillSet } from '../scripts/lib/skills.mjs'
+import { checkAgentDocs, checkManifests, checkRoot, checkRules, checkSkillDoc, checkSkillSet } from '../scripts/lib/skills.mjs'
 
-describe('checkSharedCopies', () => {
-  const header = '// @shared exec.mjs origin: gimi-review\n'
-  const origin = { skill: 'gimi-review', path: 'scripts/lib/exec.mjs', text: `${header}export const a = 1\n` }
-
-  it('원본과 내용이 같은 복사본은 통과한다', () => {
-    const copy = { skill: 'gimi-test', path: 'scripts/lib/exec.mjs', text: origin.text }
-    assert.deepEqual(checkSharedCopies({ files: [origin, copy] }), [])
-  })
-
-  it('복사본이 원본과 다르면 오류', () => {
-    const copy = { skill: 'gimi-test', path: 'scripts/lib/exec.mjs', text: `${header}export const a = 2\n` }
-    const errors = checkSharedCopies({ files: [origin, copy] })
-    assert.equal(errors.length, 1)
-    assert.match(errors[0], /skills\/gimi-test\/scripts\/lib\/exec\.mjs.*원본.*다름/)
-  })
-
-  it('원본이 없으면 오류', () => {
-    const copy = { skill: 'gimi-test', path: 'scripts/lib/exec.mjs', text: origin.text }
-    assert.equal(checkSharedCopies({ files: [copy] }).length, 1)
-  })
-
-  it('머리의 파일 이름이 실제 파일 이름과 다르면 오류', () => {
-    const wrong = { skill: 'gimi-review', path: 'scripts/lib/other.mjs', text: origin.text }
-    assert.ok(checkSharedCopies({ files: [wrong] }).some((e) => /파일 이름/.test(e)))
-  })
-
-  it('머리가 없는 파일은 보지 않는다', () => {
-    assert.deepEqual(checkSharedCopies({ files: [{ skill: 'gimi-test', path: 'scripts/lib/run.mjs', text: '/** 그냥 파일 */\n' }] }), [])
-  })
-
-  it('Markdown은 HTML 주석 머리(<!-- @shared … origin: … -->)로 같은 검사를 한다', () => {
-    const md = '<!-- @shared test.md origin: gimi-test -->\n# 테스트 금지선\n'
-    const mdOrigin = { skill: 'gimi-test', path: 'shared/rules/test.md', text: md }
-    assert.deepEqual(checkSharedCopies({ files: [mdOrigin, { skill: 'gimi-review', path: 'shared/rules/test.md', text: md }] }), [])
-    assert.equal(checkSharedCopies({ files: [mdOrigin, { skill: 'gimi-review', path: 'shared/rules/test.md', text: `${md}고침\n` }] }).length, 1)
-  })
-})
-
-describe('checkRules — 규칙 파일과 check.mjs가 맞는지', () => {
+describe('checkRules — 규칙 파일의 형식', () => {
   const rule = (id, check) => `## ${id} 한 줄\n- 대상: 둘 다\n- 왜: a\n- 대신: b\n- 확인: c\n- 검사: ${check}\n- 근거: 측정 전\n`
-  const files = (text) => [{ path: 'skills/gimi-test/shared/rules/test.md', text, kind: 'slop', area: 'test' }]
+  const files = (text) => [{ path: 'skills/gimi-review/shared/rules/test.md', text, kind: 'slop', area: 'test' }]
 
-  it('검사 error·warn인 규칙과 check.mjs가 내는 지적의 ID·등급이 같으면 통과한다 — 리뷰·기록 줄은 check.mjs에 없어도 된다', () => {
-    const text = `${rule('test/only-left', 'error')}\n${rule('test/real-wait', 'warn')}\n${rule('test/sequential-only', '리뷰')}`
-    assert.deepEqual(checkRules({ files: files(text), slopSeverity: { 'test/only-left': 'error', 'test/real-wait': 'warn' } }), [])
+  it('형식이 맞으면 통과한다', () => {
+    assert.deepEqual(checkRules({ files: files(`${rule('test/only-left', '리뷰')}\n${rule('test/sequential-only', '기록')}`) }), [])
   })
 
-  it('규칙 파일에만 있거나, check.mjs에만 있거나, 등급이 다르면 오류다', () => {
-    const text = `${rule('test/only-left', 'warn')}\n${rule('test/tautology', 'warn')}`
-    const errors = checkRules({ files: files(text), slopSeverity: { 'test/only-left': 'error', 'code/empty-catch': 'error' } })
-    assert.ok(errors.some((e) => /test\/only-left.*error/.test(e)))
-    assert.ok(errors.some((e) => /test\/tautology.*check\.mjs에 없다/.test(e)))
-    assert.ok(errors.some((e) => /code\/empty-catch.*규칙 파일에 없다/.test(e)))
-  })
-
-  it('형식 오류도 함께 낸다', () => {
-    assert.ok(checkRules({ files: files('## test/a 한 줄\n- 대상: 둘 다\n'), slopSeverity: {} }).some((e) => /필수 항목/.test(e)))
+  it('형식 오류를 낸다', () => {
+    assert.ok(checkRules({ files: files('## test/a 한 줄\n- 대상: 둘 다\n') }).some((e) => /필수 항목/.test(e)))
   })
 })
 
@@ -115,10 +68,11 @@ describe('checkSkillDoc', () => {
 })
 
 describe('checkSkillSet', () => {
-  it('skills/ 아래 SKILL.md는 두 스킬의 것뿐이어야 한다', () => {
-    assert.deepEqual(checkSkillSet({ skillDocs: ['skills/gimi-review/SKILL.md', 'skills/gimi-test/SKILL.md'] }), [])
-    assert.equal(checkSkillSet({ skillDocs: ['skills/gimi-review/SKILL.md'] }).length, 1)
-    assert.equal(checkSkillSet({ skillDocs: ['skills/gimi-review/SKILL.md', 'skills/gimi-test/SKILL.md', 'skills/gimi-test/patterns/x/SKILL.md'] }).length, 1)
+  it('skills/ 아래 SKILL.md는 gimi-review의 것뿐이어야 한다', () => {
+    assert.deepEqual(checkSkillSet({ skillDocs: ['skills/gimi-review/SKILL.md'] }), [])
+    assert.equal(checkSkillSet({ skillDocs: [] }).length, 1)
+    assert.equal(checkSkillSet({ skillDocs: ['skills/gimi-review/SKILL.md', 'skills/gimi-test/SKILL.md'] }).length, 1)
+    assert.equal(checkSkillSet({ skillDocs: ['skills/gimi-review/SKILL.md', 'skills/gimi-review/shared/x/SKILL.md'] }).length, 1)
   })
 })
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 금지선 표 생성(설계 결정 34) — 두 스킬 SKILL.md의 표 블록(<!-- slop-table:start --> … end)을 규칙 파일의 근거로 다시 쓴다.
- * 정본은 원본 규칙 파일(test·done은 gimi-test, code는 gimi-review)의 `근거`다. 측정 결과는 slop-eval.mjs apply가 근거에 옮긴다.
- * gimi-test에는 테스트·완료 보고·코드 줄, gimi-review에는 코드 줄을 둔다. gimi 없이 한 번 이상 나온 줄만 올라간다.
+ * 금지선 표 생성(설계 결정 34) — gimi-review SKILL.md의 표 블록(<!-- slop-table:start --> … end)을 규칙 파일의 근거로 다시 쓴다.
+ * 정본은 규칙 파일(skills/gimi-review/shared/rules/{test,code,review}.md)의 `근거`다. 측정 결과는 slop-eval.mjs apply가 근거에 옮긴다.
+ * 테스트·코드·리뷰 줄 가운데 gimi 없이 한 번 이상 나온 줄만 올라간다.
  *
  *   node scripts/buildSlopTable.mjs            블록을 다시 쓴다
  *   node scripts/buildSlopTable.mjs --check    쓰지 않고 어긋났는지만 본다(어긋나면 exit 1)
@@ -16,17 +16,13 @@ import { fileURLToPath } from 'node:url'
 import { renderSlopTable, replaceSlopBlock } from './lib/slop-table.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const ORIGIN = { test: 'gimi-test', done: 'gimi-test', code: 'gimi-review', review: 'gimi-review' }
-export const SLOP_TABLES = [
-  { skill: 'gimi-test', areas: ['test', 'done', 'code'] },
-  { skill: 'gimi-review', areas: ['code', 'review'] },
-]
+export const SLOP_TABLES = [{ skill: 'gimi-review', areas: ['test', 'code', 'review'] }]
 
 /** 스킬마다 지금 SKILL.md와 규칙 파일로 만든 SKILL.md — 표시가 없으면 expected가 null */
 export const expectedSlopDocuments = (root = ROOT) =>
   SLOP_TABLES.map(({ skill, areas }) => {
     const path = join(root, 'skills', skill, 'SKILL.md')
-    const files = areas.map((area) => ({ area, text: readFileSync(join(root, 'skills', ORIGIN[area], 'shared/rules', `${area}.md`), 'utf8') }))
+    const files = areas.map((area) => ({ area, text: readFileSync(join(root, 'skills', skill, 'shared/rules', `${area}.md`), 'utf8') }))
     const current = readFileSync(path, 'utf8')
     return { skill, path, current, expected: replaceSlopBlock({ document: current, block: renderSlopTable({ files }) }) }
   })

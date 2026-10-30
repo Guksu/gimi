@@ -1,11 +1,10 @@
-// @shared rules.mjs origin: gimi-review
 /**
  * 규칙 보이기(설계 결정 43) — 공통 금지선·분야 프리셋·회사 규칙 가운데 이 프로젝트의 설정에 맞는 것만 보인다.
  * 설정 .agents/gimi.json의 stacks(대상)·presets와 회사 규칙(docs/gimi/rules.md)의 "끈 프리셋 규칙"을 반영한다.
  * 에이전트는 목록을 먼저 보고, 필요한 규칙만 --id로 전문을 읽는다.
  *
  *   node rules.mjs                        # 설정에 맞는 규칙을 한 줄씩
- *   node rules.mjs --area test,done       # 공통 금지선의 영역을 고른다(기본 네 영역 모두)
+ *   node rules.mjs --area test,code       # 공통 금지선의 영역을 고른다(기본 세 영역 모두)
  *   node rules.mjs --id COM-003,SHOP-001  # 그 규칙의 절을 그대로
  *   node rules.mjs --full                 # 걸러진 규칙의 절을 모두
  *   node rules.mjs --boundaries           # 프리셋·회사 규칙의 경계값 가운데 stacks에 맞는 층만
@@ -19,9 +18,9 @@ import { fileURLToPath } from 'node:url'
 import { attempt, createExec } from './lib/exec.mjs'
 import { itemText, matchesStacks, parseRuleFile } from './lib/rulefile.mjs'
 
-const USAGE = '사용: node rules.mjs [--area test,code,review,done] [--id ID,…] [--full] [--boundaries] [--json]'
+const USAGE = '사용: node rules.mjs [--area test,code,review] [--id ID,…] [--full] [--boundaries] [--json]'
 const HERE = dirname(fileURLToPath(import.meta.url))
-const AREAS = ['test', 'code', 'review', 'done']
+const AREAS = ['test', 'code', 'review']
 const COMPANY_PATH = 'docs/gimi/rules.md'
 const INTERPRETED = /해석 — 팀 확인 필요/
 
@@ -174,7 +173,7 @@ const main = () => {
     }
   }
   for (const note of notes) rows.push(`참고      ${note}`)
-  if (!args.boundaries && !args.full) rows.push('전문      --id ID(여러 개는 쉼표), 걸러진 전부는 --full, 테스트에 넣을 경계값은 --boundaries')
+  if (!args.boundaries && !args.full) rows.push('전문      --id ID(여러 개는 쉼표), 걸러진 전부는 --full, 리뷰에서 짚을 경계값은 --boundaries')
   process.stdout.write(`${rows.join('\n')}\n`)
   return 0
 }

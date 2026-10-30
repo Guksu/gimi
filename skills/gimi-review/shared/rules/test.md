@@ -1,4 +1,3 @@
-<!-- @shared test.md origin: gimi-test -->
 # 테스트 금지선 — `test/`
 
 AI가 쓴 테스트에서 흔히 나오는 슬롭이다. 규칙 하나가 `## {ID} {한 줄}` 절 하나다.

@@ -1,7 +1,0 @@
-{
-  "pattern": "regression-first",
-  "assets": [
-    { "file": "kst-day-regression.test.ts", "at": "server/test/kst-day-regression.test.ts", "defect": "HIST-001" },
-    { "file": "kst-day-regression.slop.test.ts", "at": "server/test/kst-day-regression.slop.test.ts", "defect": "HIST-001" }
-  ]
-}

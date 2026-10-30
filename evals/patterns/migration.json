@@ -1,7 +1,0 @@
-{
-  "pattern": "migration",
-  "assets": [
-    { "file": "migrations.test.ts", "at": "server/test/migrations.test.ts", "defect": "unsafe-migration" },
-    { "file": "migrations.slop.test.ts", "at": "server/test/migrations.slop.test.ts", "defect": "unsafe-migration" }
-  ]
-}

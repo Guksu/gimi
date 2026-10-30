@@ -2,18 +2,18 @@
  * 스킬 구조 검사의 순수 로직 — 입력(문서 내용·매니페스트·파일 목록)을 받아 오류 문장 목록을 돌려준다.
  * 파일 읽기와 종료 코드는 scripts/validateSkills.mjs가 맡는다. suta의 validateSkills.mjs에서 gimi에 맞는 검사만 가져왔다.
  */
-import { checkRuleFile, itemText, parseRuleFile } from '../../skills/gimi-review/scripts/lib/rulefile.mjs'
+import { checkRuleFile } from '../../skills/gimi-review/scripts/lib/rulefile.mjs'
 import { bodyOf, fieldOf, frontmatterOf } from './frontmatter.mjs'
 
-export const SKILLS = ['gimi-review', 'gimi-test']
-// 두 스킬이 모두 갖는 공유 파일 — 공통 금지선 네 영역(결정 43)과 분야 프리셋(결정 39)
-export const SHARED_FILES = ['shared/rules/test.md', 'shared/rules/code.md', 'shared/rules/review.md', 'shared/rules/done.md', 'shared/domains/commerce/rules.md', 'shared/domains/kr-commerce-law/rules.md']
+export const SKILLS = ['gimi-review']
+// 규칙 파일 — 공통 금지선 세 영역(결정 43·52)과 분야 프리셋(결정 39)
+export const RULE_FILES = ['shared/rules/test.md', 'shared/rules/code.md', 'shared/rules/review.md', 'shared/domains/commerce/rules.md', 'shared/domains/kr-commerce-law/rules.md']
 export const PRESET_PREFIX = { commerce: 'COM', 'kr-commerce-law': 'KCL' }
 export const PLUGIN = 'gimi'
 // 저장소 루트가 곧 플러그인이라, 이런 것이 생기면 설치한 사용자 환경에 그대로 로드된다
 const ROOT_COMPONENTS = ['commands', 'agents', 'hooks', 'output-styles', '.mcp.json']
 // 본문이 가리키는 스킬 안의 경로 — 설치된 프로젝트에도 함께 들어가므로 실재해야 한다(회사 저장소 경로 docs/gimi/…는 대상이 아니다)
-const SKILL_REF = /`((?:references|scripts|patterns|shared)\/[^`*{}\s]+)`|\]\(((?:references|scripts|patterns|shared)\/[^)\s]+)\)/g
+const SKILL_REF = /`((?:references|scripts|shared)\/[^`*{}\s]+)`|\]\(((?:references|scripts|shared)\/[^)\s]+)\)/g
 
 /**
  * SKILL.md 하나 — frontmatter·name·description·본문 길이·참조 경로
@@ -90,58 +90,18 @@ export const checkManifests = ({ claudePlugin, claudeMarketplace, codexPlugin, a
   if (agentsEntry.source?.source !== 'local' || agentsEntry.source?.path !== './') errors.push('.agents/plugins/marketplace.json 플러그인 source는 { "source": "local", "path": "./" }여야 한다')
   if (codexPlugin.skills !== './skills/') errors.push('.codex-plugin/plugin.json의 skills는 "./skills/"여야 한다')
 
-  // 설치만으로 모든 프로젝트에서 훅이 돌지 않게 한다 — 끝내기 전 검사는 프로젝트별 옵트인(설계 결정 9)
+  // 설치만으로 모든 프로젝트에서 훅이 돌지 않게 한다 — 리뷰는 요청할 때만 돈다(설계 결정 7)
   for (const [where, manifest] of [['.claude-plugin/plugin.json', claudePlugin], ['.codex-plugin/plugin.json', codexPlugin]]) {
-    if (manifest.hooks) errors.push(`${where}: 훅이 있음 — gimi는 매니페스트에 훅을 두지 않는다(설계 결정 7·9)`)
-  }
-  return errors
-}
-
-// .mjs는 // 주석, Markdown은 HTML 주석으로 첫 줄에 단다
-const SHARED_HEADER = /^(?:\/\/|<!--) @shared (\S+) origin: ([\w-]+)\s*(?:-->)?\s*$/
-
-/**
- * 두 스킬이 함께 쓰는 파일 — 각 스킬에 복사본을 두고(스킬 하나만 설치해도 돈다), 첫 줄 머리로 원본을 가리킨다.
- * 복사본은 원본과 바이트 단위로 같아야 한다. 한쪽만 고치면 두 스킬이 다르게 동작한다.
- * @param {{ files: { skill: string, path: string, text: string }[] }} args path는 스킬 폴더 기준
- */
-export const checkSharedCopies = ({ files }) => {
-  const errors = []
-  const byKey = new Map(files.map((file) => [`${file.skill}/${file.path}`, file]))
-  for (const file of files) {
-    const header = file.text.split('\n')[0].match(SHARED_HEADER)
-    if (!header) continue
-    const [, name, origin] = header
-    const label = `skills/${file.skill}/${file.path}`
-    if (!file.path.endsWith(`/${name}`)) errors.push(`${label}: @shared 머리의 파일 이름(${name})이 실제 파일 이름과 다름`)
-    if (origin === file.skill) continue
-    const source = byKey.get(`${origin}/${file.path}`)
-    if (!source) errors.push(`${label}: 원본 skills/${origin}/${file.path} 없음`)
-    else if (source.text !== file.text) errors.push(`${label}: 원본 skills/${origin}/${file.path}과 다름 — 원본을 다시 복사한다`)
+    if (manifest.hooks) errors.push(`${where}: 훅이 있음 — gimi는 매니페스트에 훅을 두지 않는다(설계 결정 7)`)
   }
   return errors
 }
 
 /**
- * 규칙 파일(공통 금지선·분야 프리셋)의 형식과, 검사 error·warn 줄이 check.mjs가 실제로 내는 지적과 맞는지
- * @param {{ files: { path: string, text: string, kind: 'slop' | 'preset', area?: string, prefix?: string }[], slopSeverity: Record<string, 'error' | 'warn'> }} args
+ * 규칙 파일(공통 금지선·분야 프리셋)의 형식
+ * @param {{ files: { path: string, text: string, kind: 'slop' | 'preset', area?: string, prefix?: string }[] }} args
  */
-export const checkRules = ({ files, slopSeverity }) => {
-  const errors = files.flatMap((file) => checkRuleFile(file))
-  const declared = new Map()
-  for (const file of files.filter((f) => f.kind === 'slop')) {
-    for (const rule of parseRuleFile(file.text).rules) {
-      const check = itemText(rule, '검사').match(/^(error|warn)\b/)?.[1]
-      if (check) declared.set(rule.id, { check, path: file.path })
-    }
-  }
-  for (const [id, { check, path }] of declared) {
-    if (!(id in slopSeverity)) errors.push(`${path} ${id} — 검사 ${check}인데 check.mjs에 없다 — 검사를 구현하거나 검사 항목을 리뷰로 바꾼다`)
-    else if (slopSeverity[id] !== check) errors.push(`${path} ${id} — 검사는 ${check}인데 check.mjs는 ${slopSeverity[id]}로 낸다`)
-  }
-  for (const id of Object.keys(slopSeverity)) if (!declared.has(id)) errors.push(`${id} — check.mjs가 내는 지적인데 규칙 파일에 없다(또는 검사가 error·warn이 아니다)`)
-  return errors
-}
+export const checkRules = ({ files }) => files.flatMap((file) => checkRuleFile(file))
 
 /** @param {{ entries: string[] }} args 저장소 루트의 파일·폴더 이름 */
 export const checkRoot = ({ entries }) =>

@@ -1,4 +1,3 @@
-// @shared diff.mjs origin: gimi-review
 /**
  * `git diff --unified=0` 출력 해석 — 파일마다 변경 덩어리(hunk)와 지운 줄·더한 줄 번호를 돌려준다.
  * 앞뒤 문맥 줄 없이(--unified=0) 받으므로 덩어리 안의 줄은 모두 지운 줄(-)이거나 더한 줄(+)이다.

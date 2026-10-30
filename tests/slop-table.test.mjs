@@ -2,8 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { applyEvidence, evidenceText, parseEvidence, renderSlopTable, replaceSlopBlock, SLOP_TABLE_END, SLOP_TABLE_START } from '../scripts/lib/slop-table.mjs'
 
-const RULES = `<!-- @shared test.md origin: gimi-test -->
-# 테스트 금지선
+const RULES = `# 테스트 금지선
 
 ## test/no-assertion 단언이 없는 테스트를 쓰지 않는다
 - 대상: 둘 다

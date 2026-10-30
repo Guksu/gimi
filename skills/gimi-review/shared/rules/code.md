@@ -1,4 +1,3 @@
-<!-- @shared code.md origin: gimi-review -->
 # 코드 금지선 — `code/`
 
 AI가 쓴 코드에서 흔히 나오는 슬롭이다. 리뷰(gimi-review)와 끝내기 전 검사(gimi-test)가 함께 쓴다. 규칙 하나가 `## {ID} {한 줄}` 절 하나다.

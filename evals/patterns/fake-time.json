@@ -1,7 +1,0 @@
-{
-  "pattern": "fake-time",
-  "assets": [
-    { "file": "deadline-display.test.tsx", "at": "web/src/pages/deadline-display.test.tsx", "defect": "COM-012" },
-    { "file": "deadline-display.slop.test.tsx", "at": "web/src/pages/deadline-display.slop.test.tsx", "defect": "COM-012" }
-  ]
-}

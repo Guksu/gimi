@@ -2,8 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { checkRuleFile, matchesStacks, parseRuleFile } from '../skills/gimi-review/scripts/lib/rulefile.mjs'
 
-const SLOP = `<!-- @shared test.md origin: gimi-test -->
-# 테스트 금지선
+const SLOP = `# 테스트 금지선
 
 머리 글은 규칙이 아니다.
 
@@ -54,8 +53,8 @@ describe('parseRuleFile', () => {
   it('## ID 한 줄 절과 - 이름: 값 항목을 읽는다 — 이어지는 줄은 값에 붙고, ID가 아닌 ## 제목은 묶음 제목이다', () => {
     const file = parseRuleFile(SLOP)
     assert.deepEqual(file.rules.map((r) => [r.id, r.title, r.line]), [
-      ['test/only-left', '.only·fit을 남기지 않는다', 6],
-      ['test/real-wait', '실제 시간을 기다리지 않는다', 14],
+      ['test/only-left', '.only·fit을 남기지 않는다', 5],
+      ['test/real-wait', '실제 시간을 기다리지 않는다', 13],
     ])
     assert.equal(file.rules[1].items.get('왜').value, '느리고 가끔 깨진다')
     assert.equal(file.rules[0].items.get('검사').value, 'error')

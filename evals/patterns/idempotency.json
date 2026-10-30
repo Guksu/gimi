@@ -1,7 +1,0 @@
-{
-  "pattern": "idempotency",
-  "assets": [
-    { "file": "payment-once.test.ts", "at": "server/test/payment-once.test.ts", "defect": "COM-018" },
-    { "file": "payment-once.slop.test.ts", "at": "server/test/payment-once.slop.test.ts", "defect": "COM-018" }
-  ]
-}

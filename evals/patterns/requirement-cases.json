@@ -1,7 +1,0 @@
-{
-  "pattern": "requirement-cases",
-  "assets": [
-    { "file": "shipping-requirements.test.ts", "at": "server/test/shipping-requirements.test.ts", "defect": "COM-029" },
-    { "file": "shipping-requirements.slop.test.ts", "at": "server/test/shipping-requirements.slop.test.ts", "defect": "COM-029" }
-  ]
-}
