@@ -108,7 +108,7 @@ describe('checkManifests', () => {
     assert.equal(checkManifests(m).length, 3)
   })
 
-  it('매니페스트에 훅이 있으면 오류 — 끝내기 전 검사는 프로젝트별 옵트인이다', () => {
+  it('매니페스트에 훅이 있으면 오류 — 리뷰는 요청할 때만 돈다', () => {
     const m = manifests()
     m.claudePlugin.hooks = { Stop: [] }
     m.codexPlugin.hooks = { Stop: [] }

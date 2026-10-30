@@ -112,7 +112,8 @@ export const checkRuleFile = ({ path, text, kind, area, prefix }) => {
     if (kind === 'preset' && !rule.id.startsWith(`${prefix}-`)) errors.push(`${at} — 이 프리셋의 ID는 ${prefix}-로 시작한다`)
     const target = itemText(rule, '대상')
     if (target && !/^(?:프론트|백엔드|둘 다)/.test(target)) errors.push(`${at} — 대상은 프론트·백엔드·둘 다 중 하나로 시작한다`)
-    if (kind === 'slop' && itemText(rule, '검사') && !/^(?:error|warn|리뷰|기록|출력)/.test(itemText(rule, '검사'))) errors.push(`${at} — 검사는 error·warn·리뷰·기록·출력 중 하나로 시작한다`)
+    // 정적 검사(error·warn)는 테스트 스킬과 함께 지웠다(설계 결정 52) — 금지선은 리뷰가 보거나 리뷰 기록에서 잡는다
+    if (kind === 'slop' && itemText(rule, '검사') && !/^(?:리뷰|기록)/.test(itemText(rule, '검사'))) errors.push(`${at} — 검사는 리뷰·기록 중 하나로 시작한다`)
     if (kind === 'preset') {
       const source = itemText(rule, '근거')
       if (/URL 확인 필요/.test(source)) errors.push(`${at} — 근거에 "URL 확인 필요"가 남았다 — 직접 열어 확인하고 고친다`)
