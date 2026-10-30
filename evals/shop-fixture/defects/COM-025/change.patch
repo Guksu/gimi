@@ -1,0 +1,16 @@
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..1baf664 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -196,8 +196,9 @@ export class OrdersService {
+     const refundable = order.total - order.refunded_amount
+     const amount = input.amount ?? refundable
+     if (!Number.isSafeInteger(amount) || (amount as number) <= 0) throw fail(400, 'INVALID_AMOUNT', '취소 금액은 양의 정수다')
+-    if ((amount as number) > refundable) throw fail(400, 'EXCEED_REFUNDABLE', `남은 금액은 ${refundable}원이다`)
+-    await this.callPg(() => this.pg.cancel(payment.payment_key, { cancelAmount: amount as number, refundableAmount: refundable, cancelReason: reason }))
++    // 한 번에 결제 금액보다 많이 취소할 수는 없다
++    if ((amount as number) > order.total) throw fail(400, 'EXCEED_REFUNDABLE', `결제 금액은 ${order.total}원이다`)
++    await this.callPg(() => this.pg.cancel(payment.payment_key, { cancelAmount: amount as number, cancelReason: reason }))
+     await this.db.transaction(async (tx) => {
+       const full = (amount as number) === refundable
+       const updated = await tx.query(
