@@ -1,0 +1,26 @@
+{
+  "id": "COM-004",
+  "rules": [
+    "COM-004"
+  ],
+  "context": "도메인 규칙",
+  "layer": "프론트",
+  "pr": {
+    "title": "feat: 주문 상세에 환불할 수 있는 금액을 보인다",
+    "body": "## 배경\n부분 환불 뒤에 얼마가 남았는지 묻는 문의가 있었다.\n\n## 변경\n- 주문 상세에 환불할 수 있는 금액(서버가 준 refundableAmount)을 보인다"
+  },
+  "findings": [
+    {
+      "level": "고치면 좋음",
+      "summary": "금액을 공통 포맷터(formatPrice) 대신 toLocaleString()에 원을 이어 붙여 보인다. 기기 언어에 따라 구분 기호가 달라지고(예: 1.000원), 화면마다 금액 표시가 갈린다",
+      "path": "web/src/pages/OrderPage.tsx",
+      "line": 65,
+      "evidence": [
+        {
+          "path": "web/src/money/format.ts",
+          "line": 1
+        }
+      ]
+    }
+  ]
+}
