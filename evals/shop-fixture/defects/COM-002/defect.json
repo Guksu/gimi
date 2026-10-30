@@ -1,0 +1,30 @@
+{
+  "id": "COM-002",
+  "rules": [
+    "COM-002"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "refactor: 적립률을 상수로 꺼낸다",
+    "body": "## 배경\n적립 이벤트 때마다 적립률을 찾기 어렵다.\n\n## 변경\n- 결제 완료 반영의 적립 계산을 `EARN_RATE` 상수로 바꾼다. 지금처럼 1%다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "원 미만 계산을 money.ts의 함수(pointsToEarn — 버림) 밖에서 Math.round로 한다. 반올림 방식이 버림에서 반올림으로 바뀌어 15,150원 결제의 적립이 151점에서 152점이 된다",
+      "path": "server/src/payments/payments.service.ts",
+      "line": 86,
+      "evidence": [
+        {
+          "path": "server/src/money.ts",
+          "line": 18
+        },
+        {
+          "path": "server/src/money.ts",
+          "line": 2
+        }
+      ]
+    }
+  ]
+}

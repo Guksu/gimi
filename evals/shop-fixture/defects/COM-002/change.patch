@@ -1,0 +1,31 @@
+diff --git a/server/src/payments/payments.service.ts b/server/src/payments/payments.service.ts
+index c6428fd..77643d0 100644
+--- a/server/src/payments/payments.service.ts
++++ b/server/src/payments/payments.service.ts
+@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common'
+ import { Clock } from '../clock'
+ import { Db } from '../db/db'
+ import { fail } from '../http/errors'
+-import { pointsToEarn } from '../money'
+ import { canTransition, transition, type OrderStatus } from '../orders/order-state'
+ import { OrdersService, type OrderRow } from '../orders/orders.service'
+ import { PgClient, PgError, PgUnavailable, type PgPayment } from './pg-client'
+@@ -18,6 +17,9 @@ const PG_TO_ORDER: Readonly<Record<string, OrderStatus>> = {
+ 
+ export type ApplyResult = 'applied' | 'unchanged' | `held:${string}`
+ 
++// 결제 금액에 대한 적립률 — 이벤트 때 여기만 바꾼다
++const EARN_RATE = 0.01
++
+ @Injectable()
+ export class PaymentsService {
+   constructor(
+@@ -81,7 +83,7 @@ export class PaymentsService {
+       )
+       const current = (await tx.query<{ status: OrderStatus }>('SELECT status FROM orders WHERE id = $1', [order.id])).rows[0]?.status
+       if (!current || current === target || !canTransition(current, target)) return 'unchanged'
+-      const earned = target === 'paid' ? pointsToEarn(order.total) : 0
++      const earned = target === 'paid' ? Math.round(order.total * EARN_RATE) : 0
+       const set = target === 'paid' ? { paid_at: this.clock.now(), points_earned: earned } : {}
+       if (!(await transition(tx, Number(order.id), current, target, set))) return 'unchanged'
+       if (earned > 0) await tx.query('UPDATE users SET points = points + $2 WHERE id = $1', [order.user_id, earned])
