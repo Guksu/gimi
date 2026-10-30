@@ -1,0 +1,29 @@
+{
+  "id": "KCL-006",
+  "rules": [
+    "KCL-006"
+  ],
+  "context": "도메인 규칙",
+  "layer": "둘 다",
+  "pr": {
+    "title": "feat: 친환경 포장 용기 비용을 받는다",
+    "body": "## 배경\n친환경 포장 용기로 바꾸며 용기 값이 든다.\n\n## 변경\n- 주문마다 포장 용기 비용 500원을 받는다. 화면에는 배송비 줄에 함께 보인다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "거부할 수 없는 필수 비용(포장 용기 500원)을 결제 단계에서 처음 붙인다. 메뉴의 첫 가격은 상품 가격만 보이고 안내도 없다. 무료 배송 주문에도 배송비 줄에 500원이 붙는다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 93,
+      "evidence": [
+        {
+          "path": "web/src/pages/MenuPage.tsx",
+          "line": 29
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/pricing.test.ts"
+  ]
+}

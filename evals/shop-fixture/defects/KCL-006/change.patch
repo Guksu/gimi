@@ -1,0 +1,36 @@
+diff --git a/server/src/money.ts b/server/src/money.ts
+index 3eaa6e8..53f0582 100644
+--- a/server/src/money.ts
++++ b/server/src/money.ts
+@@ -7,6 +7,8 @@ export const METHODS: readonly Method[] = ['card', 'transfer', 'virtual_account'
+ // 결제수단별 최소 결제 금액 — PG가 이보다 작은 결제를 받지 않는다
+ export const MINIMUM_PAYMENT: Record<Method, number> = { card: 100, transfer: 200, virtual_account: 1000 }
+ export const SHIPPING_FEE = 3000
++// 친환경 포장 용기 비용 — 주문마다 받는다
++export const PACKAGING_FEE = 500
+ // 쿠폰 할인 뒤 금액이 이 금액 "이상"이면 배송비가 없다
+ export const FREE_SHIPPING_THRESHOLD = 30000
+ export const POINT_UNIT = 10
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..e8cd78a 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
+ import { Clock } from '../clock'
+ import { Db, type Queryable } from '../db/db'
+ import { fail } from '../http/errors'
+-import { FREE_SHIPPING_THRESHOLD, METHODS, MINIMUM_PAYMENT, POINT_UNIT, SHIPPING_FEE, discountByRate, type Method } from '../money'
++import { FREE_SHIPPING_THRESHOLD, METHODS, MINIMUM_PAYMENT, PACKAGING_FEE, POINT_UNIT, SHIPPING_FEE, discountByRate, type Method } from '../money'
+ 
+ export interface QuoteInput {
+   items?: unknown
+@@ -89,7 +89,8 @@ export class PricingService {
+     const couponCode = typeof input.couponCode === 'string' && input.couponCode.trim() !== '' ? input.couponCode.trim() : null
+     const couponDiscount = couponCode ? await this.couponDiscount({ q, userId, code: couponCode, subtotal }) : 0
+     const afterCoupon = subtotal - couponDiscount
+-    const shippingFee = afterCoupon >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE
++    // 포장 용기 비용은 배송비 줄에 함께 보인다
++    const shippingFee = (afterCoupon >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE) + PACKAGING_FEE
+ 
+     const pointsUsed = await this.points({ q, userId, points: input.points, payable: afterCoupon + shippingFee })
+     const total = afterCoupon + shippingFee - pointsUsed
