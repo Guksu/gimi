@@ -1,0 +1,33 @@
+{
+  "id": "COM-026",
+  "rules": [
+    "COM-026"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "refactor: 취소 경로를 하나로 합친다",
+    "body": "## 배경\n상태별 취소 분기가 많아 읽기 어렵다.\n\n## 변경\n- 결제가 있는 주문의 취소를 한 경로(PG 취소 → 환불 반영)로 합친다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "입금 전 가상계좌 분기를 지웠다. 입금 전에는 환불할 돈이 없어 계좌만 닫고 전액 취소해야 하는데, 이제 금액 취소를 PG에 보내고(부분 취소도 받는다), 환불 반영 UPDATE는 상태가 REFUNDABLE이 아니라 맞지 않아 주문은 그대로 남는다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 191,
+      "evidence": [
+        {
+          "path": "server/src/orders/orders.service.ts",
+          "line": 41
+        },
+        {
+          "path": "server/src/orders/orders.service.ts",
+          "line": 195
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/refunds-returns.test.ts"
+  ]
+}

@@ -106,6 +106,7 @@ node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 �
 | COM-013 | 백엔드 | 전이표에 취소 → 결제 완료를 더한다 — 늦게 온 승인이 재고·포인트를 돌려준 취소 주문을 되살린다 | 없음 · `state-transition` |
 | unsafe-migration | 백엔드 | 주문 메모 열을 기본값 없는 NOT NULL로 더한다 — 빈 DB 테스트는 통과하고 주문이 있는 DB에서는 마이그레이션이 실패한다 | 없음 · `migration` |
 | COM-025 | 백엔드 | 부분 취소를 결제 금액과만 비교하고 PG에 서버 잔액(refundableAmount)을 보내지 않는다 — 누적 환불이 결제액을 넘을 수 있다 | `server/test/refunds-returns.test.ts` · 없음 |
+| COM-026 | 백엔드 | 취소 경로를 합치며 입금 전 가상계좌 분기를 지운다 — 금액 취소가 PG에 가고 주문은 그대로 남는다 | `server/test/refunds-returns.test.ts` · 없음 |
 
 ## 결함 없는 PR
 
