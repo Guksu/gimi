@@ -51,7 +51,7 @@ defects/{ID}/
 gimi 저장소 루트에서 돌린다.
 
 ```bash
-node scripts/defects.mjs check [ID…]           # 패치가 붙는지, defect.json 형식·정답 위치, 잡는 테스트, 패턴 예시
+node scripts/defects.mjs check [ID…]           # 패치가 붙는지, defect.json 형식·정답 위치, 잡는 테스트
 node scripts/defects.mjs check --no-tests      # 잡는 테스트를 빼고(PostgreSQL 없이)
 node scripts/defects.mjs materialize <ID> <폴더> # 평가용 저장소 — main = 정상 버전, defect/<ID> = 결함 PR
 node scripts/defects.mjs materialize <ID> <폴더> --branch feature/pr --link-deps
@@ -59,17 +59,7 @@ node scripts/defects.mjs materialize <ID> <폴더> --branch feature/pr --link-de
 node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 결함을 만들 때
 ```
 
-잡는 테스트와 패턴 예시는 예제 저장소의 의존성(`npm ci`)과 PostgreSQL(`npm run db:up`)이 있어야 돌린다. 커밋 작성자와 시각을 고정해, 같은 결함은 언제 만들어도 커밋 해시가 같다.
-
-## 패턴 예시
-
-gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결함 버전에서 돌려 본다. `evals/patterns/{패턴}.json`에 예시마다 두는 자리(`at`)와 대는 결함(`defect`)을 적는다.
-
-```json
-{ "pattern": "concurrency", "assets": [{ "file": "stock-race.test.ts", "at": "server/test/stock-race.test.ts", "defect": "COM-007" }] }
-```
-
-`check`는 그 결함의 정상·결함 버전에 예시를 복사한다. 정상 버전에서 워크스페이스 타입 검사와 예시가 통과해야 하고, 결함 버전에서 좋은 예시(`*.test.ts(x)`)는 실패·슬롭 예시(`*.slop.test.ts(x)`)는 통과해야 한다. `at`은 정상 버전에 없는 새 테스트 파일이어야 한다.
+잡는 테스트는 예제 저장소의 의존성(`npm ci`)과 PostgreSQL(`npm run db:up`)이 있어야 돌린다. 커밋 작성자와 시각을 고정해, 같은 결함은 언제 만들어도 커밋 해시가 같다.
 
 ## 새 결함 만들기
 
@@ -85,7 +75,9 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 
 ## 지금 있는 결함
 
-| ID | 층 | 무엇을 심었나 | 잡는 테스트 · 패턴 예시 |
+테스트 패턴은 설계 결정 52로 테스트 스킬과 함께 지웠다. 표의 패턴 이름은 그때 그 결함과 짝이던 패턴이다(패턴 예시로 결함을 확인했다).
+
+| ID | 층 | 무엇을 심었나 | 잡는 테스트 · 짝이던 테스트 패턴 |
 |---|---|---|---|
 | COM-003 | 백엔드 | 요청 본문의 total을 주문 금액으로 저장한다 — 요청을 바꾸면 그 금액으로 결제된다 | `server/test/orders.test.ts` 요청의 금액 무시 · `test-principles` |
 | COM-007 | 백엔드 | 남은 수량을 알려 주려고 재고를 읽고 앱에서 비교한 뒤 계산한 값으로 덮어쓴다 — 동시 주문이 모두 통과한다 | `server/test/orders.test.ts` 동시 주문 · `concurrency` |
@@ -110,6 +102,9 @@ gimi-test의 패턴 예시(`skills/gimi-test/patterns/{패턴}/assets/`)도 결�
 | INTENT-002 | 프론트 | 이슈 #44는 무료 배송 안내를 남은 금액 5,000원 "이하"일 때 보이라는데 미만으로 막는다. 새 테스트는 경계를 놓친다 | 없음 · 없음 |
 | INTENT-003 | 백엔드 | 이슈 #45는 수량을 모두 합쳐 20개까지라는데 주문 줄 수를 센다 | 없음 · 없음 |
 | INTENT-004 | 백엔드 | 이슈 #46은 사유가 달라도 주문당 반품 한 번이라는데 사유마다 한 번 받는다 | 없음 · 없음 |
+| COM-007-rollback | 백엔드 | 포인트 차감을 한 함수로 모으며 주문 트랜잭션이 아닌 풀의 다른 연결로 바꾼다 — 뒤 단계가 실패하면 포인트만 깎인 채 남는다 | 없음 · `transaction-boundary` |
+| COM-013 | 백엔드 | 전이표에 취소 → 결제 완료를 더한다 — 늦게 온 승인이 재고·포인트를 돌려준 취소 주문을 되살린다 | 없음 · `state-transition` |
+| unsafe-migration | 백엔드 | 주문 메모 열을 기본값 없는 NOT NULL로 더한다 — 빈 DB 테스트는 통과하고 주문이 있는 DB에서는 마이그레이션이 실패한다 | 없음 · `migration` |
 
 ## 결함 없는 PR
 

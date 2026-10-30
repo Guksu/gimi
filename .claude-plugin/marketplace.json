@@ -5,18 +5,18 @@
     "url": "https://github.com/Guksu"
   },
   "metadata": {
-    "description": "Code review and testing skills for Claude Code and Codex",
+    "description": "Context-aware code review skill for Claude Code and Codex",
     "version": "0.0.1"
   },
   "plugins": [
     {
       "name": "gimi",
       "source": "./",
-      "description": "Code review that reads beyond the diff, and tests without AI slop, for Claude Code and Codex.",
+      "description": "Code review that reads beyond the diff — impact scope, requirements and change history — for Claude Code and Codex.",
       "version": "0.0.1",
       "author": { "name": "Guksu" },
       "homepage": "https://github.com/Guksu/gimi",
-      "keywords": ["code-review", "testing", "ai-slop", "frontend", "backend", "commerce"]
+      "keywords": ["code-review", "ai-slop", "frontend", "backend", "commerce"]
     }
   ]
 }
