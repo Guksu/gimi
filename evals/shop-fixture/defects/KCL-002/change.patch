@@ -1,0 +1,25 @@
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..ed10c76 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -37,6 +37,8 @@ interface ItemRow {
+ }
+ 
+ // 화면에 취소 버튼을 보일 수 있는 상태 — 배송을 시작하면 취소가 아니라 반품이다
++// 위생 상품 — 직접 담근 김치, 멸치 육수 팩
++const HYGIENE_PRODUCTS: ReadonlySet<number> = new Set([4, 5])
+ const CANCELABLE: ReadonlySet<OrderStatus> = new Set(['pending_payment', 'payment_failed', 'waiting_for_deposit', 'paid', 'preparing', 'partially_refunded'])
+ const REFUNDABLE: ReadonlySet<OrderStatus> = new Set(['paid', 'preparing', 'partially_refunded'])
+ const PAYABLE: ReadonlySet<OrderStatus> = new Set(['pending_payment', 'payment_failed'])
+@@ -240,8 +242,9 @@ export class OrdersService {
+     const now = this.clock.now()
+     if (now >= deadline) throw fail(409, 'RETURN_WINDOW_CLOSED', '반품 기한이 지났다')
+     if (reason === 'change_of_mind') {
+-      const items = (await this.db.pool.query<{ returnable: boolean }>('SELECT returnable FROM order_items WHERE order_id = $1', [orderId])).rows
+-      if (!items.some((item) => item.returnable)) throw fail(409, 'NOT_RETURNABLE', '단순 변심으로 반품할 수 없다고 표시한 상품이다')
++      const items = (await this.db.pool.query<{ product_id: string; returnable: boolean }>('SELECT product_id, returnable FROM order_items WHERE order_id = $1', [orderId])).rows
++      // 위생 상품은 포장을 뜯으면 다시 팔 수 없다 — 단순 변심 반품을 받지 않는다
++      if (!items.some((item) => item.returnable && !HYGIENE_PRODUCTS.has(Number(item.product_id)))) throw fail(409, 'NOT_RETURNABLE', '단순 변심으로 반품할 수 없는 상품이다')
+     }
+     const inserted = await this.db.pool.query<{ id: string }>('INSERT INTO returns (order_id, reason, requested_at) VALUES ($1, $2, $3) RETURNING id', [orderId, reason, now])
+     return { id: Number(inserted.rows[0]?.id), deadline: deadline.toISOString() }

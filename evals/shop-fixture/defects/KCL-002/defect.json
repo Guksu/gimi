@@ -1,0 +1,30 @@
+{
+  "id": "KCL-002",
+  "rules": [
+    "KCL-002"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: 위생 상품은 단순 변심 반품을 받지 않는다",
+    "body": "## 배경\n포장을 뜯은 김치·육수 팩이 단순 변심으로 돌아와 다시 팔 수 없었다.\n\n## 변경\n- 위생 상품(김치·멸치 육수 팩)은 단순 변심 반품을 거절한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "반품 불가 판정을 상품의 반품 가능 표시(returnable)와 다른 값(상품 번호 목록)에서 한다. 멸치 육수 팩은 메뉴·주문 화면에 반품 가능으로 보이는데 단순 변심 반품을 거절한다 — 표시하지 않은 상품은 철회를 막을 수 없다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 247,
+      "evidence": [
+        {
+          "path": "web/src/pages/MenuPage.tsx",
+          "line": 30
+        },
+        {
+          "path": "server/db/seed.sql",
+          "line": 11
+        }
+      ]
+    }
+  ]
+}
