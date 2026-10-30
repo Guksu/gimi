@@ -1,0 +1,26 @@
+{
+  "id": "COM-027",
+  "rules": [
+    "COM-027"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "chore: PG 오류 로그에 보낸 요청을 그대로 남긴다",
+    "body": "## 배경\nPG 오류가 나도 무엇을 보냈는지 몰라 원인을 찾지 못했다.\n\n## 변경\n- PG 호출이 실패하면 보낸 요청의 머리와 본문을 로그에 남긴다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "요청 머리(authorization — Basic으로 인코딩한 PG 시크릿 키)와 본문(paymentKey)을 가리지 않고 로그에 남긴다. 예전에는 mask로 가렸다. 로그를 읽을 수 있는 누구나 시크릿 키로 결제를 취소할 수 있다",
+      "path": "server/src/payments/pg-client.ts",
+      "line": 39,
+      "evidence": [
+        {
+          "path": "server/src/logging/mask.ts",
+          "line": 4
+        }
+      ]
+    }
+  ]
+}

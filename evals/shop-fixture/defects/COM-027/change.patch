@@ -1,0 +1,39 @@
+diff --git a/server/src/payments/pg-client.ts b/server/src/payments/pg-client.ts
+index 9f2fc19..704b3fe 100644
+--- a/server/src/payments/pg-client.ts
++++ b/server/src/payments/pg-client.ts
+@@ -1,6 +1,5 @@
+ import { Injectable, Logger } from '@nestjs/common'
+ import { AppConfig } from '../config'
+-import { mask } from '../logging/mask'
+ import type { Method } from '../money'
+ 
+ export interface PgPayment {
+@@ -35,21 +34,24 @@ export class PgClient {
+ 
+   private async call<T>(path: string, { method, key, body }: { method: 'GET' | 'POST'; key: 'secret' | 'client'; body?: unknown }): Promise<T> {
+     const credential = key === 'secret' ? this.config.pgSecretKey : this.config.pgClientKey
++    const headers = { authorization: `Basic ${Buffer.from(`${credential}:`).toString('base64')}`, 'content-type': 'application/json' }
++    // PG 오류를 다시 만들 수 있게 보낸 요청(머리·본문)을 그대로 남긴다
++    const sent = JSON.stringify({ headers, body })
+     let res: Response
+     try {
+       res = await fetch(`${this.config.pgBaseUrl}${path}`, {
+         method,
+-        headers: { authorization: `Basic ${Buffer.from(`${credential}:`).toString('base64')}`, 'content-type': 'application/json' },
++        headers,
+         body: body === undefined ? undefined : JSON.stringify(body),
+         signal: AbortSignal.timeout(this.config.pgTimeoutMs),
+       })
+     } catch (error) {
+-      this.logger.warn(`PG 호출이 끝나지 않았다 ${method} ${path} ${JSON.stringify(mask(body ?? {}))}`)
++      this.logger.warn(`PG 호출이 끝나지 않았다 ${method} ${path} ${sent}`)
+       throw new PgUnavailable(error instanceof Error ? error.message : String(error))
+     }
+     const json = (await res.json().catch(() => ({}))) as { code?: string; message?: string }
+     if (!res.ok) {
+-      this.logger.warn(`PG가 ${res.status} ${json.code}로 답했다 ${method} ${path} ${JSON.stringify(mask(body ?? {}))}`)
++      this.logger.warn(`PG가 ${res.status} ${json.code}로 답했다 ${method} ${path} ${sent}`)
+       throw new PgError(res.status, json.code ?? 'UNKNOWN', json.message ?? '')
+     }
+     return json as T
