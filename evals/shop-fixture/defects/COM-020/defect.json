@@ -1,0 +1,29 @@
+{
+  "id": "COM-020",
+  "rules": [
+    "COM-020"
+  ],
+  "context": "도메인 규칙",
+  "layer": "프론트",
+  "pr": {
+    "title": "refactor: 결제 실패 화면 문구를 하나로 합친다",
+    "body": "## 배경\n실패 코드마다 문구가 달라 관리가 어렵다.\n\n## 변경\n- 결제 실패 화면은 \"잠시 뒤 다시 결제해 주세요\" 한 문구로 보인다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "실패 코드별 문구를 지웠다. 사용자가 결제창을 닫은 경우(USER_CANCEL)에도 \"결제하지 못했어요\"가 뜨고, 카드 거절처럼 다른 결제수단으로 바꿔야 하는 경우의 안내가 사라진다",
+      "path": "web/src/pages/PaymentPages.tsx",
+      "line": 60,
+      "evidence": [
+        {
+          "path": "web/src/api/messages.ts",
+          "line": 18
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "web/src/pages/payment.test.tsx"
+  ]
+}

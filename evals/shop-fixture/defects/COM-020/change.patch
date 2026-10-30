@@ -1,0 +1,19 @@
+diff --git a/web/src/pages/PaymentPages.tsx b/web/src/pages/PaymentPages.tsx
+index 697e925..4345214 100644
+--- a/web/src/pages/PaymentPages.tsx
++++ b/web/src/pages/PaymentPages.tsx
+@@ -53,11 +53,11 @@ export const PaymentSuccessPage = ({ search }: { search: string }) => {
+ 
+ export const PaymentFailPage = ({ search }: { search: string }) => {
+   const params = new URLSearchParams(search)
+-  const canceled = params.get('code') === 'USER_CANCEL'
++  // 실패 사유는 사용자가 고칠 수 있는 게 없어 한 문구로 보인다
+   return (
+     <section>
+-      <h1>{canceled ? '결제를 취소했어요' : '결제하지 못했어요'}</h1>
+-      {!canceled && <p role="alert">{messageOf(params.get('code') ?? 'UNKNOWN')}</p>}
++      <h1>결제하지 못했어요</h1>
++      <p role="alert">잠시 뒤 다시 결제해 주세요</p>
+       <Link to={`/orders/${params.get('orderId')}`}>주문으로 돌아가 다시 결제하기</Link>
+     </section>
+   )
