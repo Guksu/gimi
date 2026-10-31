@@ -24,6 +24,10 @@
         {
           "path": "server/db/migrations/001_init.sql",
           "line": 109
+        },
+        {
+          "path": "server/src/members/members.service.ts",
+          "line": 16
         }
       ]
     }
