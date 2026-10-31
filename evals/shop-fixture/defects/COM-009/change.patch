@@ -1,0 +1,42 @@
+diff --git a/web/src/pages/OrderPage.tsx b/web/src/pages/OrderPage.tsx
+index 350ffc9..786acb5 100644
+--- a/web/src/pages/OrderPage.tsx
++++ b/web/src/pages/OrderPage.tsx
+@@ -1,8 +1,9 @@
+ import { useEffect, useState } from 'react'
+ import { ApiError, api, type Order } from '../api/client'
+ import { messageOf } from '../api/messages'
++import { useCart } from '../cart/cart'
+ import { formatPrice } from '../money/format'
+-import { redirect } from '../navigation'
++import { navigate, redirect } from '../navigation'
+ 
+ // 모르는 상태 값은 "확인 중"으로 보인다 — 서버가 새 상태를 더해도 화면이 깨지지 않게
+ const STATUS_LABEL: Record<string, string> = {
+@@ -23,6 +24,7 @@ const KST_DAY = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month
+ const lastDay = (deadline: string) => KST_DAY.format(new Date(new Date(deadline).getTime() - 1))
+ 
+ export const OrderPage = ({ id }: { id: number }) => {
++  const cart = useCart()
+   const [order, setOrder] = useState<Order | null>(null)
+   const [error, setError] = useState<string | null>(null)
+ 
+@@ -61,6 +63,18 @@ export const OrderPage = ({ id }: { id: number }) => {
+         ))}
+       </ul>
+       <p>결제 금액 {formatPrice(order.total)}</p>
++      <button
++        type="button"
++        onClick={() => {
++          for (const item of order.items) {
++            cart.add(item.productId)
++            cart.setQuantity(item.productId, item.quantity)
++          }
++          navigate('/cart')
++        }}
++      >
++        같은 메뉴 다시 담기
++      </button>
+       {order.refundedAmount > 0 && <p>환불한 금액 {formatPrice(order.refundedAmount)}</p>}
+       {error && <p role="alert">{error}</p>}
+       {PAYABLE.has(order.status) && (
