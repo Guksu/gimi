@@ -1,0 +1,33 @@
+{
+  "id": "COM-006",
+  "rules": [
+    "COM-006"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: 쿠폰 최소 주문 금액은 포인트를 뺀 금액으로 본다",
+    "body": "## 배경\n포인트로 거의 다 낸 주문에도 쿠폰 최소 주문 금액이 통과된다는 문의가 있었다.\n\n## 변경\n- 포인트를 먼저 계산하고, 쿠폰은 포인트를 뺀 금액으로 검사·할인한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "할인 순서를 쿠폰 → 포인트에서 포인트 → 쿠폰으로 바꿨다. 정률 쿠폰 할인이 줄고, 포인트 상한(payable)이 쿠폰 전 금액이라 쿠폰과 함께 쓰면 결제 금액이 음수가 될 수 있다. 정한 순서(문서·화면)와도 다르다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 92,
+      "evidence": [
+        {
+          "path": "server/src/pricing/pricing.service.ts",
+          "line": 72
+        },
+        {
+          "path": "server/src/pricing/pricing.service.ts",
+          "line": 91
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/pricing.test.ts"
+  ]
+}

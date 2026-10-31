@@ -1,0 +1,15 @@
+diff --git a/server/src/payments/payments.service.ts b/server/src/payments/payments.service.ts
+index c6428fd..d085101 100644
+--- a/server/src/payments/payments.service.ts
++++ b/server/src/payments/payments.service.ts
+@@ -53,8 +53,8 @@ export class PaymentsService {
+         await transition(this.db.pool, orderId, order.status, 'payment_failed')
+         throw fail(402, 'PAYMENT_REJECTED', error instanceof PgError ? `${error.code} ${error.message}`.trim() : '결제가 거절됐다')
+       }
+-      payment = await this.pg.lookup(paymentKey).catch(() => null)
+-      if (!payment) return { status: 202, body: { status: 'checking', message: '결제 결과를 확인하고 있다 — 잠시 뒤 주문 내역에서 확인한다' } }
++      // PG 조회도 안 되면 결제창이 성공 주소로 돌려보낸 결과를 믿는다 — 금액은 위에서 주문 금액과 맞춰 봤다
++      payment = (await this.pg.lookup(paymentKey).catch(() => null)) ?? { paymentKey, orderId: String(order.id), method: order.method as PgPayment['method'], status: 'DONE', totalAmount: order.total, balanceAmount: order.total, approvedAt: this.clock.now().toISOString() }
+       if (payment.status === 'READY') throw fail(502, 'PG_UNAVAILABLE', '결제가 승인되지 않았다 — 다시 시도한다')
+     }
+     await this.apply(order, payment)

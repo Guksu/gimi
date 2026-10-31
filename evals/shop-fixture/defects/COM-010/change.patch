@@ -1,0 +1,18 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..515465d 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -46,10 +46,10 @@ const parseItems = (items: unknown) => {
+   const seen = new Set<number>()
+   return items.map((item: { productId?: unknown; quantity?: unknown }) => {
+     const productId = item?.productId
+-    const quantity = item?.quantity
++    // 예전 앱은 수량을 문자열로 보낸다 — 숫자로 읽어 받는다
++    const quantity = parseInt(String(item?.quantity), 10)
+     if (!Number.isSafeInteger(productId)) throw fail(400, 'INVALID_PRODUCT', '상품 번호가 틀렸다')
+-    // 수량은 양의 정수만 — 문자열·소수·0·음수는 받지 않는다
+-    if (!Number.isSafeInteger(quantity) || (quantity as number) < 1) throw fail(400, 'INVALID_QUANTITY', '수량은 1 이상의 정수다')
++    if (Number.isNaN(quantity)) throw fail(400, 'INVALID_QUANTITY', '수량은 숫자다')
+     if (seen.has(productId as number)) throw fail(400, 'DUPLICATE_ITEM', '같은 상품이 두 줄이다')
+     seen.add(productId as number)
+     return { productId: productId as number, quantity: quantity as number }

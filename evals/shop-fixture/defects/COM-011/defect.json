@@ -1,0 +1,33 @@
+{
+  "id": "COM-011",
+  "rules": [
+    "COM-011"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "perf: 견적의 상품 조회를 5분 캐시한다",
+    "body": "## 배경\n장바구니에서 수량을 바꿀 때마다 견적을 다시 받아 상품 조회가 많다.\n\n## 변경\n- 견적이 읽는 상품(가격·재고·구매 제한)을 5분 동안 메모리에 둔다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "주문 생성도 이 견적 함수로 가격·재고·한도를 다시 검사하는데, 캐시 때문에 5분 전 값을 쓴다. 가격이 바뀌었거나 품절된 상품이 옛 가격·옛 재고로 확정 단계를 지난다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 82,
+      "evidence": [
+        {
+          "path": "server/src/orders/orders.service.ts",
+          "line": 62
+        },
+        {
+          "path": "server/src/pricing/pricing.service.ts",
+          "line": 110
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/pricing.test.ts"
+  ]
+}

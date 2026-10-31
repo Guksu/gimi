@@ -1,0 +1,12 @@
+diff --git a/web/src/pages/OrderPage.tsx b/web/src/pages/OrderPage.tsx
+index 350ffc9..a3830ce 100644
+--- a/web/src/pages/OrderPage.tsx
++++ b/web/src/pages/OrderPage.tsx
+@@ -62,6 +62,7 @@ export const OrderPage = ({ id }: { id: number }) => {
+       </ul>
+       <p>결제 금액 {formatPrice(order.total)}</p>
+       {order.refundedAmount > 0 && <p>환불한 금액 {formatPrice(order.refundedAmount)}</p>}
++      {order.refundableAmount > 0 && <p>환불할 수 있는 금액 {order.refundableAmount.toLocaleString()}원</p>}
+       {error && <p role="alert">{error}</p>}
+       {PAYABLE.has(order.status) && (
+         <button type="button" onClick={() => void api.checkout(order.id).then(({ data }) => redirect(data.checkoutUrl), (e: unknown) => setError(messageOf(e instanceof ApiError ? e.code : 'UNKNOWN')))}>
