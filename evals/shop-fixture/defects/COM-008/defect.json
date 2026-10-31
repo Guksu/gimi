@@ -1,0 +1,30 @@
+{
+  "id": "COM-008",
+  "rules": [
+    "COM-008"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 포인트 전액 사용",
+    "body": "## 배경\n가진 포인트를 한 번에 모두 쓰고 싶다는 요청이 있었다.\n\n## 변경\n- 포인트에 `all`을 보내면 보유 포인트를 모두 쓴다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "전액 사용이 사용 단위(10점)와 결제 금액 상한 검사를 건너뛴다. 보유 포인트가 결제 금액보다 많으면 결제 금액이 음수가 되고, 5점 같은 단위 밖 포인트도 쓴다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 118,
+      "evidence": [
+        {
+          "path": "server/src/pricing/pricing.service.ts",
+          "line": 120
+        },
+        {
+          "path": "server/src/pricing/pricing.service.ts",
+          "line": 123
+        }
+      ]
+    }
+  ]
+}
