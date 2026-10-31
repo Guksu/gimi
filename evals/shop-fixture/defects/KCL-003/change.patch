@@ -1,0 +1,69 @@
+diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
+index 429fd01..e83ef19 100644
+--- a/contracts/openapi.yaml
++++ b/contracts/openapi.yaml
+@@ -177,13 +177,16 @@ paths:
+             application/json:
+               schema:
+                 type: object
+-                required: [id, deadline]
++                required: [id, deadline, refundAmount]
+                 properties:
+                   id:
+                     type: integer
+                   deadline:
+                     type: string
+                     format: date-time
++                  refundAmount:
++                    type: integer
++                    description: 환불 예정 금액(원)
+         '409':
+           $ref: '#/components/responses/Error'
+   /payments/confirm:
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..e3cc728 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -4,7 +4,7 @@ import { AppConfig } from '../config'
+ import { Clock } from '../clock'
+ import { Db, isUniqueViolation, type Queryable } from '../db/db'
+ import { fail } from '../http/errors'
+-import type { Method } from '../money'
++import { SHIPPING_FEE, type Method } from '../money'
+ import { PgClient, PgError, PgUnavailable } from '../payments/pg-client'
+ import { PricingService, type QuoteInput } from '../pricing/pricing.service'
+ import { transition, type OrderStatus } from './order-state'
+@@ -244,6 +244,8 @@ export class OrdersService {
+       if (!items.some((item) => item.returnable)) throw fail(409, 'NOT_RETURNABLE', '단순 변심으로 반품할 수 없다고 표시한 상품이다')
+     }
+     const inserted = await this.db.pool.query<{ id: string }>('INSERT INTO returns (order_id, reason, requested_at) VALUES ($1, $2, $3) RETURNING id', [orderId, reason, now])
+-    return { id: Number(inserted.rows[0]?.id), deadline: deadline.toISOString() }
++    // 환불 예정 금액 — 돌려보내는 왕복 배송비를 뺀다
++    const refundAmount = Math.max(order.total - order.refunded_amount - SHIPPING_FEE * 2, 0)
++    return { id: Number(inserted.rows[0]?.id), deadline: deadline.toISOString(), refundAmount }
+   }
+ }
+diff --git a/web/src/api/client.ts b/web/src/api/client.ts
+index f9fe230..15aba1e 100644
+--- a/web/src/api/client.ts
++++ b/web/src/api/client.ts
+@@ -43,5 +43,5 @@ export const api = {
+   checkout: (id: number) => request<Checkout>(`/orders/${id}/checkout`, { method: 'POST' }),
+   confirm: (body: { orderId: number; paymentKey: string; amount: number }) => request<Order | { status: 'checking'; message: string }>('/payments/confirm', { method: 'POST', body }),
+   cancel: (id: number, body: { amount?: number; reason: string }) => request<Order>(`/orders/${id}/cancel`, { method: 'POST', body }),
+-  requestReturn: (id: number, reason: 'change_of_mind' | 'defective') => request<{ id: number; deadline: string }>(`/orders/${id}/returns`, { method: 'POST', body: { reason } }),
++  requestReturn: (id: number, reason: 'change_of_mind' | 'defective') => request<{ id: number; deadline: string; refundAmount: number }>(`/orders/${id}/returns`, { method: 'POST', body: { reason } }),
+ }
+diff --git a/web/src/api/schema.d.ts b/web/src/api/schema.d.ts
+index 48bae30..86ca4b2 100644
+--- a/web/src/api/schema.d.ts
++++ b/web/src/api/schema.d.ts
+@@ -476,6 +476,8 @@ export interface operations {
+                         id: number;
+                         /** Format: date-time */
+                         deadline: string;
++                        /** @description 환불 예정 금액(원) */
++                        refundAmount: number;
+                     };
+                 };
+             };
