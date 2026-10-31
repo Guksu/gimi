@@ -173,8 +173,11 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
     for (const ref of index.referencesOf({ path, namePos: change.after.namePos, includeSelf: true }) ?? []) {
       if (ref.path !== path) continue
       const line = lineOfPos({ readLines, path, pos: ref.pos })
-      const wrapper = afterDecls.find((decl) => decl.name !== change.name && decl.namePos != null && line >= decl.start && line <= decl.end)
-      if (!wrapper || changedNames.has(wrapper.name) || seen.has(wrapper.name)) continue
+      // 가장 안쪽 선언이 감싼 것이다 — 클래스 안의 참조는 클래스가 아니라 그 메서드가 감싼다
+      const wrapper = afterDecls
+        .filter((decl) => decl.name !== change.name && decl.namePos != null && line >= decl.start && line <= decl.end)
+        .sort((a, b) => a.end - a.start - (b.end - b.start))[0]
+      if (!wrapper || change.name.startsWith(`${wrapper.name}.`) || changedNames.has(wrapper.name) || seen.has(wrapper.name)) continue
       seen.add(wrapper.name)
       const refs = index.referencesOf({ path, namePos: wrapper.namePos }) ?? []
       const usages = refs.map((r) => usageAt({ readLines, path: r.path, line: lineOfPos({ readLines, path: r.path, pos: r.pos }), changedPaths })).filter((usage) => !IMPORT_LINE.test(usage.text))
@@ -213,7 +216,8 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
       let method = 'text'
       let found = null
       if (change.change !== 'removed' && index && diskMatches && change.after?.namePos != null) {
-        const refs = index.referencesOf({ path, namePos: change.after.namePos })
+        // 클래스 멤버는 같은 클래스의 다른 메서드(this.멤버)도 부르는 곳이다 — export와 달리 같은 파일 안의 참조도 담는다
+        const refs = index.referencesOf({ path, namePos: change.after.namePos, includeSelf: change.kind === 'method' })
         if (refs) {
           method = 'typescript'
           found = refs

@@ -2,6 +2,7 @@
  * 바뀐 export 찾기 — 바뀌기 전·뒤 파일에서 최상위 export 선언을 찾아 비교한다(설계 결정 20).
  * TypeScript가 있으면 구문 트리로, 없으면 줄 단위 정규식으로 찾는다(정확도 낮음).
  * 종류: added(새로 생김) · removed(사라짐) · signature(시그니처 변경) · body(본문만 변경)
+ * export한 클래스는 멤버도 `클래스.멤버`로 담는다 — 메서드 본문만 바뀌면 클래스를 주입하는 곳이 아니라 그 메서드를 부르는 곳을 찾는다.
  */
 
 /** @typedef {{ name: string, kind: string, start: number, end: number, signature: string, namePos: number | null }} ExportDecl */
@@ -51,6 +52,11 @@ export const extractExportsTs = ({ ts, text, fileName }) => {
       const header = slice(start, st.members.pos - 1)
       const members = st.members.map((m) => slice(m.getStart(sf), m.body ? m.body.getStart(sf) : m.end))
       if (name) decls.push({ name, kind: 'class', ...range, signature: `${header} { ${members.join('; ')} }`, namePos: st.name ? st.name.getStart(sf) : null })
+      for (const m of st.members) {
+        if (!name || !m.name || !(ts.isIdentifier(m.name) || ts.isPrivateIdentifier(m.name))) continue
+        const from = m.getStart(sf)
+        decls.push({ name: `${name}.${m.name.text}`, kind: 'method', start: lineOf(from), end: lineOf(m.end), signature: slice(from, m.body ? m.body.getStart(sf) : m.end), namePos: m.name.getStart(sf) })
+      }
     } else if (ts.isVariableStatement(st) && exported) {
       for (const decl of st.declarationList.declarations) {
         if (!ts.isIdentifier(decl.name)) continue
@@ -123,5 +129,6 @@ export const compareExports = ({ before, after, removedLines, addedLines }) => {
     else if (overlaps(decl, addedLines) || overlaps(prev, removedLines)) changes.push({ name: decl.name, kind: decl.kind, change: 'body', before: prev, after: decl })
   }
   for (const decl of before) if (!afterNames.has(decl.name)) changes.push({ name: decl.name, kind: decl.kind, change: 'removed', before: decl })
-  return changes
+  // 멤버 본문만 바뀐 클래스는 클래스 전체를 빼고 바뀐 멤버만 남긴다
+  return changes.filter((c) => !(c.kind === 'class' && c.change === 'body' && changes.some((m) => m.kind === 'method' && m.name.startsWith(`${c.name}.`))))
 }

@@ -118,6 +118,39 @@ describe('영향 범위 — 프로젝트의 TypeScript로', () => {
   })
 })
 
+describe('영향 범위 — 클래스 메서드', () => {
+  it('메서드 본문만 바뀌면 그 메서드를 부르는 곳(다른 클래스의 this.주입한것.메서드 포함)을 찾고, 클래스 전체는 담지 않는다', () => {
+    const repo = makeRepo()
+    try {
+      repo.write({
+        'tsconfig.json': TSCONFIG,
+        'src/orders.ts': ['export class Orders {', '  row(id: number) {', '    return id', '  }', '  get(id: number) {', '    return this.row(id)', '  }', '}', ''].join('\n'),
+        'src/payments.ts': ["import { Orders } from './orders'", 'export class Payments {', '  constructor(private readonly orders: Orders) {}', '  confirm() {', '    return this.orders.row(1)', '  }', '}', ''].join('\n'),
+      })
+      repo.commit('feat: 처음')
+      repo.git('switch', '-q', '-c', 'feat/x')
+      repo.write({ 'src/orders.ts': ['export class Orders {', '  row(id: number) {', '    return id + 1', '  }', '  get(id: number) {', '    return this.row(id)', '  }', '}', ''].join('\n') })
+      repo.commit('feat: 바꿈')
+      const impact = collectContext({ exec: execFor({ dir: repo.dir }), useGh: false, loadTs: () => ({ ts, reason: null }) }).impact
+      const row = symbolOf(impact, 'Orders.row')
+      assert.equal(row.change, 'body')
+      assert.equal(row.method, 'typescript')
+      // 이 변경에서 안 바뀐 파일의 사용처가 먼저다
+      assert.deepEqual(where(row.usages), [
+        ['src/payments.ts', 5, false],
+        ['src/orders.ts', 6, true],
+      ])
+      assert.equal(symbolOf(impact, 'Orders'), undefined)
+      // 같은 클래스에서 그 메서드를 부르는 메서드는 감싼 것으로 한 단계 따라간다
+      const get = symbolOf(impact, 'Orders.get')
+      assert.equal(get.change, 'wraps')
+      assert.equal(get.through, 'Orders.row')
+    } finally {
+      repo.cleanup()
+    }
+  })
+})
+
 describe('영향 범위 — tsconfig에 없는 파일', () => {
   it('그 파일의 export는 문자열로 찾고, 심볼마다가 아니라 파일 수로 한 번 알린다', () => {
     const repo = makeRepo()
