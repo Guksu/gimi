@@ -1,0 +1,20 @@
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..07c0b05 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -184,15 +184,6 @@ export class OrdersService {
+     const payment = (await this.db.pool.query<{ payment_key: string }>('SELECT payment_key FROM payments WHERE order_id = $1', [orderId])).rows[0]
+     if (!payment) throw fail(409, 'NOT_CANCELABLE', '결제 기록이 없다')
+ 
+-    // 입금 전 가상계좌 — 환불할 돈이 없다. 발급한 계좌만 닫는다
+-    if (order.status === 'waiting_for_deposit') {
+-      await this.callPg(() => this.pg.cancel(payment.payment_key, { cancelReason: reason }))
+-      await this.db.transaction(async (tx) => {
+-        if (await transition(tx, orderId, 'waiting_for_deposit', 'cancelled')) await this.release(tx, order)
+-      })
+-      return this.get(userId, orderId)
+-    }
+-
+     const refundable = order.total - order.refunded_amount
+     const amount = input.amount ?? refundable
+     if (!Number.isSafeInteger(amount) || (amount as number) <= 0) throw fail(400, 'INVALID_AMOUNT', '취소 금액은 양의 정수다')

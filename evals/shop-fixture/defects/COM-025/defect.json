@@ -1,0 +1,33 @@
+{
+  "id": "COM-025",
+  "rules": [
+    "COM-025"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "refactor: 부분 취소 금액 검사를 결제 금액 기준으로 단순하게 한다",
+    "body": "## 배경\n부분 취소 때 남은 금액을 계산하는 곳이 두 군데라 헷갈린다.\n\n## 변경\n- 취소 금액은 결제 금액을 넘지 않는지만 본다\n- PG에 보내던 남은 금액(refundableAmount)을 뺀다 — PG가 알아서 검사한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "이번 취소 1건만 결제 금액과 비교하고, 이미 환불한 금액을 빼지 않는다. PG에 서버가 아는 잔액(refundableAmount)도 보내지 않아, 부분 취소를 반복하면 PG 환불은 되고 주문 기록(조건부 UPDATE)은 반영되지 않거나 결제액보다 많이 환불될 수 있다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 200,
+      "evidence": [
+        {
+          "path": "server/src/orders/orders.service.ts",
+          "line": 201
+        },
+        {
+          "path": "server/src/orders/orders.service.ts",
+          "line": 205
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/refunds-returns.test.ts"
+  ]
+}
