@@ -114,8 +114,8 @@ describe('review-eval.mjs', () => {
     assert.equal(appended.size, 1)
     // 코드는 고치지 않되, 리뷰 절차가 남기는 리뷰 기록은 막지 않는다(리뷰 줄 측정에서 gimi가 기록을 24번 중 9번만 남겼다)
     const [instruction] = appended
-    assert.match(instruction, /코드는 고치지 않고 커밋하지 않는다/)
-    assert.match(instruction, /리뷰 기록/)
+    assert.match(instruction, /코드는 고치지 않고 커밋하지 않는다\. 리뷰 절차가 리뷰 기록 파일을 남기라고 하면 그대로 남긴다\./)
+    assert.doesNotMatch(instruction, /코드를 고치거나 커밋하지 않는다/)
     assert.ok(readdirSync(join(out, 'runs/gimi')).includes('COM-007-1.json'))
     // 막힌 도구 호출을 남긴다 — 리뷰어가 diff를 못 봤는지 확인할 때 본다
     const baseline = JSON.parse(readFileSync(join(out, 'runs/code-review/COM-007-1.json'), 'utf8'))
