@@ -112,6 +112,10 @@ describe('review-eval.mjs', () => {
     // 같은 지시 — 덧붙이는 시스템 프롬프트가 두 리뷰어에 같다
     const appended = new Set(calls.map((call) => call.args[call.args.indexOf('--append-system-prompt') + 1]))
     assert.equal(appended.size, 1)
+    // 코드는 고치지 않되, 리뷰 절차가 남기는 리뷰 기록은 막지 않는다(리뷰 줄 측정에서 gimi가 기록을 24번 중 9번만 남겼다)
+    const [instruction] = appended
+    assert.match(instruction, /코드는 고치지 않고 커밋하지 않는다/)
+    assert.match(instruction, /리뷰 기록/)
     assert.ok(readdirSync(join(out, 'runs/gimi')).includes('COM-007-1.json'))
     // 막힌 도구 호출을 남긴다 — 리뷰어가 diff를 못 봤는지 확인할 때 본다
     const baseline = JSON.parse(readFileSync(join(out, 'runs/code-review/COM-007-1.json'), 'utf8'))
