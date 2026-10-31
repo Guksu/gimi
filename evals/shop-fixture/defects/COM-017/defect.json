@@ -1,0 +1,26 @@
+{
+  "id": "COM-017",
+  "rules": [
+    "COM-017"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: PG 조회도 안 되면 결제창이 넘겨준 결과로 확정한다",
+    "body": "## 배경\n승인 응답이 늦고 조회까지 실패하면 주문이 \"확인 중\"으로 남아 문의가 많다.\n\n## 변경\n- 조회가 실패하면 결제창이 성공 주소로 돌려보낸 결과(금액은 이미 맞춰 봤다)를 결제 완료로 반영한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "PG 승인도 조회도 확인하지 못했는데 리다이렉트(성공 주소)만 보고 결제 완료로 반영한다. 성공 주소는 위조할 수 있어, PG 장애 때 결제하지 않은 주문이 확정되고 포인트도 쌓인다",
+      "path": "server/src/payments/payments.service.ts",
+      "line": 57,
+      "evidence": [
+        {
+          "path": "server/src/payments/payments.service.ts",
+          "line": 48
+        }
+      ]
+    }
+  ]
+}

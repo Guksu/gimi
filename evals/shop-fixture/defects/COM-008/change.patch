@@ -1,0 +1,13 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..10d67b4 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -114,6 +114,8 @@ export class PricingService {
+ 
+   private async points({ q, userId, points, payable }: { q: Queryable; userId: number; points: unknown; payable: number }) {
+     if (points === undefined || points === null || points === 0) return 0
++    // 전액 사용 — 보유 포인트를 모두 쓴다
++    if (points === 'all') return (await q.query<{ points: number }>('SELECT points FROM users WHERE id = $1', [userId])).rows[0]?.points ?? 0
+     if (!Number.isSafeInteger(points) || (points as number) < 0) throw fail(400, 'INVALID_POINTS', '포인트는 0 이상의 정수다')
+     if ((points as number) % POINT_UNIT !== 0) throw fail(400, 'POINTS_UNIT', `포인트는 ${POINT_UNIT}점 단위로 쓴다`)
+     const balance = (await q.query<{ points: number }>('SELECT points FROM users WHERE id = $1', [userId])).rows[0]?.points ?? 0

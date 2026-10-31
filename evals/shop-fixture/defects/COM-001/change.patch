@@ -1,0 +1,28 @@
+diff --git a/server/src/payments/pg-client.ts b/server/src/payments/pg-client.ts
+index 9f2fc19..93c587b 100644
+--- a/server/src/payments/pg-client.ts
++++ b/server/src/payments/pg-client.ts
+@@ -14,6 +14,9 @@ export interface PgPayment {
+ }
+ 
+ /** PG가 거절했다(4xx) 또는 PG 쪽 오류(5xx) */
++/** PG에 보내는 금액 — 통화의 최소 단위(센트 등)로 바꾼다. 해외 카드 결제를 붙이며 모든 통화가 같은 함수를 거친다 */
++const toMinorUnit = (amount: number) => amount * 100
++
+ export class PgError extends Error {
+   constructor(
+     readonly status: number,
+@@ -56,11 +59,11 @@ export class PgClient {
+   }
+ 
+   createCheckout(input: { orderId: string; amount: number; method: Method; successUrl: string; failUrl: string }) {
+-    return this.call<{ paymentKey: string; checkoutUrl: string }>('/v1/checkouts', { method: 'POST', key: 'client', body: input })
++    return this.call<{ paymentKey: string; checkoutUrl: string }>('/v1/checkouts', { method: 'POST', key: 'client', body: { ...input, amount: toMinorUnit(input.amount) } })
+   }
+ 
+   confirm(input: { paymentKey: string; orderId: string; amount: number }) {
+-    return this.call<PgPayment>('/v1/payments/confirm', { method: 'POST', key: 'secret', body: input })
++    return this.call<PgPayment>('/v1/payments/confirm', { method: 'POST', key: 'secret', body: { ...input, amount: toMinorUnit(input.amount) } })
+   }
+ 
+   lookup(paymentKey: string) {

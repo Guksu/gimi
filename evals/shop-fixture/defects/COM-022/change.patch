@@ -1,0 +1,18 @@
+diff --git a/server/src/webhooks/webhooks.controller.ts b/server/src/webhooks/webhooks.controller.ts
+index 0c5db19..b84c4ea 100644
+--- a/server/src/webhooks/webhooks.controller.ts
++++ b/server/src/webhooks/webhooks.controller.ts
+@@ -37,8 +37,11 @@ export class WebhooksController {
+       await this.db.pool.query('UPDATE webhook_events SET handled = $2 WHERE event_id = $1', [event.eventId, 'ignored'])
+       return { ok: true }
+     }
+-    const handled = await this.payments.syncFromPg(event.data.paymentKey)
+-    await this.db.pool.query('UPDATE webhook_events SET handled = $2 WHERE event_id = $1', [event.eventId, handled])
++    // PG는 응답이 늦으면 다시 보낸다 — 먼저 200을 돌려주고 반영은 뒤에서 한다
++    void this.payments
++      .syncFromPg(event.data.paymentKey)
++      .then((handled) => this.db.pool.query('UPDATE webhook_events SET handled = $2 WHERE event_id = $1', [event.eventId, handled]))
++      .catch(() => undefined)
+     return { ok: true }
+   }
+ }

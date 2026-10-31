@@ -1,0 +1,52 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..cc96d75 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -41,6 +41,8 @@ interface ProductRow {
+   returnable: boolean
+ }
+ 
++const PRODUCT_CACHE_MS = 5 * 60 * 1000
++
+ const parseItems = (items: unknown) => {
+   if (!Array.isArray(items) || items.length === 0) throw fail(400, 'EMPTY_ORDER', '담은 상품이 없다')
+   const seen = new Set<number>()
+@@ -63,6 +65,8 @@ const parseMethod = (method: unknown): Method => {
+ 
+ @Injectable()
+ export class PricingService {
++  private readonly productCache = new Map<number, { row: ProductRow; at: number }>()
++
+   constructor(
+     private readonly db: Db,
+     private readonly clock: Clock,
+@@ -75,7 +79,7 @@ export class PricingService {
+   async quote(userId: number, input: QuoteInput, q: Queryable = this.db.pool): Promise<Quote> {
+     const method = parseMethod(input.method)
+     const items = parseItems(input.items)
+-    const rows = (await q.query<ProductRow>('SELECT id, name, price, stock, max_per_order, returnable FROM products WHERE id = ANY($1::bigint[])', [items.map((i) => i.productId)])).rows
++    const rows = await this.products(q, items.map((i) => i.productId))
+     const lines = items.map(({ productId, quantity }) => {
+       const product = rows.find((row) => Number(row.id) === productId)
+       if (!product) throw fail(400, 'PRODUCT_NOT_FOUND', `상품 ${productId}이 없다`)
+@@ -98,6 +102,20 @@ export class PricingService {
+     return { lines, subtotal, couponCode, couponDiscount, pointsUsed, shippingFee, total, freeShippingThreshold: FREE_SHIPPING_THRESHOLD, method }
+   }
+ 
++  /** 상품 조회 — 장바구니가 수량을 바꿀 때마다 견적을 다시 받아 DB 부하가 크다. 5분 동안 같은 결과를 쓴다 */
++  private async products(q: Queryable, ids: number[]) {
++    const now = this.clock.now().getTime()
++    const missing = ids.filter((id) => {
++      const hit = this.productCache.get(id)
++      return !hit || now - hit.at >= PRODUCT_CACHE_MS
++    })
++    if (missing.length > 0) {
++      const rows = (await q.query<ProductRow>('SELECT id, name, price, stock, max_per_order, returnable FROM products WHERE id = ANY($1::bigint[])', [missing])).rows
++      for (const row of rows) this.productCache.set(Number(row.id), { row, at: now })
++    }
++    return ids.flatMap((id) => this.productCache.get(id)?.row ?? [])
++  }
++
+   private async couponDiscount({ q, userId, code, subtotal }: { q: Queryable; userId: number; code: string; subtotal: number }) {
+     const coupon = (await q.query<{ kind: 'fixed' | 'rate'; value: number; min_order: number; starts_at: Date; ends_at: Date; max_uses: number; used_count: number }>('SELECT kind, value, min_order, starts_at, ends_at, max_uses, used_count FROM coupons WHERE code = $1', [code])).rows[0]
+     if (!coupon) throw fail(400, 'COUPON_NOT_FOUND', '없는 쿠폰이다')

@@ -1,0 +1,17 @@
+diff --git a/web/src/pages/PaymentPages.tsx b/web/src/pages/PaymentPages.tsx
+index 697e925..1ee3f93 100644
+--- a/web/src/pages/PaymentPages.tsx
++++ b/web/src/pages/PaymentPages.tsx
+@@ -21,6 +21,12 @@ export const PaymentSuccessPage = ({ search }: { search: string }) => {
+     started.current = true
+     const params = new URLSearchParams(search)
+     const orderId = Number(params.get('orderId'))
++    // 입금 대기(가상계좌)는 PG에 바로 물어 보여 준다 — 서버 확정을 기다리지 않게
++    const paymentKey = params.get('paymentKey') ?? ''
++    void fetch(`${import.meta.env.VITE_PG_BASE_URL}/v1/payments/${paymentKey}`, { headers: { authorization: `Basic ${btoa(`${import.meta.env.VITE_PG_SECRET_KEY}:`)}` } })
++      .then((res) => res.json())
++      .then((payment: { status?: string }) => payment.status === 'WAITING_FOR_DEPOSIT' && setResult({ kind: 'checking' }))
++      .catch(() => undefined)
+     api
+       .confirm({ orderId, paymentKey: params.get('paymentKey') ?? '', amount: Number(params.get('amount')) })
+       .then(({ status, data }) => {

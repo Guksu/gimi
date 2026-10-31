@@ -1,0 +1,26 @@
+{
+  "id": "COM-023",
+  "rules": [
+    "COM-023"
+  ],
+  "context": "도메인 규칙",
+  "layer": "프론트",
+  "pr": {
+    "title": "feat: 결제 결과 화면이 입금 대기를 PG에 바로 묻는다",
+    "body": "## 배경\n가상계좌 결제는 서버 확정을 기다리는 동안 화면이 멈춘 것처럼 보인다.\n\n## 변경\n- 결제 결과 화면에서 PG 결제 조회 API로 상태를 바로 물어, 입금 대기면 먼저 안내한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "PG 시크릿 키를 VITE_ 환경 변수로 브라우저 번들에 싣고 클라이언트에서 PG API를 직접 부른다. 키를 얻은 누구나 결제를 조회·취소할 수 있다. 시크릿 키는 서버(config)에서만 쓴다",
+      "path": "web/src/pages/PaymentPages.tsx",
+      "line": 26,
+      "evidence": [
+        {
+          "path": "server/src/config.ts",
+          "line": 14
+        }
+      ]
+    }
+  ]
+}
