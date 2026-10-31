@@ -1,5 +1,5 @@
 diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
-index 42b8dbf..af52017 100644
+index ed8331f..c34588c 100644
 --- a/contracts/openapi.yaml
 +++ b/contracts/openapi.yaml
 @@ -179,13 +179,16 @@ paths:
@@ -57,10 +57,10 @@ index 5345760..839c828 100644
    joinMembership: () => request<Membership>('/memberships', { method: 'POST' }),
  }
 diff --git a/web/src/api/schema.d.ts b/web/src/api/schema.d.ts
-index 34e52c7..b275b87 100644
+index faf3507..5a5dcec 100644
 --- a/web/src/api/schema.d.ts
 +++ b/web/src/api/schema.d.ts
-@@ -619,6 +619,8 @@ export interface operations {
+@@ -665,6 +665,8 @@ export interface operations {
                          id: number;
                          /** Format: date-time */
                          deadline: string;

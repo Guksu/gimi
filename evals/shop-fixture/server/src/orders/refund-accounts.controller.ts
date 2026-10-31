@@ -7,7 +7,8 @@ import { UserGuard, UserId } from '../http/user.guard'
 import { encrypt, maskAccount } from '../security/crypto'
 
 /**
- * 가상계좌 환불 계좌 — 입금한 가상계좌 주문을 취소하면 이 계좌로 환불한다. 계좌번호는 암호화해 저장하고, 응답에는 뒤 4자리만 보인다
+ * 가상계좌 환불 계좌 — 입금한 가상계좌 주문을 환불할 때 직원이 이 계좌로 보낸다(예제라 환불 이체는 없다).
+ * 계좌번호는 암호화해 저장하고, 응답에는 뒤 4자리만 보인다
  */
 @Controller('orders/:id/refund-account')
 @UseGuards(UserGuard)
@@ -20,7 +21,7 @@ export class RefundAccountsController {
 
   @Post()
   async register(@UserId() userId: number, @Param('id', ParseIntPipe) orderId: number, @Body() body: { bank?: unknown; accountNumber?: unknown; holder?: unknown }) {
-    const order = (await this.db.pool.query<{ method: string }>('SELECT method FROM orders WHERE id = $1 AND user_id = $2', [orderId, userId])).rows[0]
+    const order = Number.isSafeInteger(orderId) ? (await this.db.pool.query<{ method: string }>('SELECT method FROM orders WHERE id = $1 AND user_id = $2', [orderId, userId])).rows[0] : undefined
     if (!order) throw fail(404, 'ORDER_NOT_FOUND', '주문이 없다')
     if (order.method !== 'virtual_account') throw fail(400, 'NOT_VIRTUAL_ACCOUNT', '가상계좌 주문만 환불 계좌를 받는다')
     const bank = typeof body.bank === 'string' ? body.bank.trim() : ''

@@ -14,11 +14,11 @@
       "level": "고쳐야 함",
       "summary": "광고 수신은 선택 동의인데 필수 동의와 함께 묶어, 광고 수신에 동의하지 않으면 가입할 수 없다. 선택 동의를 거부해도 가입은 되어야 한다. 계약은 광고 수신을 선택으로 적고, 서비스 설명도 거부해도 가입한다고 적는다",
       "path": "server/src/members/members.service.ts",
-      "line": 34,
+      "line": 36,
       "evidence": [
         {
           "path": "contracts/openapi.yaml",
-          "line": 551
+          "line": 583
         },
         {
           "path": "server/src/members/members.service.ts",

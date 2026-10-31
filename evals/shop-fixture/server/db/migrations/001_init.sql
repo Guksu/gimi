@@ -152,6 +152,8 @@ CREATE TABLE memberships (
 CREATE TABLE membership_price_consents (
   user_id bigint NOT NULL REFERENCES users (id),
   price integer NOT NULL,
+  -- 동의할 때 내던 금액
+  from_price integer NOT NULL,
   consented_at timestamptz NOT NULL,
   PRIMARY KEY (user_id, price)
 );

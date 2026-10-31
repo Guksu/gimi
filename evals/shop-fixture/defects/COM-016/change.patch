@@ -1,5 +1,5 @@
 diff --git a/web/src/pages/CheckoutPage.tsx b/web/src/pages/CheckoutPage.tsx
-index b1980af..b2f7201 100644
+index 1311108..4e046c8 100644
 --- a/web/src/pages/CheckoutPage.tsx
 +++ b/web/src/pages/CheckoutPage.tsx
 @@ -21,8 +21,6 @@ export const CheckoutPage = () => {
@@ -19,4 +19,4 @@ index b1980af..b2f7201 100644
 +    const idempotencyKey = crypto.randomUUID()
      try {
        const { data: order } = await api.createOrder({ items: cart.items, couponCode: cart.couponCode ?? undefined, points: cart.points || undefined, method }, idempotencyKey)
-       // 멤버십은 손님이 고른 때만 가입한다 — 가입하지 못해도 주문은 이어 간다
+       // 멤버십은 손님이 고른 때만 가입한다. 가입하지 못하면 결제로 넘어가지 않고 알린다(이미 가입했으면 된 것이다)

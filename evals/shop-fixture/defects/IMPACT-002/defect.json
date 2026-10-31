@@ -10,12 +10,12 @@
   "findings": [
     {
       "level": "고쳐야 함",
-      "summary": "공용 navigate가 기록을 쌓지 않게 바꿔, 앱 안의 모든 화면 이동(머리글 Link, 장바구니→주문 확인 CartPage.tsx:94, 0원 주문 뒤 주문 화면 CheckoutPage.tsx:62)이 뒤로 가기 기록을 남기지 않는다. 주문 확인 화면에서 뒤로 가면 장바구니가 아니라 앱에 들어오기 전 페이지로 나간다. PR이 막으려던 결제 뒤 화면은 PG가 돌려보내는 전체 페이지 이동이라, 결과 화면에서 뒤로 가면 여전히 결제창을 거쳐 주문 확인 화면에 닿는다",
+      "summary": "공용 navigate가 기록을 쌓지 않게 바꿔, 앱 안의 모든 화면 이동(머리글 Link, 장바구니→주문 확인 CartPage.tsx:94, 0원 주문 뒤 주문 화면 CheckoutPage.tsx:66)이 뒤로 가기 기록을 남기지 않는다. 주문 확인 화면에서 뒤로 가면 장바구니가 아니라 앱에 들어오기 전 페이지로 나간다. PR이 막으려던 결제 뒤 화면은 PG가 돌려보내는 전체 페이지 이동이라, 결과 화면에서 뒤로 가면 여전히 결제창을 거쳐 주문 확인 화면에 닿는다",
       "path": "web/src/navigation.tsx",
       "line": 8,
       "evidence": [
         { "path": "web/src/pages/CartPage.tsx", "line": 94 },
-        { "path": "web/src/pages/CheckoutPage.tsx", "line": 62 },
+        { "path": "web/src/pages/CheckoutPage.tsx", "line": 66 },
         { "path": "web/src/App.tsx", "line": 16 }
       ]
     }

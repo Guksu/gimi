@@ -31,7 +31,9 @@ npm run typecheck
 DATABASE_URL=postgres://shop@localhost:54329/shop npm run migrate -w server -- --seed
 ```
 
-`--seed`는 빈 데이터베이스에 한 번만 넣는다. 처음부터 다시 하려면 `npm run db:down` 뒤 `npm run db:up`을 돌린다.
+`--seed`는 빈 데이터베이스에 한 번만 넣는다. 처음부터 다시 하려면 `npm run db:down` 뒤 `npm run db:up`을 돌린다. 마이그레이션은 파일마다 한 번만 돈다 — `001_init.sql`이 바뀌었으면(표를 더했으면) 이미 마이그레이션한 개발 데이터베이스도 이렇게 다시 만든다.
+
+정기 작업(광고 발송 대상 `AdsService`, 거래기록 파기 `RetentionService`, 멤버십 청구 `MembershipsService.billDue`, 공급 불가 처리 `SupplyService`)은 HTTP 없이 서비스로만 있다. 예제라 스케줄러는 없고 테스트가 직접 부른다.
 
 터미널 셋에서 각각 띄운다. 키 값은 가짜 PG와 server가 같기만 하면 된다. `REFUND_ACCOUNT_KEY`는 환불 계좌번호를 암호화하는 키(32바이트를 base64로)다. 로컬용 값이라 바꿔도 되지만, 바꾸면 이미 저장한 계좌번호는 풀 수 없다.
 

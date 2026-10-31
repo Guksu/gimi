@@ -14,12 +14,12 @@
       "level": "고쳐야 함",
       "summary": "탈퇴하자마자 주문·결제·환불 기록을 지운다. 거래기록(계약·결제·공급)은 법이 정한 기간(5년) 분리 보존해야 분쟁 때 증빙이 남는다. 이 앱은 보존 기한(retain_until)을 두고 기한이 지나면 파기 작업이 지우도록 되어 있다",
       "path": "server/src/members/members.service.ts",
-      "line": 65,
-      "endLine": 73,
+      "line": 71,
+      "endLine": 79,
       "evidence": [
         {
           "path": "server/src/members/retention.service.ts",
-          "line": 7
+          "line": 8
         },
         {
           "path": "server/db/migrations/001_init.sql",

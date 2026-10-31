@@ -10,14 +10,14 @@
   "findings": [
     {
       "level": "고쳐야 함",
-      "summary": "견적 응답의 freeShippingThreshold를 freeShippingRemaining으로 바꿨는데 web은 그대로다. 장바구니(CartPage.tsx:48)는 quote.freeShippingThreshold로 남은 금액을 계산하므로 undefined에서 금액을 빼 NaN이 되고, NaN > 0이 거짓이라 '○원 더 담으면 무료 배송이에요' 안내가 조용히 사라진다. 생성 타입(schema.d.ts:270)을 다시 만들지 않아 타입 검사도 통과하고, 화면 테스트의 목(test/server.ts:28)도 옛 필드라 계속 통과한다",
+      "summary": "견적 응답의 freeShippingThreshold를 freeShippingRemaining으로 바꿨는데 web은 그대로다. 장바구니(CartPage.tsx:48)는 quote.freeShippingThreshold로 남은 금액을 계산하므로 undefined에서 금액을 빼 NaN이 되고, NaN > 0이 거짓이라 '○원 더 담으면 무료 배송이에요' 안내가 조용히 사라진다. 생성 타입(schema.d.ts:304)을 다시 만들지 않아 타입 검사도 통과하고, 화면 테스트의 목(test/server.ts:28)도 옛 필드라 계속 통과한다",
       "path": "server/src/pricing/pricing.service.ts",
       "line": 99,
       "endLine": 100,
       "evidence": [
-        { "path": "contracts/openapi.yaml", "line": 439 },
+        { "path": "contracts/openapi.yaml", "line": 471 },
         { "path": "web/src/pages/CartPage.tsx", "line": 48 },
-        { "path": "web/src/api/schema.d.ts", "line": 270 },
+        { "path": "web/src/api/schema.d.ts", "line": 304 },
         { "path": "web/src/test/server.ts", "line": 28 }
       ]
     }

@@ -12,13 +12,14 @@
   "findings": [
     {
       "level": "고쳐야 함",
-      "summary": "결제한 주문을 공급할 수 없게 됐는데 환불하지 않고 입고될 때까지 둔다. 공급할 수 없으면 지체 없이 알리고 3영업일 안에 환급해야 한다. 입고 날짜도, 환급 기한 작업도 없다",
+      "summary": "결제한 주문을 공급할 수 없게 됐는데 취소·환불하지 않고 입고될 때까지 둔다. 공급할 수 없으면 지체 없이 알리고 3영업일 안에 환급해야 한다. 입고 날짜도, 환급 기한 작업도 없다. 클래스 설명은 아직 바로 취소한다고 적는다",
       "path": "server/src/orders/supply.service.ts",
-      "line": 31,
+      "line": 27,
+      "endLine": 35,
       "evidence": [
         {
           "path": "server/src/orders/supply.service.ts",
-          "line": 9
+          "line": 12
         }
       ]
     }

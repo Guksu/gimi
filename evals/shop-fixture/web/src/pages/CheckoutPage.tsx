@@ -55,8 +55,12 @@ export const CheckoutPage = () => {
     setSubmitting(true)
     try {
       const { data: order } = await api.createOrder({ items: cart.items, couponCode: cart.couponCode ?? undefined, points: cart.points || undefined, method }, idempotencyKey)
-      // 멤버십은 손님이 고른 때만 가입한다 — 가입하지 못해도 주문은 이어 간다
-      if (joinMembership) await api.joinMembership().catch(() => undefined)
+      // 멤버십은 손님이 고른 때만 가입한다. 가입하지 못하면 결제로 넘어가지 않고 알린다(이미 가입했으면 된 것이다)
+      if (joinMembership) {
+        await api.joinMembership().catch((e: unknown) => {
+          if (!(e instanceof ApiError && e.code === 'ALREADY_MEMBER')) throw e
+        })
+      }
       if (order.status === 'paid') {
         cart.clear()
         navigate(`/orders/${order.id}`)
