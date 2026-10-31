@@ -9,11 +9,13 @@
  *   node context.mjs --json             # JSON만 표준 출력으로(파일을 쓰지 않는다)
  *   node context.mjs --no-gh            # gh를 부르지 않는다(PR·이슈 본문 없이)
  *
+ * 전체 JSON은 docs/gimi/reviews/{날짜}-{PR·브랜치}.context.json에 쓰고, 같은 PR·브랜치의 예전 묶음은 지운다(--out으로 정하면 지우지 않는다).
  * 설정(.agents/gimi.json): history.recentCommits(기본 10), requirements[].keyPattern(티켓 번호 형식)
  * 종료 코드: 0 성공(건너뛴 맥락이 있어도), 2 사용법·환경 오류. 의존성 없음, Node 22 이상.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, isAbsolute, resolve } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { staleBundles } from './lib/bundles.mjs'
 import { collectContext } from './lib/collect.mjs'
 import { ContextError, attempt, createExec } from './lib/exec.mjs'
 import { renderSummary } from './lib/summary.mjs'
@@ -43,10 +45,8 @@ const parseArgs = (argv) => {
 
 const today = (now) => [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
 
-const defaultOut = ({ context, now }) => {
-  const name = context.scope.pr ? `pr-${context.scope.pr.number}` : (context.scope.branch ?? context.scope.head.slice(0, 7))
-  return `docs/gimi/reviews/${today(now)}-${name.replace(/[^\w.-]+/g, '-')}.context.json`
-}
+const bundleName = (context) => (context.scope.pr ? `pr-${context.scope.pr.number}` : (context.scope.branch ?? context.scope.head.slice(0, 7))).replace(/[^\w.-]+/g, '-')
+const defaultOut = ({ context, now }) => `docs/gimi/reviews/${today(now)}-${bundleName(context)}.context.json`
 
 const readConfig = ({ root, notes }) => {
   const path = resolve(root, '.agents/gimi.json')
@@ -104,6 +104,12 @@ const main = () => {
   }
   const target = resolve(root, outPath)
   mkdirSync(dirname(target), { recursive: true })
+  // 기본 위치에 쓸 때만 같은 PR·브랜치의 예전 묶음을 지운다(설계 결정 54) — --out으로 정한 파일은 사용자가 관리한다
+  if (!args.out) {
+    const stale = staleBundles({ files: readdirSync(dirname(target)), name: bundleName(context), keep: basename(target) })
+    for (const file of stale) rmSync(join(dirname(target), file), { force: true })
+    if (stale.length > 0) context.notes.push(`예전 맥락 묶음 ${stale.length}개를 지웠다(같은 PR·브랜치 — ${stale.join(', ')})`)
+  }
   writeFileSync(target, `${JSON.stringify(context, null, 2)}\n`)
   process.stdout.write(renderSummary({ context, outPath, maxLines: args.maxLines }))
   return 0

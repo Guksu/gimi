@@ -1,0 +1,19 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..7e33fc8 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -87,11 +87,12 @@ export class PricingService {
+     const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0)
+ 
+     const couponCode = typeof input.couponCode === 'string' && input.couponCode.trim() !== '' ? input.couponCode.trim() : null
+-    const couponDiscount = couponCode ? await this.couponDiscount({ q, userId, code: couponCode, subtotal }) : 0
++    // 쿠폰 최소 주문 금액은 포인트로 낸 만큼을 뺀 금액으로 본다 — 포인트로 거의 다 낸 주문에 쿠폰이 붙지 않게
++    const pointsUsed = await this.points({ q, userId, points: input.points, payable: subtotal + SHIPPING_FEE })
++    const couponDiscount = couponCode ? await this.couponDiscount({ q, userId, code: couponCode, subtotal: subtotal - pointsUsed }) : 0
+     const afterCoupon = subtotal - couponDiscount
+     const shippingFee = afterCoupon >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE
+ 
+-    const pointsUsed = await this.points({ q, userId, points: input.points, payable: afterCoupon + shippingFee })
+     const total = afterCoupon + shippingFee - pointsUsed
+     // 0원은 PG를 거치지 않는다. 0원이 아니면 결제수단의 최소 금액을 넘어야 한다
+     if (total > 0 && total < MINIMUM_PAYMENT[method]) throw fail(400, 'BELOW_MINIMUM_AMOUNT', `${method} 결제는 ${MINIMUM_PAYMENT[method]}원 이상이다`)
