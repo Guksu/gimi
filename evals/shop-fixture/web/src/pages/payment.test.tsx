@@ -43,4 +43,11 @@ describe('결제 결과', () => {
     expect(await screen.findByRole('heading', { name: '결제를 취소했어요' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '주문으로 돌아가 다시 결제하기' })).toHaveAttribute('href', '/orders/7')
   })
+
+  it('주문번호 없이 실패 화면에 오면 없는 주문 대신 메뉴로 보낸다', async () => {
+    openAt('/payments/fail?code=PAY_PROCESS_ABORTED')
+    expect(await screen.findByRole('heading', { name: '결제하지 못했어요' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '메뉴로 돌아가기' })).toHaveAttribute('href', '/')
+    expect(screen.queryByRole('link', { name: '주문으로 돌아가 다시 결제하기' })).not.toBeInTheDocument()
+  })
 })

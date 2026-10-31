@@ -54,11 +54,13 @@ export const PaymentSuccessPage = ({ search }: { search: string }) => {
 export const PaymentFailPage = ({ search }: { search: string }) => {
   const params = new URLSearchParams(search)
   const canceled = params.get('code') === 'USER_CANCEL'
+  // 주문번호 없이 돌아오면 돌아갈 주문이 없다 — 메뉴로 보낸다
+  const orderId = params.get('orderId')
   return (
     <section>
       <h1>{canceled ? '결제를 취소했어요' : '결제하지 못했어요'}</h1>
       {!canceled && <p role="alert">{messageOf(params.get('code') ?? 'UNKNOWN')}</p>}
-      <Link to={`/orders/${params.get('orderId')}`}>주문으로 돌아가 다시 결제하기</Link>
+      {orderId ? <Link to={`/orders/${orderId}`}>주문으로 돌아가 다시 결제하기</Link> : <Link to="/">메뉴로 돌아가기</Link>}
     </section>
   )
 }

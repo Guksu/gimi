@@ -1,8 +1,8 @@
 diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
-index 429fd01..fafa814 100644
+index 4cd08b6..dec0ef0 100644
 --- a/contracts/openapi.yaml
 +++ b/contracts/openapi.yaml
-@@ -362,7 +362,7 @@ components:
+@@ -373,7 +373,7 @@ components:
            type: boolean
      Order:
        type: object
@@ -11,7 +11,7 @@ index 429fd01..fafa814 100644
        properties:
          id:
            type: integer
-@@ -376,6 +376,10 @@ components:
+@@ -387,6 +387,10 @@ components:
              $ref: '#/components/schemas/OrderItem'
          subtotal:
            type: integer
@@ -48,10 +48,10 @@ index 60b3c16..e010605 100644
      expect((await t.db.query("SELECT used_count FROM coupons WHERE code = 'NOODLE10'")).rows[0].used_count).toBe(1)
      expect((await t.db.query('SELECT points FROM users WHERE id = 1')).rows[0].points).toBe(4000)
 diff --git a/web/src/api/schema.d.ts b/web/src/api/schema.d.ts
-index 48bae30..7af5b63 100644
+index e98cef3..e8ba80a 100644
 --- a/web/src/api/schema.d.ts
 +++ b/web/src/api/schema.d.ts
-@@ -194,6 +194,8 @@ export interface components {
+@@ -199,6 +199,8 @@ export interface components {
              method: components["schemas"]["Method"];
              items: components["schemas"]["OrderItem"][];
              subtotal: number;
@@ -100,7 +100,7 @@ index 315d289..f391efe 100644
      show({ status: 'held_by_risk_team' })
      openAt('/orders/7')
 diff --git a/web/src/test/server.ts b/web/src/test/server.ts
-index c55883f..08831b3 100644
+index 907690a..542b912 100644
 --- a/web/src/test/server.ts
 +++ b/web/src/test/server.ts
 @@ -36,6 +36,7 @@ export const order = (overrides: Partial<Order> = {}): Order => ({

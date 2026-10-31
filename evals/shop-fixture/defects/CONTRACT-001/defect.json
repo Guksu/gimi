@@ -15,9 +15,9 @@
       "line": 99,
       "endLine": 100,
       "evidence": [
-        { "path": "contracts/openapi.yaml", "line": 345 },
+        { "path": "contracts/openapi.yaml", "line": 356 },
         { "path": "web/src/pages/CartPage.tsx", "line": 48 },
-        { "path": "web/src/api/schema.d.ts", "line": 181 },
+        { "path": "web/src/api/schema.d.ts", "line": 186 },
         { "path": "web/src/test/server.ts", "line": 28 }
       ]
     }

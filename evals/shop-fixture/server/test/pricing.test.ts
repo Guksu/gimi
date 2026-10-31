@@ -18,6 +18,11 @@ describe('GET /products', () => {
     expect(res.body.items.find((p: any) => p.id === 3)).toMatchObject({ name: '칼국수', price: 8000, stock: 0, soldOut: true })
     expect(res.body.items.find((p: any) => p.id === 4)).toMatchObject({ returnable: false, maxPerOrder: 3 })
   })
+
+  it('메뉴가 첫 화면에 안내할 기본 배송비와 무료 배송 기준을 준다', async () => {
+    const res = await t.as(1).get('/products')
+    expect(res.body.shipping).toEqual({ fee: 3000, freeThreshold: 30000 })
+  })
 })
 
 describe('POST /orders/quote — 금액은 서버가 원 단위 정수로 계산한다', () => {

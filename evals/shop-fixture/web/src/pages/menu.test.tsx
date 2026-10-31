@@ -15,6 +15,11 @@ describe('메뉴', () => {
     expect(within(card).getByText('단순 변심으로 반품할 수 없는 상품이에요')).toBeInTheDocument()
   })
 
+  it('첫 화면에 기본 배송비와 무료 배송 기준을 알린다', async () => {
+    openAt('/')
+    expect(await screen.findByText('30,000원 미만 주문에는 배송비 3,000원이 붙어요')).toBeInTheDocument()
+  })
+
   it('담으면 장바구니 수가 늘어난다', async () => {
     const { user } = openAt('/')
     const card = (await screen.findByRole('heading', { name: '잔치국수' })).closest('article') as HTMLElement

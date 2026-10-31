@@ -9,6 +9,7 @@ export type Order = components['schemas']['Order']
 export type OrderRequest = components['schemas']['OrderRequest']
 export type Method = components['schemas']['Method']
 export type Checkout = components['schemas']['Checkout']
+export type Shipping = components['schemas']['Shipping']
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 // 예제라 로그인이 없다 — 손님은 1번이다
@@ -36,7 +37,7 @@ const request = async <T>(path: string, init: { method?: 'GET' | 'POST'; body?: 
 }
 
 export const api = {
-  products: () => request<{ items: Product[] }>('/products'),
+  products: () => request<{ items: Product[]; shipping: Shipping }>('/products'),
   quote: (body: OrderRequest) => request<Quote>('/orders/quote', { method: 'POST', body }),
   createOrder: (body: OrderRequest, idempotencyKey: string) => request<Order>('/orders', { method: 'POST', body, headers: { 'idempotency-key': idempotencyKey } }),
   order: (id: number) => request<Order>(`/orders/${id}`),

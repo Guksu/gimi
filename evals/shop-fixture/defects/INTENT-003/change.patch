@@ -16,10 +16,10 @@ index 1e8828d..e8256ca 100644
    return items.map((item: { productId?: unknown; quantity?: unknown }) => {
      const productId = item?.productId
 diff --git a/server/test/pricing.test.ts b/server/test/pricing.test.ts
-index 197bafe..7f4280f 100644
+index 10925c0..66a1295 100644
 --- a/server/test/pricing.test.ts
 +++ b/server/test/pricing.test.ts
-@@ -50,6 +50,12 @@ describe('POST /orders/quote — 금액은 서버가 원 단위 정수로 계산
+@@ -55,6 +55,12 @@ describe('POST /orders/quote — 금액은 서버가 원 단위 정수로 계산
      expect((await quote({ items: [{ productId: 1, quantity: 1 }, { productId: 1, quantity: 1 }] })).body.code).toBe('DUPLICATE_ITEM')
    })
  
