@@ -1,8 +1,8 @@
 diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
-index 429fd01..428e103 100644
+index 429fd01..e83ef19 100644
 --- a/contracts/openapi.yaml
 +++ b/contracts/openapi.yaml
-@@ -177,12 +177,15 @@ paths:
+@@ -177,13 +177,16 @@ paths:
              application/json:
                schema:
                  type: object
@@ -13,12 +13,13 @@ index 429fd01..428e103 100644
                      type: integer
                    deadline:
                      type: string
+                     format: date-time
 +                  refundAmount:
 +                    type: integer
 +                    description: 환불 예정 금액(원)
-                     format: date-time
          '409':
            $ref: '#/components/responses/Error'
+   /payments/confirm:
 diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
 index ac23339..e3cc728 100644
 --- a/server/src/orders/orders.service.ts
@@ -54,19 +55,14 @@ index f9fe230..15aba1e 100644
 +  requestReturn: (id: number, reason: 'change_of_mind' | 'defective') => request<{ id: number; deadline: string; refundAmount: number }>(`/orders/${id}/returns`, { method: 'POST', body: { reason } }),
  }
 diff --git a/web/src/api/schema.d.ts b/web/src/api/schema.d.ts
-index 48bae30..6e3a4eb 100644
+index 48bae30..86ca4b2 100644
 --- a/web/src/api/schema.d.ts
 +++ b/web/src/api/schema.d.ts
-@@ -474,8 +474,12 @@ export interface operations {
-                 content: {
-                     "application/json": {
+@@ -476,6 +476,8 @@ export interface operations {
                          id: number;
--                        /** Format: date-time */
+                         /** Format: date-time */
                          deadline: string;
-+                        /**
-+                         * Format: date-time
-+                         * @description 환불 예정 금액(원)
-+                         */
++                        /** @description 환불 예정 금액(원) */
 +                        refundAmount: number;
                      };
                  };

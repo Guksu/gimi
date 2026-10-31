@@ -1,16 +1,16 @@
 diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
-index ac23339..ed10c76 100644
+index ac23339..c9f2991 100644
 --- a/server/src/orders/orders.service.ts
 +++ b/server/src/orders/orders.service.ts
-@@ -37,6 +37,8 @@ interface ItemRow {
- }
- 
- // 화면에 취소 버튼을 보일 수 있는 상태 — 배송을 시작하면 취소가 아니라 반품이다
-+// 위생 상품 — 직접 담근 김치, 멸치 육수 팩
-+const HYGIENE_PRODUCTS: ReadonlySet<number> = new Set([4, 5])
+@@ -40,6 +40,8 @@ interface ItemRow {
  const CANCELABLE: ReadonlySet<OrderStatus> = new Set(['pending_payment', 'payment_failed', 'waiting_for_deposit', 'paid', 'preparing', 'partially_refunded'])
  const REFUNDABLE: ReadonlySet<OrderStatus> = new Set(['paid', 'preparing', 'partially_refunded'])
  const PAYABLE: ReadonlySet<OrderStatus> = new Set(['pending_payment', 'payment_failed'])
++// 위생 상품 — 직접 담근 김치, 멸치 육수 팩
++const HYGIENE_PRODUCTS: ReadonlySet<number> = new Set([4, 5])
+ 
+ @Injectable()
+ export class OrdersService {
 @@ -240,8 +242,9 @@ export class OrdersService {
      const now = this.clock.now()
      if (now >= deadline) throw fail(409, 'RETURN_WINDOW_CLOSED', '반품 기한이 지났다')
