@@ -118,6 +118,93 @@ describe('영향 범위 — 프로젝트의 TypeScript로', () => {
   })
 })
 
+describe('영향 범위 — 클래스 메서드', () => {
+  it('메서드 본문만 바뀌면 그 메서드를 부르는 곳(다른 클래스의 this.주입한것.메서드 포함)을 찾고, 클래스 전체는 담지 않는다', () => {
+    const repo = makeRepo()
+    try {
+      repo.write({
+        'tsconfig.json': TSCONFIG,
+        'src/orders.ts': ['export class Orders {', '  row(id: number) {', '    return id', '  }', '  get(id: number) {', '    return this.row(id)', '  }', '}', ''].join('\n'),
+        'src/payments.ts': ["import { Orders } from './orders'", 'export class Payments {', '  constructor(private readonly orders: Orders) {}', '  confirm() {', '    return this.orders.row(1)', '  }', '}', ''].join('\n'),
+      })
+      repo.commit('feat: 처음')
+      repo.git('switch', '-q', '-c', 'feat/x')
+      repo.write({ 'src/orders.ts': ['export class Orders {', '  row(id: number) {', '    return id + 1', '  }', '  get(id: number) {', '    return this.row(id)', '  }', '}', ''].join('\n') })
+      repo.commit('feat: 바꿈')
+      const impact = collectContext({ exec: execFor({ dir: repo.dir }), useGh: false, loadTs: () => ({ ts, reason: null }) }).impact
+      const row = symbolOf(impact, 'Orders.row')
+      assert.equal(row.change, 'body')
+      assert.equal(row.method, 'typescript')
+      // 이 변경에서 안 바뀐 파일의 사용처가 먼저다
+      assert.deepEqual(where(row.usages), [
+        ['src/payments.ts', 5, false],
+        ['src/orders.ts', 6, true],
+      ])
+      assert.equal(symbolOf(impact, 'Orders'), undefined)
+      // 같은 클래스에서 그 메서드를 부르는 메서드는 감싼 것으로 한 단계 따라간다
+      const get = symbolOf(impact, 'Orders.get')
+      assert.equal(get.change, 'wraps')
+      assert.equal(get.through, 'Orders.row')
+    } finally {
+      repo.cleanup()
+    }
+  })
+})
+
+describe('영향 범위 — 클래스 메서드의 빈틈', () => {
+  const scenario = ({ first, second }) => {
+    const repo = makeRepo()
+    repo.write({ 'tsconfig.json': TSCONFIG, ...first })
+    repo.commit('feat: 처음')
+    repo.git('switch', '-q', '-c', 'feat/x')
+    repo.write(second)
+    repo.commit('feat: 바꿈')
+    try {
+      return collectContext({ exec: execFor({ dir: repo.dir }), useGh: false, loadTs: () => ({ ts, reason: null }) }).impact
+    } finally {
+      repo.cleanup()
+    }
+  }
+  const PAYMENTS = ["import { Orders } from './orders'", 'export class Payments {', '  constructor(private readonly orders: Orders) {}', '  confirm() {', '    return this.orders.row(1)', '  }', '}', ''].join('\n')
+
+  it('지운 메서드는 문자열로 찾되 이름(Orders.row)이 아니라 멤버를 부르는 모양(.row()으로 찾는다', () => {
+    const impact = scenario({
+      first: { 'src/orders.ts': ['export class Orders {', '  row(id: number) {', '    return id', '  }', '}', ''].join('\n'), 'src/payments.ts': PAYMENTS },
+      second: { 'src/orders.ts': ['export class Orders {', '}', ''].join('\n') },
+    })
+    const row = symbolOf(impact, 'Orders.row')
+    assert.equal(row.change, 'removed')
+    assert.equal(row.method, 'text')
+    assert.deepEqual(where(row.usages), [['src/payments.ts', 5, false]])
+  })
+
+  it('같은 인터페이스를 구현한 다른 클래스의 선언과 호출은 담지 않는다', () => {
+    const impl = (name, body) => ["import type { Repo } from './repo'", `export class ${name} implements Repo {`, '  row(id: number) {', `    return id + ${body}`, '  }', '}', ''].join('\n')
+    const impact = scenario({
+      first: {
+        'src/repo.ts': ['export interface Repo {', '  row(id: number): number', '}', ''].join('\n'),
+        'src/a.ts': impl('A', 0),
+        'src/b.ts': impl('B', 0),
+        'src/use.ts': ["import { A } from './a'", "import { B } from './b'", 'export const useA = (a: A) => a.row(1)', 'export const useB = (b: B) => b.row(2)', ''].join('\n'),
+      },
+      second: { 'src/a.ts': impl('A', 1) },
+    })
+    assert.deepEqual(where(symbolOf(impact, 'A.row').usages), [['src/use.ts', 3, false]])
+  })
+
+  it('함수 export를 클래스의 메서드가 부르면 감싼 것은 메서드가 아니라 클래스다 — 메서드마다 따로 담지 않는다', () => {
+    const money = (body) => ['export const toWon = (n: number) => {', `  return n + ${body}`, '}', 'export class Router {', '  go() { return toWon(1) }', '  back() { return toWon(2) }', '}', ''].join('\n')
+    const impact = scenario({
+      first: { 'src/money.ts': money(0), 'src/app.ts': ["import { Router } from './money'", 'export const router = new Router()', ''].join('\n') },
+      second: { 'src/money.ts': money(1) },
+    })
+    const router = symbolOf(impact, 'Router')
+    assert.equal(router.change, 'wraps')
+    assert.deepEqual(where(router.usages), [['src/app.ts', 2, false]])
+    assert.equal(symbolOf(impact, 'Router.go'), undefined)
+  })
+})
+
 describe('영향 범위 — tsconfig에 없는 파일', () => {
   it('그 파일의 export는 문자열로 찾고, 심볼마다가 아니라 파일 수로 한 번 알린다', () => {
     const repo = makeRepo()
