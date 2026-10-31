@@ -74,7 +74,7 @@ const pathPatterns = (endpoint) => {
 }
 
 /**
- * @param {{ exec: any, root: string, scope: { mergeBase: string }, files: import('./diff.mjs').FileDiff[], ts: any, yaml: { parse: (text: string) => any, name: string }, linked?: { label: string, root: string, exec: any, ts: any }[] }} args
+ * @param {{ exec: any, root: string, scope: { mergeBase: string }, files: import('./diff.mjs').FileDiff[], ts: any, yaml: { parse: (text: string) => any, name: string }, linked?: { label: string, root: string, prefix: string, exec: any, ts: any }[] }} args
  * @returns {{ contracts: any[], skipped: { context: string, reason: string }[], notes: string[] }}
  */
 export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = [] }) => {
@@ -82,13 +82,17 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
   const skipped = []
   const notes = []
   const changedPaths = new Set(files.map((file) => file.newPath).filter(Boolean))
-  const grepFilesIn = (target, patterns) => {
+  // 저장소 안의 폴더만 함께 볼 때는 그 폴더 아래만 찾는다(git pathspec의 *는 /도 넘는다)
+  const scoped = (target, globs) => (target.prefix ? globs.map((glob) => `${target.prefix}/${glob}`) : globs)
+  const inScope = (target, path) => !target.prefix || path.startsWith(`${target.prefix}/`)
+  /** @param {{ wide?: boolean }} [options] wide면 폴더와 상관없이 저장소 전체(생성 타입은 다른 패키지에 있을 수 있다) */
+  const grepFilesIn = (target, patterns, { wide = false } = {}) => {
     if (patterns.length === 0) return []
-    const out = attempt(() => target.exec.git(['grep', '-l', '-I', '-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...CODE_GLOBS]))
+    const out = attempt(() => target.exec.git(['grep', '-l', '-I', '-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...(wide ? CODE_GLOBS : scoped(target, CODE_GLOBS))]))
     return out ? out.split('\n').filter(Boolean) : []
   }
   // 사용처를 찾는 곳 — 리뷰하는 저장소와 함께 보는 저장소. 함께 보는 저장소의 것은 이 변경에서 바뀌지 않았다
-  const targets = [{ repo: null, root, exec, ts, changedPaths }, ...linked.map((l) => ({ repo: l.label, root: l.root, exec: l.exec, ts: l.ts, changedPaths: new Set() }))].map((target) => ({
+  const targets = [{ repo: null, root, prefix: '', exec, ts, changedPaths }, ...linked.map((l) => ({ repo: l.label, root: l.root, prefix: l.prefix ?? '', exec: l.exec, ts: l.ts, changedPaths: new Set() }))].map((target) => ({
     ...target,
     readLines: createFileReader({ root: target.root }),
     index: target.ts ? createTsIndex({ ts: target.ts, root: target.root }) : null,
@@ -100,6 +104,20 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
     const usage = usageAt({ readLines: target.readLines, path, line, changedPaths: target.changedPaths })
     return target.repo === null ? usage : { ...usage, repo: target.repo }
   }
+  // 저장소마다 따로 센다 — 리뷰하는 저장소의 사용처가 많아도 함께 보는 저장소의 것이 잘리지 않게. 함께 보는 저장소의 수는 linked에 둔다
+  const finalizeByRepo = (usages) => {
+    const groups = new Map()
+    for (const usage of usages) groups.set(usage.repo ?? '', [...(groups.get(usage.repo ?? '') ?? []), usage])
+    const parts = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([repo, list]) => ({ repo, ...finalize(list) }))
+    const linkedCounts = parts.filter((part) => part.repo !== '').map(({ repo, total, unchanged }) => ({ repo, total, unchanged }))
+    return {
+      total: parts.reduce((sum, part) => sum + part.total, 0),
+      unchanged: parts.reduce((sum, part) => sum + part.unchanged, 0),
+      usages: parts.flatMap((part) => part.usages),
+      ...(linkedCounts.length > 0 ? { linked: linkedCounts } : {}),
+    }
+  }
+  const outsideConfig = new Set()
   const regenerated = ({ contractPath, generated }) => {
     if (generated.length > 0 && !generated.some((path) => changedPaths.has(path))) {
       notes.push(`계약 파일(${contractPath})이 바뀌었는데 생성 타입(${generated.slice(0, 3).join(', ')})은 이 변경에서 바뀌지 않았다 — 다시 생성했는지 확인한다`)
@@ -120,7 +138,6 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
   }
 
   // OpenAPI — 파일마다 따로 비교한다
-  let openApiGenerated = null
   for (const file of files) {
     const path = file.newPath ?? file.oldPath
     if (file.binary || !OPENAPI_FILE.test(path)) continue
@@ -138,26 +155,31 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
       continue
     }
     if (!isOpenApi(before) && !isOpenApi(after)) continue
-    for (const target of targets) target.openApiGenerated ??= grepFilesIn(target, OPENAPI_GENERATED)
+    for (const target of targets) target.openApiGenerated ??= grepFilesIn(target, OPENAPI_GENERATED, { wide: true })
     const generated = self.openApiGenerated
     const changes = diffOpenApi({ before: isOpenApi(before) ? before : {}, after: isOpenApi(after) ? after : {} })
-    const pathCache = new Map()
+    // 찾을 변경(더하기만 한 것은 빼고 앞에서 MAX_SEARCHED개 — 상한은 계약 파일마다, 저장소를 모두 합쳐 같은 변경을 본다)
+    const searchedChanges = new Set(changes.filter((change) => change.level !== 'additive').slice(0, MAX_SEARCHED))
+    const endpointsOf = (change) => (change.target === 'endpoint' ? [change.key] : (change.endpoints ?? []))
+    const wanted = [...new Set([...searchedChanges].flatMap(endpointsOf))]
+    // 저장소마다 git grep 한 번 — 찾을 엔드포인트의 경로를 모두 모아 찾고, 줄마다 어느 엔드포인트의 경로가 들었는지 가른다
+    const pathHits = new Map()
     const pathUsages = (target, endpoint) => {
-      const key = `${target.repo ?? ''}\0${endpoint}`
-      if (!pathCache.has(key)) {
-        const patterns = pathPatterns(endpoint)
+      if (!pathHits.has(target)) {
+        const patterns = [...new Set(wanted.flatMap(pathPatterns))]
         // 계약 파일과 생성 타입 자신은 사용처가 아니다
         const excluded = [...(target === self ? [path] : []), ...target.openApiGenerated].map((p) => `:(exclude)${p}`)
-        const hits = patterns.length === 0 ? [] : grep({ exec: target.exec, args: ['-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...CODE_GLOBS, ...excluded] })
-        pathCache.set(key, hits.map((hit) => usageIn(target, hit.path, hit.line)))
+        pathHits.set(target, patterns.length === 0 ? [] : grep({ exec: target.exec, args: ['-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...scoped(target, CODE_GLOBS), ...excluded] }))
       }
-      return pathCache.get(key)
+      const patterns = pathPatterns(endpoint)
+      return pathHits
+        .get(target)
+        .filter((hit) => patterns.some((pattern) => hit.text.includes(pattern)))
+        .map((hit) => usageIn(target, hit.path, hit.line))
     }
-    let searched = 0
     const enriched = changes.map((change) => {
-      if (change.level === 'additive' || searched >= MAX_SEARCHED) return { ...change, method: null, searched: false, total: 0, unchanged: 0, usages: [] }
-      searched += 1
-      const endpoints = change.target === 'endpoint' ? [change.key] : (change.endpoints ?? [])
+      if (!searchedChanges.has(change)) return { ...change, method: null, searched: false, total: 0, unchanged: 0, usages: [] }
+      const endpoints = endpointsOf(change)
       let usages = targets.flatMap((target) => endpoints.flatMap((endpoint) => pathUsages(target, endpoint)))
       let method = 'text'
       // 생성 타입이 있으면 바뀐 스키마·필드를 TypeScript 참조로도 찾는다 — 함께 보는 저장소의 생성 타입은 옛 계약에서 만든 것이라 옛 필드가 있다
@@ -169,12 +191,15 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
           const pos = memberPos({ ts: target.ts, text: readFileSync(abs, 'utf8'), fileName: abs, schema: change.schema, field: change.field })
           if (pos === null) continue
           const refs = target.index.referencesOf({ path: genPath, namePos: pos })
-          if (!refs) continue
+          if (!refs) {
+            if (target !== self) outsideConfig.add(`${target.repo}의 ${genPath}`)
+            continue
+          }
           method = 'typescript+text'
-          usages = [...usages, ...refs.map((ref) => usageIn(target, ref.path, lineOfPos({ readLines: target.readLines, path: ref.path, pos: ref.pos })))]
+          usages = [...usages, ...refs.filter((ref) => inScope(target, ref.path)).map((ref) => usageIn(target, ref.path, lineOfPos({ readLines: target.readLines, path: ref.path, pos: ref.pos })))]
         }
       }
-      return { ...change, method, searched: true, ...finalize(usages.filter((u) => !/^\s*import\b/.test(u.text))) }
+      return { ...change, method, searched: true, ...finalizeByRepo(usages.filter((u) => !/^\s*import\b/.test(u.text))) }
     })
     contracts.push({ kind: 'openapi', path, parser: /\.json$/i.test(path) ? 'json' : yaml.name, generated, changes: enriched })
     regenerated({ contractPath: path, generated })
@@ -213,7 +238,7 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
         for (const target of targets) {
           const candidates = [
             ...grepFilesIn(target, ['gql', 'graphql', 'GraphQL']),
-            ...(attempt(() => target.exec.git(['ls-files', '-z', '--', '*.graphql', '*.gql'])) ?? '').split('\0').filter((p) => p && !(target === self && schemaPaths.has(p))),
+            ...(attempt(() => target.exec.git(['ls-files', '-z', '--', ...scoped(target, ['*.graphql', '*.gql'])])) ?? '').split('\0').filter((p) => p && !(target === self && schemaPaths.has(p))),
           ].slice(0, MAX_DOCUMENT_FILES)
           const documents = candidates.flatMap((path) => {
             const abs = join(target.root, path)
@@ -231,11 +256,11 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
         const changes = diffSchema({ before, after }).map((change) => {
           if (change.level === 'additive' || searched >= MAX_SEARCHED) return { ...change, method: null, searched: false, total: 0, unchanged: 0, usages: [] }
           searched += 1
-          const targets = new Set(change.affects)
+          const affected = new Set(change.affects)
           const found = uses
-            .filter((u) => targets.has(`${u.typeName}.${u.fieldName}`))
+            .filter((u) => affected.has(`${u.typeName}.${u.fieldName}`))
             .map((u) => ({ ...usageIn(u.target, u.path, u.line), operation: u.operation, fieldPath: u.fieldPath }))
-          return { ...change, method: 'graphql', searched: true, ...finalize(found) }
+          return { ...change, method: 'graphql', searched: true, ...finalizeByRepo(found) }
         })
         const label = changedSchema.length > 2 ? `${changedSchema.slice(0, 2).join(', ')} 외 ${changedSchema.length - 2}개` : changedSchema.join(', ')
         contracts.push({ kind: 'graphql', path: label, sources: [...schemaPaths].sort(), generated, documents: documentCount, changes })
@@ -243,5 +268,6 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
       }
     }
   }
+  if (outsideConfig.size > 0) notes.push(`함께 보는 저장소의 생성 타입 ${[...outsideConfig].slice(0, 3).join(', ')}이(가) 어느 tsconfig에도 없어 TypeScript 참조 없이 경로 문자열로만 찾았다`)
   return { contracts, skipped, notes }
 }

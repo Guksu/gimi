@@ -112,7 +112,8 @@ const contractUsage = (change, graphql) => {
   const unit = graphql ? '연산' : '사용처'
   if (change.total === 0) return `  ${unit} 없음`
   const how = graphql ? '' : ` · ${METHOD_LABEL[change.method] ?? change.method}`
-  return `  ${unit} ${change.total}(이 변경에서 안 바뀜 ${change.unchanged}${how})`
+  const linked = (change.linked ?? []).map((repo) => ` · [${repo.repo}] ${repo.total}`).join('')
+  return `  ${unit} ${change.total}(이 변경에서 안 바뀜 ${change.unchanged}${how}${linked})`
 }
 
 const contractRows = (contracts) => {
@@ -128,9 +129,15 @@ const contractRows = (contracts) => {
       const endpoints = change.target === 'schema' && change.endpoints?.length > 0 ? ` / 엔드포인트 ${change.endpoints[0]}${change.endpoints.length > 1 ? ` 외 ${change.endpoints.length - 1}` : ''}` : ''
       rows.push(`    ${change.key}  ${LEVEL_LABEL[change.level]} — ${change.details.join(' / ')}${endpoints}${contractUsage(change, graphql)}`)
       if (!change.searched || change.total === 0) continue
-      const shown = change.usages.filter((usage) => !usage.changedInPr).slice(0, MAX_USAGES)
-      for (const usage of shown) rows.push(`      ${usage.repo ? `[${usage.repo}] ` : ''}${usage.path}:${usage.line}${usage.operation ? `  ${usage.operation} › ${usage.fieldPath}` : ''}`)
-      if (change.unchanged > shown.length) rows.push(`      … 안 바뀐 곳 ${change.unchanged - shown.length}곳 더 — JSON에 있다`)
+      // 저장소마다 따로 보인다 — 리뷰하는 저장소의 사용처가 많아도 함께 보는 저장소의 것이 가려지지 않게
+      const linkedUnchanged = (change.linked ?? []).reduce((sum, repo) => sum + repo.unchanged, 0)
+      const groups = [{ repo: null, unchanged: change.unchanged - linkedUnchanged }, ...(change.linked ?? [])]
+      for (const group of groups) {
+        const shown = change.usages.filter((usage) => !usage.changedInPr && (usage.repo ?? null) === group.repo).slice(0, MAX_USAGES)
+        const tag = group.repo ? `[${group.repo}] ` : ''
+        for (const usage of shown) rows.push(`      ${tag}${usage.path}:${usage.line}${usage.operation ? `  ${usage.operation} › ${usage.fieldPath}` : ''}`)
+        if (group.unchanged > shown.length) rows.push(`      … ${tag}안 바뀐 곳 ${group.unchanged - shown.length}곳 더 — JSON에 있다`)
+      }
       if (change.total > change.unchanged) rows.push(`      이 변경에서 함께 바뀐 곳 ${change.total - change.unchanged}곳 — diff에서 본다`)
     }
     if (contract.changes.length > MAX_CONTRACT_CHANGES) rows.push(`    … 외 ${contract.changes.length - MAX_CONTRACT_CHANGES}개 — JSON에 있다`)
