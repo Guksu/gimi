@@ -1,0 +1,33 @@
+{
+  "id": "KCL-008",
+  "rules": [
+    "KCL-008"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 멤버십 요금 변경을 다음 청구부터 반영한다",
+    "body": "## 배경\n요금표를 바꿔도 기존 회원에게 옛 요금이 계속 나간다.\n\n## 변경\n- 정기 청구는 지금 요금표의 금액으로 한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "요금이 오르면 회원의 별도 동의 없이 다음 청구부터 오른 금액을 청구한다. 인상분은 청구일 전 30일 안에 받은 별도 동의가 있어야 청구할 수 있고, 가입 때 동의는 인상 동의가 아니다. 동의 기록 표(membership_price_consents)를 더 이상 보지 않는다",
+      "path": "server/src/memberships/memberships.service.ts",
+      "line": 48,
+      "evidence": [
+        {
+          "path": "server/db/migrations/001_init.sql",
+          "line": 151
+        },
+        {
+          "path": "server/src/memberships/memberships.service.ts",
+          "line": 14
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/memberships.test.ts"
+  ]
+}

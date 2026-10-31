@@ -124,8 +124,15 @@ node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 �
 | COM-027 | 백엔드 | PG 오류 로그에 요청 머리(시크릿 키)와 본문을 가리지 않고 남긴다 | 없음 · 없음 |
 | KCL-002 | 백엔드 | 위생 상품을 상품 번호 목록으로 단순 변심 반품에서 막는다 — 반품 가능으로 표시한 육수 팩도 거절한다 | 없음 · 없음 |
 | KCL-003 | 백엔드 | 반품 접수 응답에 환불 예정 금액을 더하며 사유와 상관없이 왕복 배송비를 뺀다 — 표시와 다른 상품의 반환 비용을 소비자에게 지운다 | 없음 · 없음 |
+| KCL-004 | 백엔드 | 공급 불가 주문을 취소·환불하지 않고 입고될 때까지 둔다 — 알림만 입고 지연으로 바꾼다 | `server/test/supply-refund-account.test.ts` · 없음 |
 | KCL-006 | 둘 다 | 모든 주문에 붙는 포장 용기 비용 500원을 배송비 줄에 더한다 — 메뉴의 첫 가격에도 안내에도 없고 무료 배송 주문에도 붙는다 | `server/test/pricing.test.ts` · 없음 |
+| KCL-007 | 프론트 | 주문 확인의 멤버십(매달 결제) 가입 체크를 미리 골라 둔다 | `web/src/pages/checkout.test.tsx` · 없음 |
+| KCL-008 | 백엔드 | 멤버십 정기 청구가 별도 동의 없이 오른 요금으로 청구한다 — 동의 기록 표를 보지 않는다 | `server/test/memberships.test.ts` · 없음 |
 | KCL-009 | 프론트 | 공통 푸터를 연락처 한 줄로 줄이며 대표자·사업자등록번호·사업자정보 확인 링크·통신판매업 신고번호·주소·호스팅 사업자를 지운다 | `web/src/components/legal-footer.test.tsx` · 없음 |
+| KCL-010 | 백엔드 | 탈퇴할 때 주문·결제·환불 기록까지 바로 지운다 — 5년 보존과 파기 작업을 건너뛴다 | `server/test/members.test.ts` · 없음 |
+| KCL-011 | 백엔드 | 가입 필수 동의에 광고 수신을 묶는다 — 광고 수신을 거부하면 가입할 수 없다 | `server/test/members.test.ts` · 없음 |
+| KCL-012 | 백엔드 | 가상계좌 환불 계좌번호를 암호화하지 않고 저장한다 | `server/test/supply-refund-account.test.ts` · 없음 |
+| KCL-013 | 백엔드 | 광고 야간 판단을 한국 시간이 아니라 UTC 시로 한다 | `server/test/ads.test.ts` · 없음 |
 | KCL-014 | 백엔드 | 1만 원 미만 카드 결제에 수수료 300원을 더한다 | `server/test/pricing.test.ts` · 없음 |
 
 ## 정상 버전의 알려진 빈틈

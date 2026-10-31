@@ -1,0 +1,34 @@
+{
+  "id": "KCL-010",
+  "rules": [
+    "KCL-010"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 탈퇴하면 남은 개인정보를 바로 지운다",
+    "body": "## 배경\n탈퇴한 손님의 기록이 남아 있다는 문의가 있었다.\n\n## 변경\n- 탈퇴할 때 주문·결제 기록도 함께 지운다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "탈퇴하자마자 주문·결제·환불 기록을 지운다. 거래기록(계약·결제·공급)은 법이 정한 기간(5년) 분리 보존해야 분쟁 때 증빙이 남는다. 이 앱은 보존 기한(retain_until)을 두고 기한이 지나면 파기 작업이 지우도록 되어 있다",
+      "path": "server/src/members/members.service.ts",
+      "line": 65,
+      "endLine": 73,
+      "evidence": [
+        {
+          "path": "server/src/members/retention.service.ts",
+          "line": 7
+        },
+        {
+          "path": "server/db/migrations/001_init.sql",
+          "line": 109
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/members.test.ts"
+  ]
+}

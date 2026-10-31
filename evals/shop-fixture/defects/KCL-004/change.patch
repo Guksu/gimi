@@ -1,0 +1,17 @@
+diff --git a/server/src/orders/supply.service.ts b/server/src/orders/supply.service.ts
+index b97ad1f..274288d 100644
+--- a/server/src/orders/supply.service.ts
++++ b/server/src/orders/supply.service.ts
+@@ -24,9 +24,10 @@ export class SupplyService {
+       userId,
+       orderId,
+       'supply_failed',
+-      `주문하신 상품을 보낼 수 없게 됐어요(${reason}). 결제한 금액은 바로 환불해 드려요`,
++      `주문하신 상품의 입고가 늦어지고 있어요(${reason}). 입고되면 바로 보내 드려요`,
+       this.clock.now(),
+     ])
+-    return this.orders.cancel(userId, orderId, { reason: `공급 불가 — ${reason}` })
++    // 취소하면 손님이 다시 주문해야 한다 — 입고될 때까지 주문을 그대로 두고 입고되면 보낸다
++    return this.orders.get(userId, orderId)
+   }
+ }

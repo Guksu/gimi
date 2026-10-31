@@ -1,0 +1,14 @@
+diff --git a/web/src/pages/CheckoutPage.tsx b/web/src/pages/CheckoutPage.tsx
+index b1980af..1605dc3 100644
+--- a/web/src/pages/CheckoutPage.tsx
++++ b/web/src/pages/CheckoutPage.tsx
+@@ -18,7 +18,8 @@ export const CheckoutPage = () => {
+   const [quote, setQuote] = useState<Quote | null>(null)
+   const [agreed, setAgreed] = useState(false)
+   const [plan, setPlan] = useState<MembershipPlan | null>(null)
+-  const [joinMembership, setJoinMembership] = useState(false)
++  // 멤버십 혜택을 놓치지 않게 가입을 기본으로 골라 둔다 — 손님은 끌 수 있다
++  const [joinMembership, setJoinMembership] = useState(true)
+   const [submitting, setSubmitting] = useState(false)
+   const [error, setError] = useState<string | null>(null)
+   // 이 화면에서 만드는 주문 하나에 멱등 키 하나 — 다시 눌러도 같은 주문이다

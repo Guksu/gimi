@@ -1,0 +1,33 @@
+{
+  "id": "KCL-012",
+  "rules": [
+    "KCL-012"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: 환불 계좌번호를 이체 파일에 바로 쓸 수 있게 저장한다",
+    "body": "## 배경\n환불 담당자가 이체 파일을 만들 때마다 계좌번호를 풀어야 해서 번거롭다.\n\n## 변경\n- 환불 계좌번호를 그대로 저장한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "환불 계좌번호를 암호화하지 않고 평문으로 저장한다. 계좌번호는 암호화해 저장해야 한다. 컬럼 이름(account_number_enc)과 스키마 설명도 암호화를 전제로 한다",
+      "path": "server/src/orders/refund-accounts.controller.ts",
+      "line": 32,
+      "evidence": [
+        {
+          "path": "server/db/migrations/001_init.sql",
+          "line": 127
+        },
+        {
+          "path": "server/src/orders/refund-accounts.controller.ts",
+          "line": 9
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/supply-refund-account.test.ts"
+  ]
+}

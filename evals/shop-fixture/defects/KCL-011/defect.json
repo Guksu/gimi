@@ -1,0 +1,33 @@
+{
+  "id": "KCL-011",
+  "rules": [
+    "KCL-011"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 가입할 때 광고 수신 동의를 함께 받는다",
+    "body": "## 배경\n가입한 손님이 쿠폰·이벤트 소식을 몰라 쓰지 못한다는 문의가 많다.\n\n## 변경\n- 가입 동의에 광고 수신을 함께 받는다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "광고 수신은 선택 동의인데 필수 동의와 함께 묶어, 광고 수신에 동의하지 않으면 가입할 수 없다. 선택 동의를 거부해도 가입은 되어야 한다. 계약은 광고 수신을 선택으로 적고, 서비스 설명도 거부해도 가입한다고 적는다",
+      "path": "server/src/members/members.service.ts",
+      "line": 34,
+      "evidence": [
+        {
+          "path": "contracts/openapi.yaml",
+          "line": 551
+        },
+        {
+          "path": "server/src/members/members.service.ts",
+          "line": 26
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/members.test.ts"
+  ]
+}

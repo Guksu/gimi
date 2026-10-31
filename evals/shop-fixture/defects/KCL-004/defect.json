@@ -1,0 +1,29 @@
+{
+  "id": "KCL-004",
+  "rules": [
+    "KCL-004"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 공급 불가 주문은 입고를 기다렸다가 보낸다",
+    "body": "## 배경\n품절로 취소하면 손님이 다시 주문해야 해서 불편하다.\n\n## 변경\n- 공급 불가 주문을 취소하지 않고 입고될 때까지 둔다\n- 알림 문구를 입고 지연 안내로 바꾼다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "결제한 주문을 공급할 수 없게 됐는데 환불하지 않고 입고될 때까지 둔다. 공급할 수 없으면 지체 없이 알리고 3영업일 안에 환급해야 한다. 입고 날짜도, 환급 기한 작업도 없다",
+      "path": "server/src/orders/supply.service.ts",
+      "line": 31,
+      "evidence": [
+        {
+          "path": "server/src/orders/supply.service.ts",
+          "line": 9
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/supply-refund-account.test.ts"
+  ]
+}
