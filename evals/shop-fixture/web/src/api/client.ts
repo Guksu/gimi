@@ -10,6 +10,8 @@ export type OrderRequest = components['schemas']['OrderRequest']
 export type Method = components['schemas']['Method']
 export type Checkout = components['schemas']['Checkout']
 export type Shipping = components['schemas']['Shipping']
+export type MembershipPlan = components['schemas']['MembershipPlan']
+export type Membership = components['schemas']['Membership']
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api'
 // 예제라 로그인이 없다 — 손님은 1번이다
@@ -45,4 +47,6 @@ export const api = {
   confirm: (body: { orderId: number; paymentKey: string; amount: number }) => request<Order | { status: 'checking'; message: string }>('/payments/confirm', { method: 'POST', body }),
   cancel: (id: number, body: { amount?: number; reason: string }) => request<Order>(`/orders/${id}/cancel`, { method: 'POST', body }),
   requestReturn: (id: number, reason: 'change_of_mind' | 'defective') => request<{ id: number; deadline: string }>(`/orders/${id}/returns`, { method: 'POST', body: { reason } }),
+  membershipPlan: () => request<MembershipPlan>('/memberships/plan'),
+  joinMembership: () => request<Membership>('/memberships', { method: 'POST' }),
 }

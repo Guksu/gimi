@@ -234,6 +234,121 @@ paths:
           $ref: '#/components/responses/Error'
         '502':
           $ref: '#/components/responses/Error'
+  /members:
+    post:
+      operationId: signUp
+      description: 가입 — 필수 동의(약관·개인정보)만 가입 조건이다. 광고 수신·야간 광고는 선택이다. 만 14세 미만은 법정대리인 동의가 필요하다
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+      responses:
+        '201':
+          description: 가입한 회원
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/Error'
+  /members/me/withdraw:
+    post:
+      operationId: withdraw
+      description: 탈퇴 — 회원 정보는 바로 지우고 거래기록은 주문마다 주문한 때부터 5년 보존한 뒤 파기한다
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: 탈퇴한 때와 거래기록 보존 기한
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Withdrawal'
+        '409':
+          $ref: '#/components/responses/Error'
+  /orders/{id}/refund-account:
+    post:
+      operationId: registerRefundAccount
+      description: 가상계좌 주문의 환불 계좌 — 계좌번호는 암호화해 저장하고 응답에는 뒤 4자리만 보인다
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundAccountRequest'
+      responses:
+        '201':
+          description: 저장한 환불 계좌(계좌번호는 가림)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundAccount'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /memberships/plan:
+    get:
+      operationId: membershipPlan
+      responses:
+        '200':
+          description: 멤버십 요금
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPlan'
+  /memberships:
+    post:
+      operationId: joinMembership
+      description: 멤버십 가입 — 첫 달을 청구하고 한 달마다 다시 청구한다. 요금이 오르면 새 요금에 따로 동의해야 새 요금으로 청구한다
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '201':
+          description: 가입한 멤버십
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+        '409':
+          $ref: '#/components/responses/Error'
+  /memberships/me/cancel:
+    post:
+      operationId: cancelMembership
+      description: 멤버십 해지 — 가입처럼 요청 한 번이다. 다음 청구일부터 청구하지 않는다
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: 해지한 때
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipCancel'
+        '404':
+          $ref: '#/components/responses/Error'
+  /memberships/me/price-consent:
+    post:
+      operationId: consentToMembershipPrice
+      description: 오른 멤버십 요금에 대한 별도 동의 — 청구일 전 30일 안의 동의만 청구에 쓴다
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '201':
+          description: 받은 동의
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPriceConsent'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     UserId:
@@ -444,3 +559,112 @@ components:
           type: string
         checkoutUrl:
           type: string
+    SignUpRequest:
+      type: object
+      required: [name, birthDate, agreements]
+      properties:
+        name:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        agreements:
+          type: object
+          required: [terms, privacy]
+          properties:
+            terms:
+              type: boolean
+              description: 이용약관(필수)
+            privacy:
+              type: boolean
+              description: 개인정보 수집·이용(필수)
+            marketing:
+              type: boolean
+              description: 광고 수신(선택)
+            nightMarketing:
+              type: boolean
+              description: 야간(21시~다음 날 8시) 광고 수신(선택) — 광고 수신에 동의했을 때만 쓴다
+        guardianConsent:
+          type: boolean
+          description: 만 14세 미만이면 법정대리인 동의
+    Member:
+      type: object
+      required: [id, name, marketing, nightMarketing]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        marketing:
+          type: boolean
+        nightMarketing:
+          type: boolean
+    Withdrawal:
+      type: object
+      required: [withdrawnAt, retainUntil]
+      properties:
+        withdrawnAt:
+          type: string
+          format: date-time
+        retainUntil:
+          type: string
+          format: date-time
+          description: 마지막 주문의 보존 기한 — 지나면 남은 거래기록을 모두 파기한다. 주문이 없으면 탈퇴한 때다
+    RefundAccountRequest:
+      type: object
+      required: [bank, accountNumber, holder]
+      properties:
+        bank:
+          type: string
+        accountNumber:
+          type: string
+          description: 숫자 10~16자리(하이픈은 뺀다)
+        holder:
+          type: string
+    RefundAccount:
+      type: object
+      required: [bank, accountNumber, holder]
+      properties:
+        bank:
+          type: string
+        accountNumber:
+          type: string
+          description: 뒤 4자리만 보인다
+        holder:
+          type: string
+    MembershipPlan:
+      type: object
+      required: [price]
+      properties:
+        price:
+          type: integer
+          description: 한 달 요금
+    Membership:
+      type: object
+      required: [price, nextBillingAt]
+      properties:
+        price:
+          type: integer
+        nextBillingAt:
+          type: string
+          format: date-time
+    MembershipCancel:
+      type: object
+      required: [cancelledAt]
+      properties:
+        cancelledAt:
+          type: string
+          format: date-time
+    MembershipPriceConsent:
+      type: object
+      required: [fromPrice, price, consentedAt]
+      properties:
+        fromPrice:
+          type: integer
+          description: 동의할 때 내던 금액
+        price:
+          type: integer
+          description: 동의한 오른 금액
+        consentedAt:
+          type: string
+          format: date-time

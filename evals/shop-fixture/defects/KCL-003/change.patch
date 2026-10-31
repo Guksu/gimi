@@ -1,5 +1,5 @@
 diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
-index 4cd08b6..2fdc13a 100644
+index ed8331f..c34588c 100644
 --- a/contracts/openapi.yaml
 +++ b/contracts/openapi.yaml
 @@ -179,13 +179,16 @@ paths:
@@ -44,21 +44,23 @@ index ac23339..e3cc728 100644
    }
  }
 diff --git a/web/src/api/client.ts b/web/src/api/client.ts
-index 6ff56b0..59d4d9b 100644
+index 5345760..839c828 100644
 --- a/web/src/api/client.ts
 +++ b/web/src/api/client.ts
-@@ -44,5 +44,5 @@ export const api = {
+@@ -46,7 +46,7 @@ export const api = {
    checkout: (id: number) => request<Checkout>(`/orders/${id}/checkout`, { method: 'POST' }),
    confirm: (body: { orderId: number; paymentKey: string; amount: number }) => request<Order | { status: 'checking'; message: string }>('/payments/confirm', { method: 'POST', body }),
    cancel: (id: number, body: { amount?: number; reason: string }) => request<Order>(`/orders/${id}/cancel`, { method: 'POST', body }),
 -  requestReturn: (id: number, reason: 'change_of_mind' | 'defective') => request<{ id: number; deadline: string }>(`/orders/${id}/returns`, { method: 'POST', body: { reason } }),
 +  requestReturn: (id: number, reason: 'change_of_mind' | 'defective') => request<{ id: number; deadline: string; refundAmount: number }>(`/orders/${id}/returns`, { method: 'POST', body: { reason } }),
+   membershipPlan: () => request<MembershipPlan>('/memberships/plan'),
+   joinMembership: () => request<Membership>('/memberships', { method: 'POST' }),
  }
 diff --git a/web/src/api/schema.d.ts b/web/src/api/schema.d.ts
-index e98cef3..6e9f2d1 100644
+index faf3507..5a5dcec 100644
 --- a/web/src/api/schema.d.ts
 +++ b/web/src/api/schema.d.ts
-@@ -482,6 +482,8 @@ export interface operations {
+@@ -665,6 +665,8 @@ export interface operations {
                          id: number;
                          /** Format: date-time */
                          deadline: string;

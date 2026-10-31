@@ -12,8 +12,8 @@
       "level": "고쳐야 함",
       "summary": "멱등 키를 누를 때마다 새로 만든다. 주문을 만든 뒤 응답이 끊겨 다시 누르면 주문이 하나 더 생기고 재고·쿠폰·포인트가 두 번 차감된다",
       "path": "web/src/pages/CheckoutPage.tsx",
-      "line": 40,
-      "endLine": 41,
+      "line": 54,
+      "endLine": 55,
       "evidence": [{ "path": "server/src/orders/orders.service.ts", "line": 57, "endLine": 58 }]
     }
   ],

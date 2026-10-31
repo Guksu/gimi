@@ -1,9 +1,9 @@
 diff --git a/web/src/pages/CheckoutPage.tsx b/web/src/pages/CheckoutPage.tsx
-index 443a7b0..b939e06 100644
+index 1311108..4e046c8 100644
 --- a/web/src/pages/CheckoutPage.tsx
 +++ b/web/src/pages/CheckoutPage.tsx
-@@ -19,8 +19,6 @@ export const CheckoutPage = () => {
-   const [agreed, setAgreed] = useState(false)
+@@ -21,8 +21,6 @@ export const CheckoutPage = () => {
+   const [joinMembership, setJoinMembership] = useState(false)
    const [submitting, setSubmitting] = useState(false)
    const [error, setError] = useState<string | null>(null)
 -  // 이 화면에서 만드는 주문 하나에 멱등 키 하나 — 다시 눌러도 같은 주문이다
@@ -11,7 +11,7 @@ index 443a7b0..b939e06 100644
    const inFlight = useRef(false)
  
    useEffect(() => {
-@@ -39,6 +37,8 @@ export const CheckoutPage = () => {
+@@ -53,6 +51,8 @@ export const CheckoutPage = () => {
      if (inFlight.current || !quote) return
      inFlight.current = true
      setSubmitting(true)
@@ -19,4 +19,4 @@ index 443a7b0..b939e06 100644
 +    const idempotencyKey = crypto.randomUUID()
      try {
        const { data: order } = await api.createOrder({ items: cart.items, couponCode: cart.couponCode ?? undefined, points: cart.points || undefined, method }, idempotencyKey)
-       if (order.status === 'paid') {
+       // 멤버십은 손님이 고른 때만 가입한다. 가입하지 못하면 결제로 넘어가지 않고 알린다(이미 가입했으면 된 것이다)

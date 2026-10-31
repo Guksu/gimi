@@ -66,4 +66,48 @@ describe('주문 확인·결제', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('멤버십 가입은 비어 있다 — 고르지 않으면 가입하지 않고, 고르면 주문과 함께 가입한다', async () => {
+    let created = 0
+    let joined = 0
+    server.use(
+      http.post(`${API}/orders`, () => {
+        created += 1
+        return HttpResponse.json(order({ status: 'paid' }), { status: 201 })
+      }),
+      http.post(`${API}/memberships`, () => {
+        joined += 1
+        return HttpResponse.json({ price: 2900, nextBillingAt: '2026-11-21T03:00:00.000Z' }, { status: 201 })
+      }),
+      http.get(`${API}/orders/7`, () => HttpResponse.json(order())),
+    )
+    const pay = async (join: boolean) => {
+      const { user, unmount } = openAt('/checkout', [{ productId: 1, quantity: 2 }])
+      const membership = await screen.findByRole('checkbox', { name: '국수 멤버십도 가입할게요(매달 2,900원 자동 결제)' })
+      expect(membership).not.toBeChecked()
+      if (join) await user.click(membership)
+      await user.click(screen.getByRole('checkbox', { name: '주문 내용을 확인했고 결제에 동의해요' }))
+      await user.click(screen.getByRole('button', { name: '15,000원 결제하기' }))
+      // 결제가 끝난 주문이면 주문 화면으로 간다 — 멤버십 가입은 그 전에 끝난다
+      await vi.waitFor(() => expect(window.location.pathname).toBe('/orders/7'))
+      unmount()
+    }
+    await pay(false)
+    expect([created, joined]).toEqual([1, 0])
+    await pay(true)
+    expect([created, joined]).toEqual([2, 1])
+  })
+
+  it('멤버십 가입에 실패하면 결제로 넘어가지 않고 알린다', async () => {
+    server.use(
+      http.post(`${API}/orders`, () => HttpResponse.json(order({ status: 'pending_payment' }), { status: 201 })),
+      http.post(`${API}/memberships`, () => HttpResponse.json({ code: 'UNKNOWN', message: '실패' }, { status: 500 })),
+    )
+    const { user } = openAt('/checkout', [{ productId: 1, quantity: 2 }])
+    await user.click(await screen.findByRole('checkbox', { name: '국수 멤버십도 가입할게요(매달 2,900원 자동 결제)' }))
+    await user.click(screen.getByRole('checkbox', { name: '주문 내용을 확인했고 결제에 동의해요' }))
+    await user.click(screen.getByRole('button', { name: '15,000원 결제하기' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('문제가 생겼어요. 잠시 뒤 다시 시도해 주세요')
+    expect(screen.getByRole('button', { name: '15,000원 결제하기' })).toBeEnabled()
+  })
 })

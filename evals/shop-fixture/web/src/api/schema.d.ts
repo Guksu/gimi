@@ -132,6 +132,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 가입 — 필수 동의(약관·개인정보)만 가입 조건이다. 광고 수신·야간 광고는 선택이다. 만 14세 미만은 법정대리인 동의가 필요하다 */
+        post: operations["signUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/members/me/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 탈퇴 — 회원 정보는 바로 지우고 거래기록은 주문마다 주문한 때부터 5년 보존한 뒤 파기한다 */
+        post: operations["withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{id}/refund-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 가상계좌 주문의 환불 계좌 — 계좌번호는 암호화해 저장하고 응답에는 뒤 4자리만 보인다 */
+        post: operations["registerRefundAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memberships/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["membershipPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 멤버십 가입 — 첫 달을 청구하고 한 달마다 다시 청구한다. 요금이 오르면 새 요금에 따로 동의해야 새 요금으로 청구한다 */
+        post: operations["joinMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memberships/me/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 멤버십 해지 — 가입처럼 요청 한 번이다. 다음 청구일부터 청구하지 않는다 */
+        post: operations["cancelMembership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/memberships/me/price-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 오른 멤버십 요금에 대한 별도 동의 — 청구일 전 30일 안의 동의만 청구에 쓴다 */
+        post: operations["consentToMembershipPrice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -232,6 +350,71 @@ export interface components {
         Checkout: {
             paymentKey: string;
             checkoutUrl: string;
+        };
+        SignUpRequest: {
+            name: string;
+            /** Format: date */
+            birthDate: string;
+            agreements: {
+                /** @description 이용약관(필수) */
+                terms: boolean;
+                /** @description 개인정보 수집·이용(필수) */
+                privacy: boolean;
+                /** @description 광고 수신(선택) */
+                marketing?: boolean;
+                /** @description 야간(21시~다음 날 8시) 광고 수신(선택) — 광고 수신에 동의했을 때만 쓴다 */
+                nightMarketing?: boolean;
+            };
+            /** @description 만 14세 미만이면 법정대리인 동의 */
+            guardianConsent?: boolean;
+        };
+        Member: {
+            id: number;
+            name: string;
+            marketing: boolean;
+            nightMarketing: boolean;
+        };
+        Withdrawal: {
+            /** Format: date-time */
+            withdrawnAt: string;
+            /**
+             * Format: date-time
+             * @description 마지막 주문의 보존 기한 — 지나면 남은 거래기록을 모두 파기한다. 주문이 없으면 탈퇴한 때다
+             */
+            retainUntil: string;
+        };
+        RefundAccountRequest: {
+            bank: string;
+            /** @description 숫자 10~16자리(하이픈은 뺀다) */
+            accountNumber: string;
+            holder: string;
+        };
+        RefundAccount: {
+            bank: string;
+            /** @description 뒤 4자리만 보인다 */
+            accountNumber: string;
+            holder: string;
+        };
+        MembershipPlan: {
+            /** @description 한 달 요금 */
+            price: number;
+        };
+        Membership: {
+            price: number;
+            /** Format: date-time */
+            nextBillingAt: string;
+        };
+        MembershipCancel: {
+            /** Format: date-time */
+            cancelledAt: string;
+        };
+        MembershipPriceConsent: {
+            /** @description 동의할 때 내던 금액 */
+            fromPrice: number;
+            /** @description 동의한 오른 금액 */
+            price: number;
+            /** Format: date-time */
+            consentedAt: string;
         };
     };
     responses: {
@@ -533,6 +716,174 @@ export interface operations {
             400: components["responses"]["Error"];
             402: components["responses"]["Error"];
             502: components["responses"]["Error"];
+        };
+    };
+    signUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignUpRequest"];
+            };
+        };
+        responses: {
+            /** @description 가입한 회원 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    withdraw: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-user-id": components["parameters"]["UserId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 탈퇴한 때와 거래기록 보존 기한 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Withdrawal"];
+                };
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    registerRefundAccount: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-user-id": components["parameters"]["UserId"];
+            };
+            path: {
+                id: components["parameters"]["OrderId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description 저장한 환불 계좌(계좌번호는 가림) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundAccount"];
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    membershipPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 멤버십 요금 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPlan"];
+                };
+            };
+        };
+    };
+    joinMembership: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-user-id": components["parameters"]["UserId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 가입한 멤버십 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Membership"];
+                };
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    cancelMembership: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-user-id": components["parameters"]["UserId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 해지한 때 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipCancel"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    consentToMembershipPrice: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-user-id": components["parameters"]["UserId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 받은 동의 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPriceConsent"];
+                };
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
 }
