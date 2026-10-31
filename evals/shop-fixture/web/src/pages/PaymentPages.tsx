@@ -39,7 +39,7 @@ export const PaymentSuccessPage = ({ search }: { search: string }) => {
       <section>
         <h1>결제하지 못했어요</h1>
         <p role="alert">{result.message}</p>
-        <Link to={`/orders/${result.orderId}`}>주문으로 돌아가 다시 결제하기</Link>
+        {result.orderId ? <Link to={`/orders/${result.orderId}`}>주문으로 돌아가 다시 결제하기</Link> : <Link to="/">메뉴로 돌아가기</Link>}
       </section>
     )
   return (

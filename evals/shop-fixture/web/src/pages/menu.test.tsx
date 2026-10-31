@@ -17,7 +17,7 @@ describe('메뉴', () => {
 
   it('첫 화면에 기본 배송비와 무료 배송 기준을 알린다', async () => {
     openAt('/')
-    expect(await screen.findByText('30,000원 미만 주문에는 배송비 3,000원이 붙어요')).toBeInTheDocument()
+    expect(await screen.findByText('쿠폰 할인 뒤 30,000원 미만 주문에는 배송비 3,000원이 붙어요')).toBeInTheDocument()
   })
 
   it('담으면 장바구니 수가 늘어난다', async () => {

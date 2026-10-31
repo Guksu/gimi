@@ -1,5 +1,5 @@
 diff --git a/web/src/pages/PaymentPages.tsx b/web/src/pages/PaymentPages.tsx
-index fb44b48..bd43020 100644
+index 17753e5..b4cb680 100644
 --- a/web/src/pages/PaymentPages.tsx
 +++ b/web/src/pages/PaymentPages.tsx
 @@ -21,6 +21,12 @@ export const PaymentSuccessPage = ({ search }: { search: string }) => {

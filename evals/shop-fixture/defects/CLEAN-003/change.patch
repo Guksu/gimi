@@ -1,5 +1,5 @@
 diff --git a/web/src/pages/MenuPage.tsx b/web/src/pages/MenuPage.tsx
-index 442b857..e3de85c 100644
+index 296d67e..0a18779 100644
 --- a/web/src/pages/MenuPage.tsx
 +++ b/web/src/pages/MenuPage.tsx
 @@ -8,6 +8,8 @@ export const MenuPage = () => {
@@ -38,7 +38,7 @@ index 442b857..e3de85c 100644
    return (
      <section aria-label="메뉴">
 diff --git a/web/src/pages/menu.test.tsx b/web/src/pages/menu.test.tsx
-index c05ebb7..24c9e71 100644
+index 43d92cf..8e4106c 100644
 --- a/web/src/pages/menu.test.tsx
 +++ b/web/src/pages/menu.test.tsx
 @@ -1,5 +1,7 @@
@@ -50,7 +50,7 @@ index c05ebb7..24c9e71 100644
  
  describe('메뉴', () => {
 @@ -20,6 +22,16 @@ describe('메뉴', () => {
-     expect(await screen.findByText('30,000원 미만 주문에는 배송비 3,000원이 붙어요')).toBeInTheDocument()
+     expect(await screen.findByText('쿠폰 할인 뒤 30,000원 미만 주문에는 배송비 3,000원이 붙어요')).toBeInTheDocument()
    })
  
 +  it('메뉴를 불러오지 못하면 알리고, 다시 시도하면 다시 불러온다', async () => {

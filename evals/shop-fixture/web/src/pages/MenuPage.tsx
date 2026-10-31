@@ -29,7 +29,7 @@ export const MenuPage = () => {
   return (
     <section aria-label="메뉴">
       {/* 첫 화면 가격에 없는 기본 배송비를 알린다 — 주문 금액에 따라 붙어 상품 가격에 넣을 수 없다 */}
-      {shipping && <p>{formatPrice(shipping.freeThreshold)} 미만 주문에는 배송비 {formatPrice(shipping.fee)}이 붙어요</p>}
+      {shipping && <p>쿠폰 할인 뒤 {formatPrice(shipping.freeThreshold)} 미만 주문에는 배송비 {formatPrice(shipping.fee)}이 붙어요</p>}
       {products.map((product) => (
         <article key={product.id}>
           <h2>{product.name}</h2>

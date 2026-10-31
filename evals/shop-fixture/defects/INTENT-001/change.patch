@@ -1,11 +1,11 @@
 diff --git a/web/src/pages/MenuPage.tsx b/web/src/pages/MenuPage.tsx
-index 442b857..a6a185a 100644
+index 296d67e..2498afc 100644
 --- a/web/src/pages/MenuPage.tsx
 +++ b/web/src/pages/MenuPage.tsx
 @@ -30,17 +30,19 @@ export const MenuPage = () => {
      <section aria-label="메뉴">
        {/* 첫 화면 가격에 없는 기본 배송비를 알린다 — 주문 금액에 따라 붙어 상품 가격에 넣을 수 없다 */}
-       {shipping && <p>{formatPrice(shipping.freeThreshold)} 미만 주문에는 배송비 {formatPrice(shipping.fee)}이 붙어요</p>}
+       {shipping && <p>쿠폰 할인 뒤 {formatPrice(shipping.freeThreshold)} 미만 주문에는 배송비 {formatPrice(shipping.fee)}이 붙어요</p>}
 -      {products.map((product) => (
 -        <article key={product.id}>
 -          <h2>{product.name}</h2>
@@ -34,7 +34,7 @@ index 442b857..a6a185a 100644
    )
  }
 diff --git a/web/src/pages/menu.test.tsx b/web/src/pages/menu.test.tsx
-index c05ebb7..e941291 100644
+index 43d92cf..ad68c8d 100644
 --- a/web/src/pages/menu.test.tsx
 +++ b/web/src/pages/menu.test.tsx
 @@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
