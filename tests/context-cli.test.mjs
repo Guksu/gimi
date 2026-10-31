@@ -65,6 +65,25 @@ describe('context.mjs', () => {
     assert.equal(existsSync(join(repo.dir, 'docs')), false)
   })
 
+  it('설정(.agents/gimi.json)의 linkedRepos를 함께 보는 저장소로 넘긴다 — 계약이 바뀐 PR에서 없는 경로는 건너뜀에 적는다', () => {
+    const api = makeRepo()
+    try {
+      api.write({ 'api/openapi.yaml': 'openapi: 3.0.0\npaths:\n  /a:\n    get:\n      responses:\n        200:\n          description: ok\n' })
+      api.commit('feat: 처음')
+      api.git('switch', '-q', '-c', 'feat/api')
+      api.write({ 'api/openapi.yaml': 'openapi: 3.0.0\npaths: {}\n' })
+      api.commit('feat: 엔드포인트 지움')
+      // 리뷰하는 사람의 작업 트리 설정(커밋하지 않음) — PR이 바꾼 것이 아니라 그대로 쓴다
+      api.write({ '.agents/gimi.json': JSON.stringify({ linkedRepos: ['../없는-저장소'] }) })
+      const result = run({ cwd: api.dir, args: ['--no-gh', '--json'] })
+      assert.equal(result.status, 0, result.stderr)
+      const reasons = JSON.parse(result.stdout).skipped.map((s) => s.reason)
+      assert.ok(reasons.some((r) => r.startsWith('함께 보는 저장소 ../없는-저장소(') && r.includes('찾지 못했다')), reasons.join('\n'))
+    } finally {
+      api.cleanup()
+    }
+  })
+
   it('--base로 기준을 정하고, 없는 기준이면 종료 코드 2로 끝낸다', () => {
     assert.equal(run({ cwd: repo.dir, args: ['--no-gh', '--json', '--base', 'main'] }).status, 0)
     const missing = run({ cwd: repo.dir, args: ['--no-gh', '--base', 'nope'] })

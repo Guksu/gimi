@@ -10,7 +10,7 @@
  *   node context.mjs --no-gh            # gh를 부르지 않는다(PR·이슈 본문 없이)
  *
  * 전체 JSON은 docs/gimi/reviews/{날짜}-{PR·브랜치}.context.json에 쓰고, 같은 PR·브랜치의 예전 묶음은 지운다(--out으로 정하면 지우지 않는다).
- * 설정(.agents/gimi.json): history.recentCommits(기본 10), requirements[].keyPattern(티켓 번호 형식)
+ * 설정(.agents/gimi.json): history.recentCommits(기본 10), requirements[].keyPattern(티켓 번호 형식), linkedRepos(함께 보는 저장소 경로 — 이 체크아웃의 루트 기준)
  * 종료 코드: 0 성공(건너뛴 맥락이 있어도), 2 사용법·환경 오류. 의존성 없음, Node 22 이상.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -82,7 +82,7 @@ const main = () => {
 
   let context
   try {
-    context = collectContext({ exec, pr: args.pr ?? null, base: args.base ?? null, recentCommits: args.recent ?? config.history?.recentCommits ?? 10, keyPatterns, useGh: !args.noGh, now })
+    context = collectContext({ exec, pr: args.pr ?? null, base: args.base ?? null, recentCommits: args.recent ?? config.history?.recentCommits ?? 10, keyPatterns, useGh: !args.noGh, now, linkedRepos: config.linkedRepos ?? null })
   } catch (error) {
     if (error instanceof ContextError) {
       console.error(error.message)

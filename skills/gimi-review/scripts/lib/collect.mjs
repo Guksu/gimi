@@ -8,6 +8,7 @@ import { attempt } from './exec.mjs'
 import { collectHistory } from './history.mjs'
 import { collectImpact, loadTypescript } from './impact.mjs'
 import { collectIntent } from './intent.mjs'
+import { resolveLinked } from './linked.mjs'
 import { resolveScope } from './scope.mjs'
 import { loadYaml } from './yaml.mjs'
 
@@ -24,15 +25,32 @@ const slim = (file) => ({
   })),
 })
 
+const CONTRACT_LIKE = /\.(?:ya?ml|json|graphqls?|gql)$/i
+const LINKED_CONFIG = '.agents/gimi.json'
+
+/**
+ * 함께 보는 저장소 목록은 믿을 수 있는 설정에서만 쓴다 — 이 변경(PR)이 설정의 linkedRepos를 바꿨으면, 리뷰하는 사람 컴퓨터의
+ * 다른 저장소를 읽게(그 저장소의 typescript를 불러오게) 할 수 있으니 기준(갈림점)에 커밋된 값을 쓴다.
+ * 바꾸지 않았으면 작업 트리의 값(리뷰하는 사람이 고친 것 포함)을 쓴다
+ */
+const trustedLinkedRepos = ({ exec, scope, linkedRepos, notes }) => {
+  const at = (rev) => attempt(() => JSON.parse(exec.git(['show', `${rev}:${LINKED_CONFIG}`])))?.linkedRepos ?? null
+  const base = at(scope.mergeBase)
+  if (JSON.stringify(at('HEAD')) === JSON.stringify(base)) return linkedRepos
+  notes.push(`이 변경이 ${LINKED_CONFIG}의 linkedRepos를 바꿨다 — 리뷰하는 컴퓨터의 다른 저장소를 읽게 할 수 있어 기준(갈림점)의 값만 썼다`)
+  return base
+}
+
 /**
  * @param {{
  *   exec: { git: (args: string[]) => string, gh: (args: string[]) => string },
  *   pr?: number | null, base?: string | null, recentCommits?: number,
  *   keyPatterns?: { source: string, pattern: string }[], useGh?: boolean, now?: Date,
  *   loadTs?: (args: { root: string }) => { ts: any, reason: string | null },
- * }} args
+ *   linkedRepos?: unknown,
+ * }} args linkedRepos는 작업 트리 설정의 값 — PR이 바꿨으면 기준의 값을 쓴다(trustedLinkedRepos)
  */
-export const collectContext = ({ exec, pr = null, base = null, recentCommits = 10, keyPatterns = [], useGh = true, now = new Date(), loadTs = loadTypescript }) => {
+export const collectContext = ({ exec, pr = null, base = null, recentCommits = 10, keyPatterns = [], useGh = true, now = new Date(), loadTs = loadTypescript, linkedRepos = null }) => {
   const skipped = []
   const notes = []
 
@@ -57,8 +75,13 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   const root = exec.git(['rev-parse', '--show-toplevel']).trim()
   const { ts, reason } = loadTs({ root })
   const impact = collectImpact({ exec, root, scope, files, ts, reason })
-  // 프론트·백엔드를 잇는 계약 파일(OpenAPI·GraphQL 스키마) — 바뀐 엔드포인트·필드와 그 사용처(설계 결정 47)
-  const contracts = collectContracts({ exec, root, scope, files, ts, yaml: loadYaml({ root }) })
+  // 프론트·백엔드를 잇는 계약 파일(OpenAPI·GraphQL 스키마) — 바뀐 엔드포인트·필드와 그 사용처(설계 결정 47).
+  // 함께 보는 저장소(설계 결정 57)가 있으면 그 저장소에서도 찾는다 — 계약일 수 있는 파일이 바뀐 때만 읽는다
+  const maybeContract = files.some((file) => !file.binary && CONTRACT_LIKE.test(file.newPath ?? file.oldPath))
+  const linked = maybeContract ? resolveLinked({ root, linkedRepos: trustedLinkedRepos({ exec, scope, linkedRepos, notes: impact.notes }), loadTs }) : { linked: [], skipped: [], notes: [] }
+  impact.notes.push(...linked.notes)
+  skipped.push(...linked.skipped)
+  const contracts = collectContracts({ exec, root, scope, files, ts, yaml: loadYaml({ root }), linked: linked.linked })
   impact.contracts = contracts.contracts
   impact.notes.push(...contracts.notes)
   skipped.push(...contracts.skipped)
