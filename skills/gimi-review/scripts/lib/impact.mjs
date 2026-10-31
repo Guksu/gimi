@@ -122,12 +122,17 @@ export const createTsIndex = ({ ts, root }) => {
     }
     return null
   }
-  /** @returns {{ path: string, pos: number }[] | null} null이면 이 파일이 어느 tsconfig에도 없다. includeSelf면 같은 파일 안의 참조도 */
-  const referencesOf = ({ path, namePos, includeSelf = false }) => {
+  /**
+   * @returns {{ path: string, pos: number }[] | null} null이면 이 파일이 어느 tsconfig에도 없다. includeSelf면 같은 파일 안의 참조도.
+   * ownOnly면 이 선언이 정의인 묶음만 — 메서드는 같은 인터페이스를 구현하거나 덮어쓴 다른 클래스의 선언·호출이 다른 묶음으로 함께 온다
+   */
+  const referencesOf = ({ path, namePos, includeSelf = false, ownOnly = false }) => {
     const abs = join(root, path)
     const project = projectFor(abs)
     if (!project) return null
-    const symbols = project.service.findReferences(abs, namePos) ?? []
+    const all = project.service.findReferences(abs, namePos) ?? []
+    const own = all.filter(({ definition: d }) => d.fileName === abs && namePos >= d.textSpan.start && namePos < d.textSpan.start + d.textSpan.length)
+    const symbols = ownOnly && own.length > 0 ? own : all
     return symbols
       .flatMap((symbol) => symbol.references)
       .filter((ref) => !ref.isDefinition && (includeSelf || ref.fileName !== abs) && !ref.fileName.includes('/node_modules/'))
@@ -160,26 +165,28 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
   let dirtyFiles = 0
   const outsideConfig = new Set()
 
-  const textUsages = ({ name, exclude }) =>
-    grep({ exec, args: ['-w', '-F', '-e', name, '--', ...CODE_GLOBS, `:(exclude)${exclude}`] })
+  // 클래스 멤버(`클래스.멤버`)는 이름이 아니라 멤버를 부르는 모양(`.멤버(`)으로 찾는다
+  const textUsages = ({ name, kind, exclude }) =>
+    grep({ exec, args: [...(kind === 'method' ? ['-F', '-e', `.${name.split('.').at(-1)}(`] : ['-w', '-F', '-e', name]), '--', ...CODE_GLOBS, `:(exclude)${exclude}`] })
       .filter((hit) => !IMPORT_LINE.test(hit.text))
       .map((hit) => usageAt({ readLines, path: hit.path, line: hit.line, changedPaths }))
 
-  // 감싼 export — 바뀐 export를 같은 파일 안에서 부르는 다른 export. 한 단계만 따라간다(그 export도 바뀌었으면 이미 담았다)
+  // 감싼 export — 바뀐 export를 같은 파일 안에서 부르는 다른 export. 한 단계만 따라간다(그 export도 바뀌었으면 이미 담았다).
+  // 바뀐 메서드를 같은 클래스의 메서드가 부르면 그 메서드가 감싼 것이고, 그 밖에는 최상위 선언(클래스 포함)이 감싼 것이다
   const wrappersOf = ({ change, path, afterDecls, changed }) => {
     const changedNames = new Set(changed.map((c) => c.name))
+    const owner = change.kind === 'method' ? `${change.name.slice(0, change.name.lastIndexOf('.'))}.` : null
     const seen = new Set()
     const out = []
-    for (const ref of index.referencesOf({ path, namePos: change.after.namePos, includeSelf: true }) ?? []) {
+    for (const ref of index.referencesOf({ path, namePos: change.after.namePos, includeSelf: true, ownOnly: change.kind === 'method' }) ?? []) {
       if (ref.path !== path) continue
       const line = lineOfPos({ readLines, path, pos: ref.pos })
-      // 가장 안쪽 선언이 감싼 것이다 — 클래스 안의 참조는 클래스가 아니라 그 메서드가 감싼다
-      const wrapper = afterDecls
-        .filter((decl) => decl.name !== change.name && decl.namePos != null && line >= decl.start && line <= decl.end)
-        .sort((a, b) => a.end - a.start - (b.end - b.start))[0]
+      const around = afterDecls.filter((decl) => decl.name !== change.name && decl.namePos != null && line >= decl.start && line <= decl.end)
+      const wrapper = (owner && around.find((decl) => decl.kind === 'method' && decl.name.startsWith(owner))) ?? around.find((decl) => decl.kind !== 'method')
       if (!wrapper || change.name.startsWith(`${wrapper.name}.`) || changedNames.has(wrapper.name) || seen.has(wrapper.name)) continue
       seen.add(wrapper.name)
-      const refs = index.referencesOf({ path, namePos: wrapper.namePos }) ?? []
+      const member = wrapper.kind === 'method'
+      const refs = index.referencesOf({ path, namePos: wrapper.namePos, includeSelf: member, ownOnly: member }) ?? []
       const usages = refs.map((r) => usageAt({ readLines, path: r.path, line: lineOfPos({ readLines, path: r.path, pos: r.pos }), changedPaths })).filter((usage) => !IMPORT_LINE.test(usage.text))
       out.push({ name: wrapper.name, kind: wrapper.kind, change: 'wraps', through: change.name, path, method: 'typescript', searched: true, ...finalize(usages) })
     }
@@ -217,7 +224,8 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
       let found = null
       if (change.change !== 'removed' && index && diskMatches && change.after?.namePos != null) {
         // 클래스 멤버는 같은 클래스의 다른 메서드(this.멤버)도 부르는 곳이다 — export와 달리 같은 파일 안의 참조도 담는다
-        const refs = index.referencesOf({ path, namePos: change.after.namePos, includeSelf: change.kind === 'method' })
+        const member = change.kind === 'method'
+        const refs = index.referencesOf({ path, namePos: change.after.namePos, includeSelf: member, ownOnly: member })
         if (refs) {
           method = 'typescript'
           found = refs
@@ -227,7 +235,7 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
       }
       // 이름 없는 default export는 이름으로 찾을 수 없다
       const searched = found != null || change.name !== 'default'
-      if (!found) found = searched ? textUsages({ name: change.name, exclude: path }) : []
+      if (!found) found = searched ? textUsages({ name: change.name, kind: change.kind, exclude: path }) : []
       symbols.push({ name: change.name, kind: change.kind, change: change.change, path, method, searched, ...finalize(found) })
       if (method === 'typescript') symbols.push(...wrappersOf({ change, path, afterDecls, changed: changes }))
     }

@@ -67,6 +67,30 @@ describe('extractExportsTs', () => {
     const row = decls[1]
     assert.equal(text.slice(row.namePos, row.namePos + 3), 'row')
     assert.equal(row.signature, 'async row(id: number)')
+    // 화살표 함수 필드도 본문을 뺀 머리가 시그니처다 — 본문만 바뀌면 본문 변경이다
+    assert.equal(decls[2].signature, 'view = (x: number) =>')
+  })
+
+  it('이름으로 가를 수 없는 멤버는 담지 않고 클래스에 남긴다 — 계산된 이름, static과 섞인 같은 이름, 떨어진 get/set', () => {
+    const text = [
+      'export class A {',
+      '  static make() { return 1 }',
+      '  make() { return 2 }',
+      '  get t() { return 1 }',
+      '  run() { return 2 }',
+      '  set t(v: number) {}',
+      "  ['x-y']() { return 3 }",
+      '  get u() { return 1 }',
+      '  set u(v: number) {}',
+      '}',
+      '',
+    ].join('\n')
+    const decls = extractExportsTs({ ts, text, fileName: 'src/a.ts' })
+    assert.deepEqual(decls.map((d) => [d.name, d.start, d.end]), [
+      ['A', 1, 10],
+      ['A.run', 5, 5],
+      ['A.u', 8, 9],
+    ])
   })
 
   it('참조 찾기에 쓸 이름 위치를 담는다', () => {
@@ -102,6 +126,22 @@ describe('compareExports', () => {
     const before = [ex('Orders', 1, 9, 's', 'class'), ex('Orders.row', 3, 5, 'row()', 'method')]
     const after = [ex('Orders', 1, 9, 's2', 'class'), ex('Orders.row', 3, 5, 'row()', 'method')]
     assert.deepEqual(compareExports({ before, after, removedLines: new Set([1]), addedLines: new Set([1]) }).map((c) => [c.name, c.change]), [['Orders', 'signature']])
+  })
+
+  it('담지 않은 멤버(계산된 이름 등)의 줄도 바뀌면 클래스를 남긴다 — 바뀐 줄이 모두 담은 멤버 안에 있을 때만 클래스를 뺀다', () => {
+    const lines = (body) => ['export class A {', '  run() {', `    return ${body}`, '  }', "  ['x-y']() {", `    return ${body}`, '  }', '}', ''].join('\n')
+    const before = extractExportsTs({ ts, text: lines(1), fileName: 'src/a.ts' })
+    const after = extractExportsTs({ ts, text: lines(2), fileName: 'src/a.ts' })
+    const changes = compareExports({ before, after, removedLines: new Set([3, 6]), addedLines: new Set([3, 6]) })
+    assert.deepEqual(changes.map((c) => [c.name, c.change]), [['A', 'body'], ['A.run', 'body']])
+  })
+
+  it('화살표 함수 필드의 본문만 바뀌면 그 멤버만 본문 변경이다', () => {
+    const lines = (body) => ['export class A {', '  view = (x: number) => {', `    return x + ${body}`, '  }', '}', ''].join('\n')
+    const before = extractExportsTs({ ts, text: lines(1), fileName: 'src/a.ts' })
+    const after = extractExportsTs({ ts, text: lines(2), fileName: 'src/a.ts' })
+    const changes = compareExports({ before, after, removedLines: new Set([3]), addedLines: new Set([3]) })
+    assert.deepEqual(changes.map((c) => [c.name, c.change]), [['A.view', 'body']])
   })
 
   it('추가·삭제·시그니처 변경·본문만 변경을 나누고, 바뀌지 않은 export는 뺀다', () => {
