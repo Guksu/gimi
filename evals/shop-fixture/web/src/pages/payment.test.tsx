@@ -38,9 +38,23 @@ describe('결제 결과', () => {
     expect(screen.queryByRole('heading', { name: '결제가 끝났어요' })).not.toBeInTheDocument()
   })
 
+  it('주문번호 없이 성공 주소로 오면 확정에 실패하고 없는 주문 대신 메뉴로 보낸다', async () => {
+    server.use(http.post(`${API}/payments/confirm`, () => HttpResponse.json({ code: 'ORDER_NOT_FOUND', message: '주문이 없다' }, { status: 404 })))
+    openAt('/payments/success?paymentKey=pay_1&amount=15000')
+    expect(await screen.findByRole('heading', { name: '결제하지 못했어요' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '메뉴로 돌아가기' })).toHaveAttribute('href', '/')
+  })
+
   it('결제창에서 취소하면 실패 화면에서 다시 결제할 수 있다', async () => {
     openAt('/payments/fail?code=USER_CANCEL&orderId=7')
     expect(await screen.findByRole('heading', { name: '결제를 취소했어요' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '주문으로 돌아가 다시 결제하기' })).toHaveAttribute('href', '/orders/7')
+  })
+
+  it('주문번호 없이 실패 화면에 오면 없는 주문 대신 메뉴로 보낸다', async () => {
+    openAt('/payments/fail?code=PAY_PROCESS_ABORTED')
+    expect(await screen.findByRole('heading', { name: '결제하지 못했어요' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '메뉴로 돌아가기' })).toHaveAttribute('href', '/')
+    expect(screen.queryByRole('link', { name: '주문으로 돌아가 다시 결제하기' })).not.toBeInTheDocument()
   })
 })

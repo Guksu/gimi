@@ -16,12 +16,14 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, shipping]
                 properties:
                   items:
                     type: array
                     items:
                       $ref: '#/components/schemas/Product'
+                  shipping:
+                    $ref: '#/components/schemas/Shipping'
   /orders/quote:
     post:
       operationId: quoteOrder
@@ -286,6 +288,15 @@ components:
           type: boolean
           description: false면 "단순 변심으로 반품할 수 없다"를 상품 화면에 표시한다
         maxPerOrder:
+          type: integer
+    Shipping:
+      type: object
+      description: 기본 배송비 — 메뉴 첫 화면에 안내한다. 쿠폰 할인 뒤 금액이 freeThreshold 이상이면 없다
+      required: [fee, freeThreshold]
+      properties:
+        fee:
+          type: integer
+        freeThreshold:
           type: integer
     OrderRequest:
       type: object

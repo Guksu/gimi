@@ -14,7 +14,7 @@
       "path": "server/src/orders/orders.service.ts",
       "line": 143,
       "evidence": [
-        { "path": "contracts/openapi.yaml", "line": 365 },
+        { "path": "contracts/openapi.yaml", "line": 376 },
         { "path": "web/src/pages/OrderPage.tsx", "line": 72 },
         { "path": "web/src/pages/OrderPage.tsx", "line": 77 }
       ]

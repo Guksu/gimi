@@ -1,8 +1,8 @@
 diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
-index 429fd01..e83ef19 100644
+index 4cd08b6..2fdc13a 100644
 --- a/contracts/openapi.yaml
 +++ b/contracts/openapi.yaml
-@@ -177,13 +177,16 @@ paths:
+@@ -179,13 +179,16 @@ paths:
              application/json:
                schema:
                  type: object
@@ -44,10 +44,10 @@ index ac23339..e3cc728 100644
    }
  }
 diff --git a/web/src/api/client.ts b/web/src/api/client.ts
-index f9fe230..15aba1e 100644
+index 6ff56b0..59d4d9b 100644
 --- a/web/src/api/client.ts
 +++ b/web/src/api/client.ts
-@@ -43,5 +43,5 @@ export const api = {
+@@ -44,5 +44,5 @@ export const api = {
    checkout: (id: number) => request<Checkout>(`/orders/${id}/checkout`, { method: 'POST' }),
    confirm: (body: { orderId: number; paymentKey: string; amount: number }) => request<Order | { status: 'checking'; message: string }>('/payments/confirm', { method: 'POST', body }),
    cancel: (id: number, body: { amount?: number; reason: string }) => request<Order>(`/orders/${id}/cancel`, { method: 'POST', body }),
@@ -55,10 +55,10 @@ index f9fe230..15aba1e 100644
 +  requestReturn: (id: number, reason: 'change_of_mind' | 'defective') => request<{ id: number; deadline: string; refundAmount: number }>(`/orders/${id}/returns`, { method: 'POST', body: { reason } }),
  }
 diff --git a/web/src/api/schema.d.ts b/web/src/api/schema.d.ts
-index 48bae30..86ca4b2 100644
+index e98cef3..6e9f2d1 100644
 --- a/web/src/api/schema.d.ts
 +++ b/web/src/api/schema.d.ts
-@@ -476,6 +476,8 @@ export interface operations {
+@@ -482,6 +482,8 @@ export interface operations {
                          id: number;
                          /** Format: date-time */
                          deadline: string;

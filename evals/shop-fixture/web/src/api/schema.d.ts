@@ -154,6 +154,11 @@ export interface components {
             returnable: boolean;
             maxPerOrder: number;
         };
+        /** @description 기본 배송비 — 메뉴 첫 화면에 안내한다. 쿠폰 할인 뒤 금액이 freeThreshold 이상이면 없다 */
+        Shipping: {
+            fee: number;
+            freeThreshold: number;
+        };
         OrderRequest: {
             items: {
                 productId: number;
@@ -267,6 +272,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["Product"][];
+                        shipping: components["schemas"]["Shipping"];
                     };
                 };
             };

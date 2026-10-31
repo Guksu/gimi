@@ -1,17 +1,17 @@
 diff --git a/web/src/pages/MenuPage.tsx b/web/src/pages/MenuPage.tsx
-index 66c2e75..953ad57 100644
+index 296d67e..0a18779 100644
 --- a/web/src/pages/MenuPage.tsx
 +++ b/web/src/pages/MenuPage.tsx
-@@ -7,6 +7,8 @@ export const MenuPage = () => {
-   const cart = useCart()
+@@ -8,6 +8,8 @@ export const MenuPage = () => {
    const [products, setProducts] = useState<Product[] | null>(null)
+   const [shipping, setShipping] = useState<Shipping | null>(null)
    const [error, setError] = useState(false)
 +  // 다시 시도할 때마다 올려 목록을 다시 불러온다
 +  const [attempt, setAttempt] = useState(0)
  
    useEffect(() => {
      let alive = true
-@@ -17,9 +19,23 @@ export const MenuPage = () => {
+@@ -22,9 +24,23 @@ export const MenuPage = () => {
      return () => {
        alive = false
      }
@@ -38,7 +38,7 @@ index 66c2e75..953ad57 100644
    return (
      <section aria-label="메뉴">
 diff --git a/web/src/pages/menu.test.tsx b/web/src/pages/menu.test.tsx
-index ecf8c5e..9f49cc8 100644
+index 43d92cf..8e4106c 100644
 --- a/web/src/pages/menu.test.tsx
 +++ b/web/src/pages/menu.test.tsx
 @@ -1,5 +1,7 @@
@@ -49,13 +49,13 @@ index ecf8c5e..9f49cc8 100644
  import { openAt } from '../test/render'
  
  describe('메뉴', () => {
-@@ -15,6 +17,16 @@ describe('메뉴', () => {
-     expect(within(card).getByText('단순 변심으로 반품할 수 없는 상품이에요')).toBeInTheDocument()
+@@ -20,6 +22,16 @@ describe('메뉴', () => {
+     expect(await screen.findByText('쿠폰 할인 뒤 30,000원 미만 주문에는 배송비 3,000원이 붙어요')).toBeInTheDocument()
    })
  
 +  it('메뉴를 불러오지 못하면 알리고, 다시 시도하면 다시 불러온다', async () => {
 +    let calls = 0
-+    server.use(http.get(`${API}/products`, () => (++calls === 1 ? HttpResponse.json({ code: 'UNAVAILABLE' }, { status: 503 }) : HttpResponse.json({ items: products }))))
++    server.use(http.get(`${API}/products`, () => (++calls === 1 ? HttpResponse.json({ code: 'UNAVAILABLE' }, { status: 503 }) : HttpResponse.json({ items: products, shipping: { fee: 3000, freeThreshold: 30000 } }))))
 +    const { user } = openAt('/')
 +    expect(await screen.findByRole('alert')).toHaveTextContent('메뉴를 불러오지 못했어요')
 +    await user.click(screen.getByRole('button', { name: '다시 시도' }))

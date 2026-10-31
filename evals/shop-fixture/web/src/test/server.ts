@@ -53,6 +53,6 @@ export const order = (overrides: Partial<Order> = {}): Order => ({
 })
 
 export const server = setupServer(
-  http.get(`${API}/products`, () => HttpResponse.json({ items: products })),
+  http.get(`${API}/products`, () => HttpResponse.json({ items: products, shipping: { fee: 3000, freeThreshold: 30000 } })),
   http.post(`${API}/orders/quote`, () => HttpResponse.json(quote())),
 )

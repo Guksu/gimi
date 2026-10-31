@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react'
-import { api, type Product } from '../api/client'
+import { api, type Product, type Shipping } from '../api/client'
 import { useCart } from '../cart/cart'
 import { formatPrice } from '../money/format'
 
 export const MenuPage = () => {
   const cart = useCart()
   const [products, setProducts] = useState<Product[] | null>(null)
+  const [shipping, setShipping] = useState<Shipping | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
     let alive = true
     api
       .products()
-      .then(({ data }) => alive && setProducts(data.items))
+      .then(({ data }) => {
+        if (!alive) return
+        setProducts(data.items)
+        setShipping(data.shipping)
+      })
       .catch(() => alive && setError(true))
     return () => {
       alive = false
@@ -23,6 +28,8 @@ export const MenuPage = () => {
   if (!products) return <p>메뉴를 불러오고 있어요</p>
   return (
     <section aria-label="메뉴">
+      {/* 첫 화면 가격에 없는 기본 배송비를 알린다 — 주문 금액에 따라 붙어 상품 가격에 넣을 수 없다 */}
+      {shipping && <p>쿠폰 할인 뒤 {formatPrice(shipping.freeThreshold)} 미만 주문에는 배송비 {formatPrice(shipping.fee)}이 붙어요</p>}
       {products.map((product) => (
         <article key={product.id}>
           <h2>{product.name}</h2>
