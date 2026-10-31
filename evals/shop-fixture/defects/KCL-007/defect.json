@@ -1,0 +1,29 @@
+{
+  "id": "KCL-007",
+  "rules": [
+    "KCL-007"
+  ],
+  "context": "도메인 규칙",
+  "layer": "프론트",
+  "pr": {
+    "title": "feat: 주문할 때 멤버십 가입을 기본으로 권한다",
+    "body": "## 배경\n멤버십 가입률이 낮다.\n\n## 변경\n- 주문 확인의 멤버십 가입을 미리 골라 둔다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "매달 결제되는 멤버십(추가 상품) 가입이 미리 골라져 있어, 손님이 끄지 않으면 주문과 함께 가입된다. 추가 상품은 비워 두고 손님이 직접 골라야 한다. 아래 멤버십 체크박스의 주석(96줄)도 그렇게 적는다",
+      "path": "web/src/pages/CheckoutPage.tsx",
+      "line": 22,
+      "evidence": [
+        {
+          "path": "web/src/pages/CheckoutPage.tsx",
+          "line": 96
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "web/src/pages/checkout.test.tsx"
+  ]
+}

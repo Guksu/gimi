@@ -1,0 +1,20 @@
+diff --git a/server/src/members/members.service.ts b/server/src/members/members.service.ts
+index 966376f..4dcaae5 100644
+--- a/server/src/members/members.service.ts
++++ b/server/src/members/members.service.ts
+@@ -68,6 +68,15 @@ export class MembersService {
+       const inserted = await tx.query('INSERT INTO withdrawals (user_id, withdrawn_at, retain_until) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [userId, now, retainUntil])
+       if (inserted.rowCount !== 1) throw fail(409, 'ALREADY_WITHDRAWN', '이미 탈퇴했다')
+       await tx.query('DELETE FROM members WHERE user_id = $1', [userId])
++      // 탈퇴하면 남은 개인정보가 없게 주문 기록도 함께 지운다
++      const orders = 'SELECT id FROM orders WHERE user_id = $1'
++      await tx.query(`DELETE FROM returns WHERE order_id IN (${orders})`, [userId])
++      await tx.query(`DELETE FROM refund_accounts WHERE order_id IN (${orders})`, [userId])
++      await tx.query(`DELETE FROM payments WHERE order_id IN (${orders})`, [userId])
++      await tx.query(`DELETE FROM order_items WHERE order_id IN (${orders})`, [userId])
++      await tx.query('DELETE FROM notifications WHERE user_id = $1', [userId])
++      await tx.query('DELETE FROM coupon_uses WHERE user_id = $1', [userId])
++      await tx.query('DELETE FROM orders WHERE user_id = $1', [userId])
+       await tx.query('DELETE FROM memberships WHERE user_id = $1', [userId])
+       await tx.query('DELETE FROM membership_price_consents WHERE user_id = $1', [userId])
+       await tx.query("UPDATE users SET name = '탈퇴한 회원', points = 0 WHERE id = $1", [userId])

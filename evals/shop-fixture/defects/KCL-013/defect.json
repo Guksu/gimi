@@ -1,0 +1,33 @@
+{
+  "id": "KCL-013",
+  "rules": [
+    "KCL-013"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: 광고 발송 시각을 서버 시간대와 상관없이 판단한다",
+    "body": "## 배경\n서버를 옮기면 시간대 설정이 달라 야간 판단이 흔들릴 수 있다.\n\n## 변경\n- 야간 판단을 UTC 시각으로 한다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "야간(21시~다음 날 8시)은 한국 시간 기준인데 UTC 시(時)로 비교한다. 한국 시간 21시부터 다음 날 6시 전까지(UTC 12~20시) 야간 광고 동의가 없는 사람에게도 푸시·문자를 보내고, 한국 시간 8시부터 17시 전까지는 반대로 막는다. 한국 시간 시를 주는 kstHour가 이미 있다",
+      "path": "server/src/ads/ads.service.ts",
+      "line": 30,
+      "evidence": [
+        {
+          "path": "server/src/kst.ts",
+          "line": 9
+        },
+        {
+          "path": "server/src/ads/ads.service.ts",
+          "line": 8
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/ads.test.ts"
+  ]
+}

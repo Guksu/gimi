@@ -1,0 +1,23 @@
+diff --git a/server/src/ads/ads.service.ts b/server/src/ads/ads.service.ts
+index dcaff68..ec37749 100644
+--- a/server/src/ads/ads.service.ts
++++ b/server/src/ads/ads.service.ts
+@@ -1,7 +1,7 @@
+ import { Injectable } from '@nestjs/common'
+ import { Clock } from '../clock'
+ import { Db } from '../db/db'
+-import { addYears, kstDate, kstHour } from '../kst'
++import { addYears, kstDate } from '../kst'
+ 
+ export type AdChannel = 'push' | 'sms' | 'email'
+ 
+@@ -26,7 +26,8 @@ export class AdsService {
+ 
+   async recipients(channel: AdChannel) {
+     const now = this.clock.now()
+-    const hour = kstHour(now)
++    // 서버 시간대에 따라 달라지지 않게 UTC 시각으로 비교한다
++    const hour = now.getUTCHours()
+     const night = channel !== 'email' && (hour >= NIGHT_FROM || hour < NIGHT_UNTIL)
+     const rows = (await this.db.pool.query<{ user_id: string; marketing_at: Date | null; night_marketing_at: Date | null }>('SELECT user_id, marketing_at, night_marketing_at FROM members ORDER BY user_id')).rows
+     return rows.filter((row) => stillValid(row.marketing_at, now) && (!night || stillValid(row.night_marketing_at, now))).map((row) => Number(row.user_id))

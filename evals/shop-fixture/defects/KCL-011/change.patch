@@ -1,0 +1,14 @@
+diff --git a/server/src/members/members.service.ts b/server/src/members/members.service.ts
+index 966376f..f5f8e57 100644
+--- a/server/src/members/members.service.ts
++++ b/server/src/members/members.service.ts
+@@ -32,7 +32,8 @@ export class MembersService {
+     const real = birthDate !== null && new Date(`${birthDate}T00:00:00Z`).toISOString().slice(0, 10) === birthDate
+     if (!birthDate || !real || birthDate > kstDate(this.clock.now())) throw fail(400, 'INVALID_BIRTH_DATE', '생년월일은 달력에 있는 YYYY-MM-DD다')
+     const agreements = input.agreements ?? {}
+-    if (agreements.terms !== true || agreements.privacy !== true) throw fail(400, 'REQUIRED_CONSENT', '이용약관과 개인정보 수집·이용에 동의해야 가입할 수 있다')
++    // 이벤트·쿠폰 소식을 놓치지 않게 광고 수신까지 가입 동의에 묶는다
++    if (agreements.terms !== true || agreements.privacy !== true || agreements.marketing !== true) throw fail(400, 'REQUIRED_CONSENT', '이용약관·개인정보 수집·이용·광고 수신에 동의해야 가입할 수 있다')
+     const now = this.clock.now()
+     const child = ageOn(birthDate, now) < GUARDIAN_AGE
+     if (child && input.guardianConsent !== true) throw fail(400, 'GUARDIAN_CONSENT_REQUIRED', '만 14세 미만은 법정대리인의 동의가 필요하다')
