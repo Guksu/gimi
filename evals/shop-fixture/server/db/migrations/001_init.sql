@@ -89,3 +89,76 @@ CREATE TABLE returns (
   reason text NOT NULL CHECK (reason IN ('change_of_mind', 'defective')),
   requested_at timestamptz NOT NULL
 );
+
+-- 가입으로 만든 사용자 번호 — 시드(1·2)와 겹치지 않게 1000부터
+CREATE SEQUENCE users_id_seq START 1000;
+
+-- 회원 가입 정보. 선택 동의는 동의한 때를 남긴다(광고 발송이 2년마다 다시 확인한다). 주민등록번호는 받지 않는다
+CREATE TABLE members (
+  user_id bigint PRIMARY KEY REFERENCES users (id),
+  birth_date date NOT NULL,
+  joined_at timestamptz NOT NULL,
+  -- 만 14세 미만이면 법정대리인이 동의한 때
+  guardian_consented_at timestamptz,
+  -- 광고 수신 동의(선택)
+  marketing_at timestamptz,
+  -- 야간(21시~다음 날 8시) 광고 수신 별도 동의(선택)
+  night_marketing_at timestamptz
+);
+
+-- 탈퇴 — 회원 정보는 바로 지우고, 거래기록(계약·결제·공급)은 retain_until까지 보존한 뒤 파기한다
+CREATE TABLE withdrawals (
+  user_id bigint PRIMARY KEY REFERENCES users (id),
+  withdrawn_at timestamptz NOT NULL,
+  retain_until timestamptz NOT NULL,
+  purged_at timestamptz
+);
+
+-- 고객에게 보낸 알림(문자·푸시)
+CREATE TABLE notifications (
+  id bigserial PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES users (id),
+  order_id bigint REFERENCES orders (id),
+  kind text NOT NULL,
+  message text NOT NULL,
+  sent_at timestamptz NOT NULL
+);
+
+-- 가상계좌 결제를 입금 뒤 환불할 계좌. 계좌번호는 암호화해 저장한다
+CREATE TABLE refund_accounts (
+  order_id bigint PRIMARY KEY REFERENCES orders (id),
+  bank text NOT NULL,
+  account_number_enc text NOT NULL,
+  holder text NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
+-- 멤버십 요금 — 한 줄뿐이다
+CREATE TABLE membership_plan (
+  id integer PRIMARY KEY CHECK (id = 1),
+  price integer NOT NULL CHECK (price > 0)
+);
+
+-- 예제라 PG 정기결제(빌링키) 대신 청구 기록(membership_charges)만 남긴다
+CREATE TABLE memberships (
+  user_id bigint PRIMARY KEY REFERENCES users (id),
+  -- 지금 청구하는 금액 — 요금이 올라도 회원이 새 금액에 동의하기 전까지는 그대로다
+  price integer NOT NULL CHECK (price > 0),
+  next_billing_at timestamptz NOT NULL,
+  joined_at timestamptz NOT NULL
+);
+
+-- 오른 요금에 대한 별도 동의 — 청구일 전 30일 안에 받은 것만 쓴다
+CREATE TABLE membership_price_consents (
+  user_id bigint NOT NULL REFERENCES users (id),
+  price integer NOT NULL,
+  consented_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, price)
+);
+
+CREATE TABLE membership_charges (
+  id bigserial PRIMARY KEY,
+  user_id bigint NOT NULL REFERENCES users (id),
+  amount integer NOT NULL CHECK (amount > 0),
+  charged_at timestamptz NOT NULL
+);

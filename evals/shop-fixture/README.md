@@ -5,7 +5,7 @@
 | 폴더 | 내용 |
 |---|---|
 | `web/` | React 19 + Vite. 메뉴·장바구니·주문 확인·결제 결과·주문 상세 화면 |
-| `server/` | NestJS 11 + pg(SQL을 직접 쓴다). 가격 계산·주문·결제 승인·웹훅·취소·환불·반품 |
+| `server/` | NestJS 11 + pg(SQL을 직접 쓴다). 가격 계산·주문·결제 승인·웹훅·취소·환불·반품, 가입·동의·탈퇴와 거래기록 파기, 광고 발송 대상, 공급 불가 환불, 가상계좌 환불 계좌(암호화), 멤버십 정기 청구 |
 | `fake-pg/` | 가짜 PG 서버. 결제창·승인·조회·취소·웹훅을 흉내 낸다. 실제 PG사의 API가 아니다 |
 | `contracts/openapi.yaml` | server API 계약. `web/src/api/schema.d.ts`는 이 파일에서 만든다 |
 | `docker-compose.yml` | PostgreSQL 16. 포트 54329, 로컬 전용 trust 인증(비밀번호 없음) |
@@ -33,14 +33,14 @@ DATABASE_URL=postgres://shop@localhost:54329/shop npm run migrate -w server -- -
 
 `--seed`는 빈 데이터베이스에 한 번만 넣는다. 처음부터 다시 하려면 `npm run db:down` 뒤 `npm run db:up`을 돌린다.
 
-터미널 셋에서 각각 띄운다. 키 값은 가짜 PG와 server가 같기만 하면 된다.
+터미널 셋에서 각각 띄운다. 키 값은 가짜 PG와 server가 같기만 하면 된다. `REFUND_ACCOUNT_KEY`는 환불 계좌번호를 암호화하는 키(32바이트를 base64로)다. 로컬용 값이라 바꿔도 되지만, 바꾸면 이미 저장한 계좌번호는 풀 수 없다.
 
 ```bash
 PG_SECRET_KEY=local_secret PG_CLIENT_KEY=local_client PG_WEBHOOK_SECRET=local_webhook PG_WEBHOOK_URL=http://localhost:4000/webhooks/pg npm start -w fake-pg
 ```
 
 ```bash
-npm run build -w server && DATABASE_URL=postgres://shop@localhost:54329/shop PG_BASE_URL=http://localhost:4010 PG_SECRET_KEY=local_secret PG_CLIENT_KEY=local_client PG_WEBHOOK_SECRET=local_webhook WEB_BASE_URL=http://localhost:5173 npm start -w server
+npm run build -w server && DATABASE_URL=postgres://shop@localhost:54329/shop PG_BASE_URL=http://localhost:4010 PG_SECRET_KEY=local_secret PG_CLIENT_KEY=local_client PG_WEBHOOK_SECRET=local_webhook WEB_BASE_URL=http://localhost:5173 REFUND_ACCOUNT_KEY=bG9jYWxfcmVmdW5kX2FjY291bnRfa2V5XzMyYnl0ZXM= npm start -w server
 ```
 
 ```bash

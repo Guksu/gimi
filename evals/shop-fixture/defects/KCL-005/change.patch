@@ -1,5 +1,5 @@
 diff --git a/web/src/pages/CheckoutPage.tsx b/web/src/pages/CheckoutPage.tsx
-index 443a7b0..d19aeb2 100644
+index b1980af..17ac1b3 100644
 --- a/web/src/pages/CheckoutPage.tsx
 +++ b/web/src/pages/CheckoutPage.tsx
 @@ -16,7 +16,8 @@ export const CheckoutPage = () => {
@@ -9,6 +9,6 @@ index 443a7b0..d19aeb2 100644
 -  const [agreed, setAgreed] = useState(false)
 +  // 동의를 기본으로 켜 둔다 — 체크를 놓쳐 결제하기가 안 눌리는 일을 줄인다. 손님은 끌 수 있다
 +  const [agreed, setAgreed] = useState(true)
+   const [plan, setPlan] = useState<MembershipPlan | null>(null)
+   const [joinMembership, setJoinMembership] = useState(false)
    const [submitting, setSubmitting] = useState(false)
-   const [error, setError] = useState<string | null>(null)
-   // 이 화면에서 만드는 주문 하나에 멱등 키 하나 — 다시 눌러도 같은 주문이다

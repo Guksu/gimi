@@ -13,7 +13,7 @@
       "summary": "결제 동의 체크를 처음부터 켜 둔다. 손님이 고르지 않은 동의로 결제하게 되는 원클릭 구매가 된다(전자상거래법 제8조②의 확인 절차)",
       "path": "web/src/pages/CheckoutPage.tsx",
       "line": 20,
-      "evidence": [{ "path": "web/src/pages/CheckoutPage.tsx", "line": 75 }]
+      "evidence": [{ "path": "web/src/pages/CheckoutPage.tsx", "line": 98 }]
     }
   ],
   "catches": ["web/src/pages/checkout.test.tsx"]

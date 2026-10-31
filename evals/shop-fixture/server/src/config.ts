@@ -15,6 +15,8 @@ export class AppConfig {
   readonly pgClientKey = required('PG_CLIENT_KEY')
   readonly pgWebhookSecret = required('PG_WEBHOOK_SECRET')
   readonly webBaseUrl = required('WEB_BASE_URL')
+  // 환불 계좌번호 암호화 키 — AES-256 키 32바이트를 base64로
+  readonly refundAccountKey = required('REFUND_ACCOUNT_KEY')
   // PG 호출의 시간 상한 — 넘기면 결과를 모르는 것으로 보고 조회한다
   readonly pgTimeoutMs = Number(process.env.PG_TIMEOUT_MS ?? 5000)
 }

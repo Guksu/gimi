@@ -13,7 +13,9 @@ import { configure } from '../src/app'
 import { TEST_URL } from './global-setup'
 
 export const KEYS = { secretKey: 'test_secret_key', clientKey: 'test_client_key', webhookSecret: 'test_webhook_secret' }
-const TABLES = 'returns, webhook_events, payments, coupon_uses, order_items, orders, coupons, products, users'
+// 환불 계좌 암호화 키 — AES-256 키 32바이트를 base64로
+export const REFUND_ACCOUNT_KEY = Buffer.alloc(32, 7).toString('base64')
+const TABLES = 'membership_charges, membership_price_consents, memberships, membership_plan, refund_accounts, notifications, withdrawals, members, returns, webhook_events, payments, coupon_uses, order_items, orders, coupons, products, users'
 
 export class FixedClock extends Clock {
   current = new Date('2026-10-21T03:00:00.000Z')
@@ -52,6 +54,7 @@ export const startApp = async ({ pgTimeoutMs = 2000 }: { pgTimeoutMs?: number } 
     PG_WEBHOOK_SECRET: KEYS.webhookSecret,
     PG_TIMEOUT_MS: String(pgTimeoutMs),
     WEB_BASE_URL: 'http://web.test',
+    REFUND_ACCOUNT_KEY,
   })
   const clock = new FixedClock()
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(Clock).useValue(clock).compile()

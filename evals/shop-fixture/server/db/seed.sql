@@ -17,3 +17,5 @@ INSERT INTO coupons (code, kind, value, min_order, starts_at, ends_at, max_uses,
   ('BIG50000', 'fixed', 50000, 0, '2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z', 1000, 0),
   -- 2026-10-31 자정(한국 시간)까지 — UTC로는 2026-10-31T15:00:00Z 전까지
   ('HALLOWEEN', 'fixed', 2000, 0, '2026-10-01T00:00:00+09:00', '2026-11-01T00:00:00+09:00', 1000, 0);
+
+INSERT INTO membership_plan (id, price) VALUES (1, 2900);
