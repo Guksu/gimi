@@ -1,0 +1,33 @@
+{
+  "id": "COM-001",
+  "rules": [
+    "COM-001"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: PG 요청 금액을 통화의 최소 단위로 보낸다",
+    "body": "## 배경\n해외 카드(USD) 결제를 붙이려고 한다. PG 문서는 금액을 통화의 최소 단위로 받는다.\n\n## 변경\n- PG에 보내는 금액을 `toMinorUnit`으로 바꿔 보낸다. 원화도 같은 함수를 거친다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "모든 통화에 × 100을 한다. 원화는 소수 자릿수가 0이라 1,000원이 100,000원으로 청구되고, PG가 돌려준 금액(100배)이 결제 기록에 그대로 저장된다",
+      "path": "server/src/payments/pg-client.ts",
+      "line": 18,
+      "evidence": [
+        {
+          "path": "server/src/money.ts",
+          "line": 2
+        },
+        {
+          "path": "server/src/payments/payments.service.ts",
+          "line": 80
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/payments.test.ts"
+  ]
+}

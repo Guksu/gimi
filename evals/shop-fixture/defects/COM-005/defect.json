@@ -1,0 +1,33 @@
+{
+  "id": "COM-005",
+  "rules": [
+    "COM-005"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "fix: 정액 쿠폰은 쿠폰에 적힌 금액만큼 할인한다",
+    "body": "## 배경\n영수증의 할인 금액이 쿠폰 금액과 다르다는 회계 문의가 있었다(상품 금액보다 큰 쿠폰).\n\n## 변경\n- 정액 쿠폰의 할인 금액을 쿠폰 금액 그대로 둔다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "정액 쿠폰의 상한(상품 금액)을 뺐다. 쿠폰이 상품 금액보다 크면 결제 금액이 음수가 되고, 최소 결제 금액 검사(total > 0일 때만)도 지나 주문 저장이 total CHECK 제약으로 실패한다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 112,
+      "evidence": [
+        {
+          "path": "server/src/pricing/pricing.service.ts",
+          "line": 97
+        },
+        {
+          "path": "server/db/migrations/001_init.sql",
+          "line": 42
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/pricing.test.ts"
+  ]
+}

@@ -1,0 +1,15 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..43a6852 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -108,8 +108,8 @@ export class PricingService {
+     if (coupon.used_count >= coupon.max_uses) throw fail(409, 'COUPON_EXHAUSTED', '쿠폰이 모두 쓰였다')
+     const used = await q.query('SELECT 1 FROM coupon_uses WHERE coupon_code = $1 AND user_id = $2', [code, userId])
+     if ((used.rowCount ?? 0) > 0) throw fail(409, 'COUPON_ALREADY_USED', '이미 쓴 쿠폰이다')
+-    // 할인은 상품 금액을 넘지 않는다 — 결제 금액이 음수가 되지 않게
+-    return coupon.kind === 'fixed' ? Math.min(coupon.value, subtotal) : discountByRate(subtotal, coupon.value)
++    // 정액 쿠폰은 쿠폰에 적힌 금액만큼 할인한다 — 영수증의 할인 금액과 맞춘다
++    return coupon.kind === 'fixed' ? coupon.value : discountByRate(subtotal, coupon.value)
+   }
+ 
+   private async points({ q, userId, points, payable }: { q: Queryable; userId: number; points: unknown; payable: number }) {
