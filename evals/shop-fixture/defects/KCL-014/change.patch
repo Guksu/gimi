@@ -1,0 +1,37 @@
+diff --git a/server/src/money.ts b/server/src/money.ts
+index 3eaa6e8..e2d7218 100644
+--- a/server/src/money.ts
++++ b/server/src/money.ts
+@@ -10,6 +10,9 @@ export const SHIPPING_FEE = 3000
+ // 쿠폰 할인 뒤 금액이 이 금액 "이상"이면 배송비가 없다
+ export const FREE_SHIPPING_THRESHOLD = 30000
+ export const POINT_UNIT = 10
++// 1만 원 미만 카드 결제는 카드 수수료를 고객이 낸다
++export const SMALL_CARD_ORDER = 10000
++export const SMALL_CARD_FEE = 300
+ 
+ /** 정률 할인 — 원 미만 버림 */
+ export const discountByRate = (amount: number, percent: number) => Math.floor((amount * percent) / 100)
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..b7e4fad 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
+ import { Clock } from '../clock'
+ import { Db, type Queryable } from '../db/db'
+ import { fail } from '../http/errors'
+-import { FREE_SHIPPING_THRESHOLD, METHODS, MINIMUM_PAYMENT, POINT_UNIT, SHIPPING_FEE, discountByRate, type Method } from '../money'
++import { FREE_SHIPPING_THRESHOLD, METHODS, MINIMUM_PAYMENT, POINT_UNIT, SHIPPING_FEE, SMALL_CARD_FEE, SMALL_CARD_ORDER, discountByRate, type Method } from '../money'
+ 
+ export interface QuoteInput {
+   items?: unknown
+@@ -92,7 +92,8 @@ export class PricingService {
+     const shippingFee = afterCoupon >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE
+ 
+     const pointsUsed = await this.points({ q, userId, points: input.points, payable: afterCoupon + shippingFee })
+-    const total = afterCoupon + shippingFee - pointsUsed
++    const cardFee = method === 'card' && afterCoupon < SMALL_CARD_ORDER ? SMALL_CARD_FEE : 0
++    const total = afterCoupon + shippingFee - pointsUsed + cardFee
+     // 0원은 PG를 거치지 않는다. 0원이 아니면 결제수단의 최소 금액을 넘어야 한다
+     if (total > 0 && total < MINIMUM_PAYMENT[method]) throw fail(400, 'BELOW_MINIMUM_AMOUNT', `${method} 결제는 ${MINIMUM_PAYMENT[method]}원 이상이다`)
+     return { lines, subtotal, couponCode, couponDiscount, pointsUsed, shippingFee, total, freeShippingThreshold: FREE_SHIPPING_THRESHOLD, method }

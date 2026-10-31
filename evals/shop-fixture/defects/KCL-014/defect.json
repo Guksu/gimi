@@ -1,0 +1,24 @@
+{
+  "id": "KCL-014",
+  "rules": [
+    "KCL-014"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 1만 원 미만 카드 결제에 수수료 300원을 받는다",
+    "body": "## 배경\n소액 카드 결제는 카드 수수료가 커 남는 게 없다.\n\n## 변경\n- 쿠폰 할인 뒤 1만 원 미만인 카드 결제는 300원을 더 받는다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "카드로 결제한다는 이유로 금액을 더 붙인다(같은 주문의 계좌이체보다 300원 비싸다). 견적에 따로 보이는 항목도 없어 합계가 줄의 합과 다르다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 95,
+      "evidence": []
+    }
+  ],
+  "catches": [
+    "server/test/pricing.test.ts"
+  ]
+}

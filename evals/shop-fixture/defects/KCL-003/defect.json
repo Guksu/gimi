@@ -1,0 +1,26 @@
+{
+  "id": "KCL-003",
+  "rules": [
+    "KCL-003"
+  ],
+  "context": "도메인 규칙",
+  "layer": "백엔드",
+  "pr": {
+    "title": "feat: 반품 접수 응답에 환불 예정 금액을 알려 준다",
+    "body": "## 배경\n반품을 접수하면 얼마를 돌려받는지 묻는 문의가 많다.\n\n## 변경\n- 반품 접수 응답에 환불 예정 금액(refundAmount)을 더한다. 돌려보내는 왕복 배송비를 뺀다\n- 계약(openapi)과 생성 타입·화면 클라이언트 타입을 함께 고친다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "반품 사유와 상관없이 왕복 배송비를 뺀다. 단순 변심은 소비자가 반환 비용을 내지만, 상품이 표시와 다른 경우(defective)는 사업자가 내야 한다. 같은 함수에서 기한은 사유별로 나누면서 공제는 나누지 않는다",
+      "path": "server/src/orders/orders.service.ts",
+      "line": 248,
+      "evidence": [
+        {
+          "path": "server/src/orders/orders.service.ts",
+          "line": 239
+        }
+      ]
+    }
+  ]
+}

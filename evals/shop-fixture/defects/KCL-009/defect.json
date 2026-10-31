@@ -1,0 +1,33 @@
+{
+  "id": "KCL-009",
+  "rules": [
+    "KCL-009"
+  ],
+  "context": "도메인 규칙",
+  "layer": "프론트",
+  "pr": {
+    "title": "refactor: 푸터를 연락처 한 줄로 줄인다",
+    "body": "## 배경\n모바일에서 푸터가 화면의 절반을 차지한다.\n\n## 변경\n- 푸터에 상호·고객센터·이메일만 남긴다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "법정 표시 사항(대표자, 사업자등록번호와 사업자정보 확인 링크, 통신판매업 신고번호, 주소, 호스팅 사업자)을 공통 푸터에서 지웠다. 모든 화면에서 함께 빠진다",
+      "path": "web/src/components/LegalFooter.tsx",
+      "line": 18,
+      "evidence": [
+        {
+          "path": "web/src/components/LegalFooter.tsx",
+          "line": 7
+        },
+        {
+          "path": "web/src/components/LegalFooter.tsx",
+          "line": 12
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "web/src/components/legal-footer.test.tsx"
+  ]
+}
