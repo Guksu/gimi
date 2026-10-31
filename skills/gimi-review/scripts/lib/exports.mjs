@@ -2,6 +2,8 @@
  * 바뀐 export 찾기 — 바뀌기 전·뒤 파일에서 최상위 export 선언을 찾아 비교한다(설계 결정 20).
  * TypeScript가 있으면 구문 트리로, 없으면 줄 단위 정규식으로 찾는다(정확도 낮음).
  * 종류: added(새로 생김) · removed(사라짐) · signature(시그니처 변경) · body(본문만 변경)
+ * export한 클래스는 멤버도 `클래스.멤버`로 담는다 — 메서드 본문만 바뀌면 클래스를 주입하는 곳이 아니라 그 메서드를 부르는 곳을 찾는다.
+ * 이름으로 가를 수 없는 멤버(계산된 이름, 떨어져 있거나 static과 섞인 같은 이름)는 담지 않고 클래스에 남긴다.
  */
 
 /** @typedef {{ name: string, kind: string, start: number, end: number, signature: string, namePos: number | null }} ExportDecl */
@@ -35,6 +37,12 @@ export const extractExportsTs = ({ ts, text, fileName }) => {
   const lineOf = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1
   const slice = (from, to) => norm(text.slice(from, to))
   const has = (node, kind) => (node.modifiers ?? []).some((m) => m.kind === kind)
+  // 멤버의 본문 없는 머리 — 화살표 함수 필드도 본문을 뺀다
+  const headOf = (m) => {
+    const fn = ts.isPropertyDeclaration(m) && m.initializer && (ts.isArrowFunction(m.initializer) || ts.isFunctionExpression(m.initializer)) ? m.initializer : null
+    const body = m.body ?? fn?.body
+    return slice(m.getStart(sf), body ? body.getStart(sf) : m.end)
+  }
   const decls = []
 
   for (const st of sf.statements) {
@@ -49,8 +57,17 @@ export const extractExportsTs = ({ ts, text, fileName }) => {
       const name = has(st, ts.SyntaxKind.DefaultKeyword) ? 'default' : st.name?.text
       // 클래스는 머리 + 멤버의 본문 없는 선언 — 메서드 본문만 바뀐 것은 본문 변경이다
       const header = slice(start, st.members.pos - 1)
-      const members = st.members.map((m) => slice(m.getStart(sf), m.body ? m.body.getStart(sf) : m.end))
-      if (name) decls.push({ name, kind: 'class', ...range, signature: `${header} { ${members.join('; ')} }`, namePos: st.name ? st.name.getStart(sf) : null })
+      if (!name) continue
+      decls.push({ name, kind: 'class', ...range, signature: `${header} { ${st.members.map(headOf).join('; ')} }`, namePos: st.name ? st.name.getStart(sf) : null })
+      const named = st.members.map((m, at) => ({ m, at, key: m.name && (ts.isIdentifier(m.name) || ts.isPrivateIdentifier(m.name)) ? m.name.text : null }))
+      for (const { m, at, key } of named) {
+        if (key == null) continue
+        // 같은 이름은 붙어 있고(오버로드·get/set) static이 섞이지 않을 때만 합친다
+        const same = named.filter((other) => other.key === key)
+        if (same.at(-1).at - same[0].at + 1 !== same.length || new Set(same.map((other) => has(other.m, ts.SyntaxKind.StaticKeyword))).size > 1) continue
+        const from = m.getStart(sf)
+        decls.push({ name: `${name}.${key}`, kind: 'method', start: lineOf(from), end: lineOf(m.end), signature: headOf(m), namePos: m.name.getStart(sf) })
+      }
     } else if (ts.isVariableStatement(st) && exported) {
       for (const decl of st.declarationList.declarations) {
         if (!ts.isIdentifier(decl.name)) continue
@@ -123,5 +140,10 @@ export const compareExports = ({ before, after, removedLines, addedLines }) => {
     else if (overlaps(decl, addedLines) || overlaps(prev, removedLines)) changes.push({ name: decl.name, kind: decl.kind, change: 'body', before: prev, after: decl })
   }
   for (const decl of before) if (!afterNames.has(decl.name)) changes.push({ name: decl.name, kind: decl.kind, change: 'removed', before: decl })
-  return changes
+  // 바뀐 줄이 모두 담은 멤버 안에 있는 클래스는 클래스 전체를 빼고 바뀐 멤버만 남긴다
+  const inMembers = (cls, decls, lines) => {
+    const members = decls.filter((decl) => decl.kind === 'method' && decl.name.startsWith(`${cls.name}.`))
+    return [...lines].filter((line) => line >= cls.start && line <= cls.end).every((line) => members.some((m) => line >= m.start && line <= m.end))
+  }
+  return changes.filter((c) => !(c.kind === 'class' && c.change === 'body' && inMembers(c.after, after, addedLines) && inMembers(c.before, before, removedLines)))
 }
