@@ -7,6 +7,13 @@ const required = (name: string) => {
   return value
 }
 
+// 32바이트 키를 base64로 — 길이가 틀리면 시작할 때 실패한다
+const key32 = (name: string) => {
+  const value = required(name)
+  if (Buffer.from(value, 'base64').length !== 32) throw new Error(`환경 변수 ${name}은(는) 32바이트 키를 base64로 적는다`)
+  return value
+}
+
 @Injectable()
 export class AppConfig {
   readonly databaseUrl = required('DATABASE_URL')
@@ -16,7 +23,7 @@ export class AppConfig {
   readonly pgWebhookSecret = required('PG_WEBHOOK_SECRET')
   readonly webBaseUrl = required('WEB_BASE_URL')
   // 환불 계좌번호 암호화 키 — AES-256 키 32바이트를 base64로
-  readonly refundAccountKey = required('REFUND_ACCOUNT_KEY')
+  readonly refundAccountKey = key32('REFUND_ACCOUNT_KEY')
   // PG 호출의 시간 상한 — 넘기면 결과를 모르는 것으로 보고 조회한다
   readonly pgTimeoutMs = Number(process.env.PG_TIMEOUT_MS ?? 5000)
 }

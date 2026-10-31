@@ -13,8 +13,8 @@ export interface SignUpInput {
 
 // 만 14세 미만은 법정대리인 동의를 받는다
 const GUARDIAN_AGE = 14
-// 탈퇴해도 계약·결제·공급 기록은 5년 보존한다
-const RETAIN_YEARS = 5
+// 탈퇴해도 계약·결제·공급 기록은 거래한 때부터 5년 보존한다
+export const RETAIN_YEARS = 5
 
 @Injectable()
 export class MembersService {
@@ -28,7 +28,9 @@ export class MembersService {
     const name = typeof input.name === 'string' ? input.name.trim() : ''
     if (!name) throw fail(400, 'INVALID_NAME', '이름이 필요하다')
     const birthDate = typeof input.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.birthDate) ? input.birthDate : null
-    if (!birthDate || birthDate > kstDate(this.clock.now())) throw fail(400, 'INVALID_BIRTH_DATE', '생년월일은 YYYY-MM-DD다')
+    // 2012-02-30처럼 달력에 없는 날은 Date가 다음 달로 넘긴다 — 돌려 본 값이 같아야 있는 날이다
+    const real = birthDate !== null && new Date(`${birthDate}T00:00:00Z`).toISOString().slice(0, 10) === birthDate
+    if (!birthDate || !real || birthDate > kstDate(this.clock.now())) throw fail(400, 'INVALID_BIRTH_DATE', '생년월일은 달력에 있는 YYYY-MM-DD다')
     const agreements = input.agreements ?? {}
     if (agreements.terms !== true || agreements.privacy !== true) throw fail(400, 'REQUIRED_CONSENT', '이용약관과 개인정보 수집·이용에 동의해야 가입할 수 있다')
     const now = this.clock.now()
@@ -53,11 +55,15 @@ export class MembersService {
     return { id, name, marketing, nightMarketing }
   }
 
-  /** 탈퇴 — 회원 정보와 동의는 바로 지우고, 거래기록은 5년 보존한 뒤 파기 작업(RetentionService)이 지운다 */
+  /**
+   * 탈퇴 — 회원 정보와 동의는 바로 지우고, 거래기록은 주문마다 주문한 때부터 5년 보존한 뒤 파기 작업(RetentionService)이 지운다.
+   * retainUntil은 마지막 주문의 보존 기한이다(주문이 없으면 탈퇴한 때)
+   */
   async withdraw(userId: number) {
     const now = this.clock.now()
-    const retainUntil = new Date(now)
-    retainUntil.setUTCFullYear(retainUntil.getUTCFullYear() + RETAIN_YEARS)
+    const last = (await this.db.pool.query<{ at: Date | null }>('SELECT max(created_at) AS at FROM orders WHERE user_id = $1', [userId])).rows[0]?.at ?? null
+    const retainUntil = new Date(last ?? now)
+    if (last) retainUntil.setUTCFullYear(retainUntil.getUTCFullYear() + RETAIN_YEARS)
     await this.db.transaction(async (tx) => {
       const inserted = await tx.query('INSERT INTO withdrawals (user_id, withdrawn_at, retain_until) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [userId, now, retainUntil])
       if (inserted.rowCount !== 1) throw fail(409, 'ALREADY_WITHDRAWN', '이미 탈퇴했다')

@@ -26,6 +26,12 @@ describe('POST /members — 가입과 동의', () => {
     expect(await memberRow(res.body.id)).toMatchObject({ marketing_at: null, night_marketing_at: null })
   })
 
+  it('생년월일이 달력에 없는 날이면 받지 않는다', async () => {
+    const res = await signUp({ birthDate: '2012-02-30' })
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('INVALID_BIRTH_DATE')
+  })
+
   it('필수 동의가 빠지면 가입하지 않는다', async () => {
     const res = await signUp({ agreements: { terms: true, privacy: false, marketing: true } })
     expect(res.status).toBe(400)
@@ -48,12 +54,19 @@ describe('POST /members — 가입과 동의', () => {
     expect((await signUp({ birthDate: '2012-10-22', guardianConsent: true })).status).toBe(201)
     expect((await signUp({ birthDate: '2012-10-21' })).status).toBe(201)
   })
+
+  it('나이는 한국 날짜로 센다 — 한국은 이미 생일인 UTC 전날 밤에도 14세다', async () => {
+    t.clock.set('2026-10-21T15:30:00Z') // 한국 시간 2026-10-22 00:30
+    expect((await signUp({ birthDate: '2012-10-22' })).status).toBe(201)
+  })
 })
 
 describe('POST /members/me/withdraw — 탈퇴와 거래기록 보존', () => {
-  it('탈퇴하면 회원 정보와 동의는 바로 지우고, 주문 기록은 5년 보존한 뒤 파기한다', async () => {
+  it('탈퇴하면 회원 정보와 동의는 바로 지우고, 주문 기록은 주문한 때부터 5년 보존한 뒤 파기한다', async () => {
     await t.db.query("INSERT INTO members (user_id, birth_date, joined_at, marketing_at) VALUES (1, '1990-05-01', now(), now())")
     const { order } = await orderWithCheckout(t)
+    // 주문 시각은 DB가 정한다(now()) — 고정한 시계에 맞춘다
+    await t.db.query("UPDATE orders SET created_at = '2026-10-21T03:00:00Z' WHERE id = $1", [order.id])
     const res = await t.as(1).post('/members/me/withdraw')
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ withdrawnAt: '2026-10-21T03:00:00.000Z', retainUntil: '2031-10-21T03:00:00.000Z' })
@@ -70,8 +83,10 @@ describe('POST /members/me/withdraw — 탈퇴와 거래기록 보존', () => {
     expect((await t.db.query('SELECT count(*) FROM payments WHERE order_id = $1', [order.id])).rows[0].count).toBe('0')
   })
 
-  it('두 번 탈퇴하지 않는다', async () => {
-    expect((await t.as(2).post('/members/me/withdraw')).status).toBe(200)
+  it('주문이 없으면 보존할 기록이 없다 — 두 번 탈퇴하지 않는다', async () => {
+    const first = await t.as(2).post('/members/me/withdraw')
+    expect(first.status).toBe(200)
+    expect(first.body.retainUntil).toBe(first.body.withdrawnAt)
     const again = await t.as(2).post('/members/me/withdraw')
     expect(again.status).toBe(409)
     expect(again.body.code).toBe('ALREADY_WITHDRAWN')

@@ -1,8 +1,8 @@
 diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
-index 42b8dbf..277df4f 100644
+index ed8331f..1ecca60 100644
 --- a/contracts/openapi.yaml
 +++ b/contracts/openapi.yaml
-@@ -417,7 +417,7 @@ components:
+@@ -449,7 +449,7 @@ components:
            type: integer
      Quote:
        type: object
@@ -11,7 +11,7 @@ index 42b8dbf..277df4f 100644
        properties:
          lines:
            type: array
-@@ -436,8 +436,9 @@ components:
+@@ -468,8 +468,9 @@ components:
            type: integer
          total:
            type: integer

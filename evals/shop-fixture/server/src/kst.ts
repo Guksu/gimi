@@ -17,6 +17,19 @@ export const addYears = (date: string, years: number) => {
   return new Date(Date.UTC(y + years, m - 1, d)).toISOString().slice(0, 10)
 }
 
+/** 한국 날짜의 일(1~31) */
+export const kstDay = (at: Date) => shifted(at).getUTCDate()
+
+/** 한국 달력으로 months달 뒤의 같은 시각 — 그달에 day일이 없으면 그달 마지막 날이다 */
+export const addMonthsKst = (at: Date, months: number, day: number) => {
+  const local = shifted(at)
+  const year = local.getUTCFullYear()
+  const month = local.getUTCMonth() + months
+  const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+  const target = Date.UTC(year, month, Math.min(day, last), local.getUTCHours(), local.getUTCMinutes(), local.getUTCSeconds(), local.getUTCMilliseconds())
+  return new Date(target - KST_OFFSET_MS)
+}
+
 /** 만 나이 — 생일 당일(한국 날짜)부터 한 살을 더한다 */
 export const ageOn = (birthDate: string, at: Date) => {
   const [by, bm, bd] = birthDate.split('-').map(Number) as [number, number, number]

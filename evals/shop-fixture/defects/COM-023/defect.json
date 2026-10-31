@@ -18,7 +18,7 @@
       "evidence": [
         {
           "path": "server/src/config.ts",
-          "line": 14
+          "line": 21
         }
       ]
     }

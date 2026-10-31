@@ -1,8 +1,8 @@
 diff --git a/contracts/openapi.yaml b/contracts/openapi.yaml
-index 42b8dbf..10c8a2e 100644
+index ed8331f..2d5026f 100644
 --- a/contracts/openapi.yaml
 +++ b/contracts/openapi.yaml
-@@ -456,7 +456,7 @@ components:
+@@ -488,7 +488,7 @@ components:
            type: boolean
      Order:
        type: object
@@ -11,7 +11,7 @@ index 42b8dbf..10c8a2e 100644
        properties:
          id:
            type: integer
-@@ -470,6 +470,10 @@ components:
+@@ -502,6 +502,10 @@ components:
              $ref: '#/components/schemas/OrderItem'
          subtotal:
            type: integer
@@ -48,10 +48,10 @@ index 60b3c16..e010605 100644
      expect((await t.db.query("SELECT used_count FROM coupons WHERE code = 'NOODLE10'")).rows[0].used_count).toBe(1)
      expect((await t.db.query('SELECT points FROM users WHERE id = 1')).rows[0].points).toBe(4000)
 diff --git a/web/src/api/schema.d.ts b/web/src/api/schema.d.ts
-index 34e52c7..43b1ef6 100644
+index faf3507..aca010f 100644
 --- a/web/src/api/schema.d.ts
 +++ b/web/src/api/schema.d.ts
-@@ -283,6 +283,8 @@ export interface components {
+@@ -317,6 +317,8 @@ export interface components {
              method: components["schemas"]["Method"];
              items: components["schemas"]["OrderItem"][];
              subtotal: number;

@@ -97,4 +97,17 @@ describe('주문 확인·결제', () => {
     await pay(true)
     expect([created, joined]).toEqual([2, 1])
   })
+
+  it('멤버십 가입에 실패하면 결제로 넘어가지 않고 알린다', async () => {
+    server.use(
+      http.post(`${API}/orders`, () => HttpResponse.json(order({ status: 'pending_payment' }), { status: 201 })),
+      http.post(`${API}/memberships`, () => HttpResponse.json({ code: 'UNKNOWN', message: '실패' }, { status: 500 })),
+    )
+    const { user } = openAt('/checkout', [{ productId: 1, quantity: 2 }])
+    await user.click(await screen.findByRole('checkbox', { name: '국수 멤버십도 가입할게요(매달 2,900원 자동 결제)' }))
+    await user.click(screen.getByRole('checkbox', { name: '주문 내용을 확인했고 결제에 동의해요' }))
+    await user.click(screen.getByRole('button', { name: '15,000원 결제하기' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('문제가 생겼어요. 잠시 뒤 다시 시도해 주세요')
+    expect(screen.getByRole('button', { name: '15,000원 결제하기' })).toBeEnabled()
+  })
 })

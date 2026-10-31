@@ -41,6 +41,14 @@ describe('광고 발송 대상', () => {
     expect(await ads.recipients('email')).toEqual([2])
   })
 
+  it('2년은 한국 날짜로 센다 — 한국 날짜가 바뀌는 UTC 15시가 경계다', async () => {
+    await t.db.query("UPDATE members SET marketing_at = '2024-10-21T15:30:00Z' WHERE user_id = 1") // 한국 날짜 2024-10-22
+    t.clock.set('2026-10-21T14:59:00Z') // 한국 2026-10-21 23:59
+    expect(await ads.recipients('email')).toEqual([1, 2])
+    t.clock.set('2026-10-21T15:00:00Z') // 한국 2026-10-22 00:00
+    expect(await ads.recipients('email')).toEqual([2])
+  })
+
   it('광고 수신에 동의하지 않았거나 탈퇴한 사람에게는 보내지 않는다', async () => {
     await t.db.query('UPDATE members SET marketing_at = NULL WHERE user_id = 2')
     await t.as(1).post('/members/me/withdraw')
