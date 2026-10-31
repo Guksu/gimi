@@ -65,6 +65,18 @@ describe('context.mjs', () => {
     assert.equal(existsSync(join(repo.dir, 'docs')), false)
   })
 
+  it('설정(.agents/gimi.json)의 linkedRepos를 함께 보는 저장소로 넘긴다 — 없는 경로는 건너뜀에 적는다', () => {
+    repo.write({ '.agents/gimi.json': JSON.stringify({ linkedRepos: ['../없는-저장소'] }) })
+    try {
+      const result = run({ cwd: repo.dir, args: ['--no-gh', '--json'] })
+      assert.equal(result.status, 0, result.stderr)
+      const reasons = JSON.parse(result.stdout).skipped.map((s) => s.reason)
+      assert.ok(reasons.some((r) => r.startsWith('함께 보는 저장소 ../없는-저장소을(를) 찾지 못했다')), reasons.join('\n'))
+    } finally {
+      rmSync(join(repo.dir, '.agents'), { recursive: true, force: true })
+    }
+  })
+
   it('--base로 기준을 정하고, 없는 기준이면 종료 코드 2로 끝낸다', () => {
     assert.equal(run({ cwd: repo.dir, args: ['--no-gh', '--json', '--base', 'main'] }).status, 0)
     const missing = run({ cwd: repo.dir, args: ['--no-gh', '--base', 'nope'] })

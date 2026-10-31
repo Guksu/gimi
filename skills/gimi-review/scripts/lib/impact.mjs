@@ -57,8 +57,9 @@ export const usageAt = ({ readLines, path, line, changedPaths }) => {
 
 /** 이 변경에서 안 바뀐 사용처가 먼저다 — 깨질 수 있는 곳은 거기다 */
 export const finalize = (usages) => {
-  const unique = [...new Map(usages.map((u) => [`${u.path}:${u.line}`, u])).values()]
-  unique.sort((a, b) => Number(a.changedInPr) - Number(b.changedInPr) || a.path.localeCompare(b.path) || a.line - b.line)
+  // 함께 보는 저장소의 사용처(repo)는 같은 경로라도 다른 곳이다 — 리뷰하는 저장소의 것을 먼저 둔다
+  const unique = [...new Map(usages.map((u) => [`${u.repo ?? ''}\0${u.path}:${u.line}`, u])).values()]
+  unique.sort((a, b) => Number(a.changedInPr) - Number(b.changedInPr) || (a.repo ?? '').localeCompare(b.repo ?? '') || a.path.localeCompare(b.path) || a.line - b.line)
   return { total: unique.length, unchanged: unique.filter((u) => !u.changedInPr).length, usages: unique.slice(0, MAX_USAGES) }
 }
 

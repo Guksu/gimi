@@ -5,6 +5,7 @@
  *   - 바뀐 엔드포인트(필드가 바뀐 스키마를 쓰는 엔드포인트 포함)의 경로를 문자열로 찾는다(정확도 낮음).
  * GraphQL은 저장소의 스키마 파일 전체를 합쳐 비교하고, 코드 안의 연산을 스키마로 풀어 바뀐 필드를 고르는 곳을 찾는다.
  * 지운 필드는 옛 스키마로 푼다. 더하기만 한 변경은 아직 쓰는 곳이 없으니 찾지 않는다.
+ * 함께 보는 저장소(설계 결정 57)가 있으면 그 저장소에서도 같은 방법으로 찾고, 사용처에 repo를 붙인다.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -73,20 +74,31 @@ const pathPatterns = (endpoint) => {
 }
 
 /**
- * @param {{ exec: any, root: string, scope: { mergeBase: string }, files: import('./diff.mjs').FileDiff[], ts: any, yaml: { parse: (text: string) => any, name: string } }} args
+ * @param {{ exec: any, root: string, scope: { mergeBase: string }, files: import('./diff.mjs').FileDiff[], ts: any, yaml: { parse: (text: string) => any, name: string }, linked?: { label: string, root: string, exec: any, ts: any }[] }} args
  * @returns {{ contracts: any[], skipped: { context: string, reason: string }[], notes: string[] }}
  */
-export const collectContracts = ({ exec, root, scope, files, ts, yaml }) => {
+export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = [] }) => {
   const contracts = []
   const skipped = []
   const notes = []
-  const readLines = createFileReader({ root })
   const changedPaths = new Set(files.map((file) => file.newPath).filter(Boolean))
-  const index = ts ? createTsIndex({ ts, root }) : null
-  const grepFiles = (patterns) => {
+  const grepFilesIn = (target, patterns) => {
     if (patterns.length === 0) return []
-    const out = attempt(() => exec.git(['grep', '-l', '-I', '-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...CODE_GLOBS]))
+    const out = attempt(() => target.exec.git(['grep', '-l', '-I', '-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...CODE_GLOBS]))
     return out ? out.split('\n').filter(Boolean) : []
+  }
+  // 사용처를 찾는 곳 — 리뷰하는 저장소와 함께 보는 저장소. 함께 보는 저장소의 것은 이 변경에서 바뀌지 않았다
+  const targets = [{ repo: null, root, exec, ts, changedPaths }, ...linked.map((l) => ({ repo: l.label, root: l.root, exec: l.exec, ts: l.ts, changedPaths: new Set() }))].map((target) => ({
+    ...target,
+    readLines: createFileReader({ root: target.root }),
+    index: target.ts ? createTsIndex({ ts: target.ts, root: target.root }) : null,
+    openApiGenerated: null,
+  }))
+  const [self] = targets
+  const grepFiles = (patterns) => grepFilesIn(self, patterns)
+  const usageIn = (target, path, line) => {
+    const usage = usageAt({ readLines: target.readLines, path, line, changedPaths: target.changedPaths })
+    return target.repo === null ? usage : { ...usage, repo: target.repo }
   }
   const regenerated = ({ contractPath, generated }) => {
     if (generated.length > 0 && !generated.some((path) => changedPaths.has(path))) {
@@ -126,37 +138,40 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml }) => {
       continue
     }
     if (!isOpenApi(before) && !isOpenApi(after)) continue
-    openApiGenerated ??= grepFiles(OPENAPI_GENERATED)
-    const generated = openApiGenerated
+    for (const target of targets) target.openApiGenerated ??= grepFilesIn(target, OPENAPI_GENERATED)
+    const generated = self.openApiGenerated
     const changes = diffOpenApi({ before: isOpenApi(before) ? before : {}, after: isOpenApi(after) ? after : {} })
-    const excluded = [path, ...generated].map((p) => `:(exclude)${p}`)
     const pathCache = new Map()
-    const pathUsages = (endpoint) => {
-      if (!pathCache.has(endpoint)) {
+    const pathUsages = (target, endpoint) => {
+      const key = `${target.repo ?? ''}\0${endpoint}`
+      if (!pathCache.has(key)) {
         const patterns = pathPatterns(endpoint)
-        const hits = patterns.length === 0 ? [] : grep({ exec, args: ['-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...CODE_GLOBS, ...excluded] })
-        pathCache.set(endpoint, hits.map((hit) => usageAt({ readLines, path: hit.path, line: hit.line, changedPaths })))
+        // 계약 파일과 생성 타입 자신은 사용처가 아니다
+        const excluded = [...(target === self ? [path] : []), ...target.openApiGenerated].map((p) => `:(exclude)${p}`)
+        const hits = patterns.length === 0 ? [] : grep({ exec: target.exec, args: ['-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...CODE_GLOBS, ...excluded] })
+        pathCache.set(key, hits.map((hit) => usageIn(target, hit.path, hit.line)))
       }
-      return pathCache.get(endpoint)
+      return pathCache.get(key)
     }
     let searched = 0
     const enriched = changes.map((change) => {
       if (change.level === 'additive' || searched >= MAX_SEARCHED) return { ...change, method: null, searched: false, total: 0, unchanged: 0, usages: [] }
       searched += 1
       const endpoints = change.target === 'endpoint' ? [change.key] : (change.endpoints ?? [])
-      let usages = endpoints.flatMap(pathUsages)
+      let usages = targets.flatMap((target) => endpoints.flatMap((endpoint) => pathUsages(target, endpoint)))
       let method = 'text'
-      // 생성 타입이 있으면 바뀐 스키마·필드를 TypeScript 참조로도 찾는다
-      if (index && change.target === 'schema' && generated.length > 0) {
-        for (const genPath of generated) {
-          const abs = join(root, genPath)
+      // 생성 타입이 있으면 바뀐 스키마·필드를 TypeScript 참조로도 찾는다 — 함께 보는 저장소의 생성 타입은 옛 계약에서 만든 것이라 옛 필드가 있다
+      for (const target of targets) {
+        if (!target.index || change.target !== 'schema') continue
+        for (const genPath of target.openApiGenerated) {
+          const abs = join(target.root, genPath)
           if (!existsSync(abs)) continue
-          const pos = memberPos({ ts, text: readFileSync(abs, 'utf8'), fileName: abs, schema: change.schema, field: change.field })
+          const pos = memberPos({ ts: target.ts, text: readFileSync(abs, 'utf8'), fileName: abs, schema: change.schema, field: change.field })
           if (pos === null) continue
-          const refs = index.referencesOf({ path: genPath, namePos: pos })
+          const refs = target.index.referencesOf({ path: genPath, namePos: pos })
           if (!refs) continue
           method = 'typescript+text'
-          usages = [...usages, ...refs.map((ref) => usageAt({ readLines, path: ref.path, line: lineOfPos({ readLines, path: ref.path, pos: ref.pos }), changedPaths }))]
+          usages = [...usages, ...refs.map((ref) => usageIn(target, ref.path, lineOfPos({ readLines: target.readLines, path: ref.path, pos: ref.pos })))]
         }
       }
       return { ...change, method, searched: true, ...finalize(usages.filter((u) => !/^\s*import\b/.test(u.text))) }
@@ -192,19 +207,25 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml }) => {
         skipped.push({ context: '영향 범위', reason: `GraphQL 스키마를 읽지 못했다 — ${error.message}` })
       }
       if (before && after) {
-        // 연산 문서 — gql 템플릿이 있는 코드와 스키마가 아닌 .graphql 파일
-        const candidates = [
-          ...grepFiles(['gql', 'graphql', 'GraphQL']),
-          ...(attempt(() => exec.git(['ls-files', '-z', '--', '*.graphql', '*.gql'])) ?? '').split('\0').filter((p) => p && !schemaPaths.has(p)),
-        ].slice(0, MAX_DOCUMENT_FILES)
-        const documents = candidates.flatMap((path) => {
-          const abs = join(root, path)
-          return existsSync(abs) ? extractDocuments({ path, text: readFileSync(abs, 'utf8') }) : []
-        })
-        const resolvedNew = resolveOperations({ schema: after, documents })
-        const resolvedOld = resolveOperations({ schema: before, documents })
-        const uses = [...new Map([...resolvedNew.uses, ...resolvedOld.uses].map((u) => [`${u.path}:${u.line}:${u.typeName}.${u.fieldName}`, u])).values()]
-        for (const error of resolvedNew.errors.slice(0, 3)) notes.push(error)
+        // 연산 문서 — gql 템플릿이 있는 코드와 스키마가 아닌 .graphql 파일. 함께 보는 저장소에서도 모은다
+        let documentCount = 0
+        const uses = []
+        for (const target of targets) {
+          const candidates = [
+            ...grepFilesIn(target, ['gql', 'graphql', 'GraphQL']),
+            ...(attempt(() => target.exec.git(['ls-files', '-z', '--', '*.graphql', '*.gql'])) ?? '').split('\0').filter((p) => p && !(target === self && schemaPaths.has(p))),
+          ].slice(0, MAX_DOCUMENT_FILES)
+          const documents = candidates.flatMap((path) => {
+            const abs = join(target.root, path)
+            return existsSync(abs) ? extractDocuments({ path, text: readFileSync(abs, 'utf8') }) : []
+          })
+          documentCount += documents.length
+          const resolvedNew = resolveOperations({ schema: after, documents })
+          const resolvedOld = resolveOperations({ schema: before, documents })
+          const own = [...new Map([...resolvedNew.uses, ...resolvedOld.uses].map((u) => [`${u.path}:${u.line}:${u.typeName}.${u.fieldName}`, u])).values()]
+          uses.push(...own.map((u) => ({ ...u, target })))
+          for (const error of resolvedNew.errors.slice(0, 3)) notes.push(target.repo === null ? error : `${target.repo}: ${error}`)
+        }
         const generated = grepFiles(GRAPHQL_GENERATED)
         let searched = 0
         const changes = diffSchema({ before, after }).map((change) => {
@@ -213,11 +234,11 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml }) => {
           const targets = new Set(change.affects)
           const found = uses
             .filter((u) => targets.has(`${u.typeName}.${u.fieldName}`))
-            .map((u) => ({ ...usageAt({ readLines, path: u.path, line: u.line, changedPaths }), operation: u.operation, fieldPath: u.fieldPath }))
+            .map((u) => ({ ...usageIn(u.target, u.path, u.line), operation: u.operation, fieldPath: u.fieldPath }))
           return { ...change, method: 'graphql', searched: true, ...finalize(found) }
         })
         const label = changedSchema.length > 2 ? `${changedSchema.slice(0, 2).join(', ')} 외 ${changedSchema.length - 2}개` : changedSchema.join(', ')
-        contracts.push({ kind: 'graphql', path: label, sources: [...schemaPaths].sort(), generated, documents: documents.length, changes })
+        contracts.push({ kind: 'graphql', path: label, sources: [...schemaPaths].sort(), generated, documents: documentCount, changes })
         regenerated({ contractPath: label, generated })
       }
     }

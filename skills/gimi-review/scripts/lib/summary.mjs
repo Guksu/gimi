@@ -129,7 +129,7 @@ const contractRows = (contracts) => {
       rows.push(`    ${change.key}  ${LEVEL_LABEL[change.level]} — ${change.details.join(' / ')}${endpoints}${contractUsage(change, graphql)}`)
       if (!change.searched || change.total === 0) continue
       const shown = change.usages.filter((usage) => !usage.changedInPr).slice(0, MAX_USAGES)
-      for (const usage of shown) rows.push(`      ${usage.path}:${usage.line}${usage.operation ? `  ${usage.operation} › ${usage.fieldPath}` : ''}`)
+      for (const usage of shown) rows.push(`      ${usage.repo ? `[${usage.repo}] ` : ''}${usage.path}:${usage.line}${usage.operation ? `  ${usage.operation} › ${usage.fieldPath}` : ''}`)
       if (change.unchanged > shown.length) rows.push(`      … 안 바뀐 곳 ${change.unchanged - shown.length}곳 더 — JSON에 있다`)
       if (change.total > change.unchanged) rows.push(`      이 변경에서 함께 바뀐 곳 ${change.total - change.unchanged}곳 — diff에서 본다`)
     }

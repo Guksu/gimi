@@ -3,6 +3,7 @@
  * "없음"과 "건너뜀"을 섞지 않는다. 사용처를 찾지 못한 것과 찾기를 건너뛴 것은 다르다.
  */
 import { collectContracts } from './contracts.mjs'
+import { resolveLinked } from './linked.mjs'
 import { parseDiff } from './diff.mjs'
 import { attempt } from './exec.mjs'
 import { collectHistory } from './history.mjs'
@@ -32,7 +33,7 @@ const slim = (file) => ({
  *   loadTs?: (args: { root: string }) => { ts: any, reason: string | null },
  * }} args
  */
-export const collectContext = ({ exec, pr = null, base = null, recentCommits = 10, keyPatterns = [], useGh = true, now = new Date(), loadTs = loadTypescript }) => {
+export const collectContext = ({ exec, pr = null, base = null, recentCommits = 10, keyPatterns = [], useGh = true, now = new Date(), loadTs = loadTypescript, linkedRepos = null }) => {
   const skipped = []
   const notes = []
 
@@ -57,8 +58,12 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   const root = exec.git(['rev-parse', '--show-toplevel']).trim()
   const { ts, reason } = loadTs({ root })
   const impact = collectImpact({ exec, root, scope, files, ts, reason })
-  // 프론트·백엔드를 잇는 계약 파일(OpenAPI·GraphQL 스키마) — 바뀐 엔드포인트·필드와 그 사용처(설계 결정 47)
-  const contracts = collectContracts({ exec, root, scope, files, ts, yaml: loadYaml({ root }) })
+  // 프론트·백엔드를 잇는 계약 파일(OpenAPI·GraphQL 스키마) — 바뀐 엔드포인트·필드와 그 사용처(설계 결정 47).
+  // 함께 보는 저장소(설계 결정 57)가 있으면 그 저장소에서도 찾는다
+  const linked = resolveLinked({ root, linkedRepos, loadTs })
+  impact.notes.push(...linked.notes)
+  skipped.push(...linked.skipped)
+  const contracts = collectContracts({ exec, root, scope, files, ts, yaml: loadYaml({ root }), linked: linked.linked })
   impact.contracts = contracts.contracts
   impact.notes.push(...contracts.notes)
   skipped.push(...contracts.skipped)

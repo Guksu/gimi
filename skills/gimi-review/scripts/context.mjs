@@ -82,7 +82,7 @@ const main = () => {
 
   let context
   try {
-    context = collectContext({ exec, pr: args.pr ?? null, base: args.base ?? null, recentCommits: args.recent ?? config.history?.recentCommits ?? 10, keyPatterns, useGh: !args.noGh, now })
+    context = collectContext({ exec, pr: args.pr ?? null, base: args.base ?? null, recentCommits: args.recent ?? config.history?.recentCommits ?? 10, keyPatterns, useGh: !args.noGh, now, linkedRepos: config.linkedRepos ?? null })
   } catch (error) {
     if (error instanceof ContextError) {
       console.error(error.message)
