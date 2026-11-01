@@ -15,7 +15,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { attempt, createExec } from './lib/exec.mjs'
+import { attempt, createExec, readRepoFile } from './lib/exec.mjs'
 import { itemText, matchesStacks, parseRuleFile } from './lib/rulefile.mjs'
 
 const USAGE = '사용: node rules.mjs [--area test,code,review] [--id ID,…] [--full] [--boundaries] [--json]'
@@ -77,7 +77,8 @@ const main = () => {
   }
   const root = attempt(() => createExec({ cwd: process.cwd() }).git(['rev-parse', '--show-toplevel']).trim()) || process.cwd()
   const notes = []
-  const configText = readText(join(root, '.agents/gimi.json'))
+  // 저장소 안의 파일은 일반 파일일 때만 읽는다(심볼릭 링크로 밖·장치 파일을 가리키지 못하게)
+  const configText = readRepoFile({ root, path: '.agents/gimi.json' })
   const config = configText == null ? {} : (attempt(() => JSON.parse(configText)) ?? (notes.push('.agents/gimi.json을 읽지 못했다 — 기본값으로 보였다'), {}))
   const stacks = Array.isArray(config.stacks) && config.stacks.length > 0 ? config.stacks : ['frontend-ts']
   const available = existsSync(join(HERE, '../shared/domains')) ? readdirSync(join(HERE, '../shared/domains')).filter((name) => existsSync(join(HERE, '../shared/domains', name, 'rules.md'))).sort() : []
@@ -90,7 +91,7 @@ const main = () => {
   // 출처마다 규칙 파일 — 공통 금지선 영역, 프리셋, 회사 규칙
   const sources = AREAS.map((area) => ({ kind: 'slop', name: area, path: join(HERE, `../shared/rules/${area}.md`) }))
   for (const name of available) sources.push({ kind: 'preset', name, path: join(HERE, '../shared/domains', name, 'rules.md') })
-  const companyText = readText(join(root, COMPANY_PATH))
+  const companyText = readRepoFile({ root, path: COMPANY_PATH })
   if (companyText != null) sources.push({ kind: 'company', name: 'company', path: join(root, COMPANY_PATH), text: companyText })
   for (const source of sources) {
     source.text ??= readText(source.path) ?? ''

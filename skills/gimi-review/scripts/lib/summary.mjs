@@ -152,10 +152,10 @@ const impactNotes = (impact) => {
 }
 
 /**
- * @param {{ context: any, outPath: string | null, maxLines?: number }} args
+ * @param {{ context: any, outPath: string | null, notWritten?: boolean, maxLines?: number }} args notWritten이면 전체를 어디에도 쓰지 않았다
  * @returns {string}
  */
-export const renderSummary = ({ context, outPath, maxLines = 300 }) => {
+export const renderSummary = ({ context, outPath, notWritten = false, maxLines = 300 }) => {
   const { scope, files, intent, history } = context
   const rows = [`범위    ${scope.baseRef}...${scope.branch ?? scope.head.slice(0, 7)} (갈림점 ${scope.mergeBase.slice(0, 7)}, 커밋 ${scope.commitCount}, 파일 ${files.length})`]
   rows.push('바뀐 파일', ...(files.length > 0 ? capped({ rows: files.map(fileRow), max: MAX_FILES, unit: '개' }) : ['  없음']))
@@ -164,7 +164,7 @@ export const renderSummary = ({ context, outPath, maxLines = 300 }) => {
   if (context.impact) rows.push(...impactRows(context.impact), ...contractRows(context.impact.contracts))
   rows.push(...(context.skipped.length > 0 ? context.skipped.map((skip) => `건너뜀  ${skip.context} — ${skip.reason}`) : ['건너뜀  없음']))
   for (const note of [...context.notes, ...(history?.notes ?? []), ...impactNotes(context.impact)]) rows.push(`참고    ${note}`)
-  const last = `전체    ${outPath ?? '(JSON을 표준 출력으로 냈다)'}`
+  const last = `전체    ${notWritten ? '쓰지 않았다 — --out <경로>나 --json으로 다시 돌린다' : (outPath ?? '(JSON을 표준 출력으로 냈다)')}`
 
   // 상한을 넘으면 중간을 줄인다 — 마지막 줄(전체 경로)은 남겨 JSON을 열 수 있게 한다
   const body = rows.length + 1 > maxLines ? [...rows.slice(0, maxLines - 2), `… 외 ${rows.length - (maxLines - 2)}줄 — 전체는 JSON에 있다`] : rows

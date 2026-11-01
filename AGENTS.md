@@ -9,7 +9,7 @@ gimi — 코드 리뷰 스킬(`gimi-review`)을 담은 설치형 플러그인이
 | 무엇 | 경로 | 내용 |
 |---|---|---|
 | 리뷰 스킬 | `skills/gimi-review/SKILL.md` | 맥락 리뷰(영향 범위·의도·이력)와 도메인 규칙 설정 |
-| 맥락 수집 | `skills/gimi-review/scripts/context.mjs` + `lib/` | 리뷰 전에 범위·바뀐 파일·의도·이력·영향 범위를 모은다. 계약 파일(OpenAPI·GraphQL)이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾는다(설정 `linkedRepos`의 저장소에서도). 스킬과 함께 설치되는 스크립트이고, 영향 범위는 리뷰하는 프로젝트의 `typescript`, YAML은 프로젝트의 `yaml`·`js-yaml`(없으면 내장 파서)을 쓴다 |
+| 맥락 수집 | `skills/gimi-review/scripts/context.mjs` + `lib/` | 리뷰 전에 범위·바뀐 파일·의도·이력·영향 범위를 모은다. 계약 파일(OpenAPI·GraphQL)이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾는다(설정 `linkedRepos`의 저장소에서도). 스킬과 함께 설치되는 스크립트이고, 영향 범위는 리뷰하는 프로젝트의 `typescript`, YAML은 프로젝트의 `yaml`·`js-yaml`(없으면 내장 파서)을 쓴다(`node_modules`에 git이 추적하는 파일이 있으면 불러오지 않는다 — PR이 커밋한 코드가 실행되지 않게, 설계 결정 20) |
 | 규칙 | `skills/gimi-review/shared/rules/{test,code,review}.md`, `skills/gimi-review/shared/domains/{commerce,kr-commerce-law}/rules.md`, `skills/gimi-review/scripts/rules.mjs` | 공통 금지선(테스트·코드·리뷰 — PR의 테스트 코드도 리뷰한다)과 분야 프리셋(COM 29·KCL 14). `검사`는 리뷰·기록뿐이다(정적 검사는 없다). `rules.mjs`가 설정의 stacks·presets와 회사 규칙의 끈 규칙으로 걸러 보인다 |
 | 예제 저장소 | `evals/shop-fixture/` | 국수집 주문 앱 — web(React + Vite)·server(NestJS + pg)·fake-pg(가짜 PG)·PostgreSQL(docker). 리뷰 평가가 쓴다. TypeScript 앱이고 의존성은 그 폴더의 `package-lock.json`에만 둔다 |
 | 결함 PR | `evals/shop-fixture/defects/{ID}/`, `scripts/defects.mjs` + `scripts/lib/defects.mjs` | 결함마다 `change.patch` + `defect.json`(어긴 규칙·PR 제목과 본문·정답 `path:line`·잡는 테스트). `check`가 패치·형식·정답 위치·잡는 테스트를 보고, `materialize`가 평가용 git 저장소(main = 정상, defect/{ID} = 결함 PR)를 만든다. 형식은 `defects/README.md` |
