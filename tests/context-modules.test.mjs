@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -219,6 +219,124 @@ describe('리뷰하는 저장소의 내용으로 다른 것을 실행하거나 �
     } finally {
       repo.cleanup()
       rmSync(outside, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('리뷰하는 저장소의 패키지 불러오기 — 다시 리뷰에서 재현한 것', () => {
+  const writer = (marker) => `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`
+
+  it('유니코드로 접히는 이름(node_moduleſ)으로 커밋해 설치한 안쪽 파일을 덮어써도 불러오지 않는다 — 글자가 아니라 같은 폴더인지 본다', () => {
+    const repo = makeRepo()
+    try {
+      const marker = join(repo.dir, 'ran-fold.txt')
+      repo.write({ '.gitignore': 'node_modules/\nran-*.txt\n' })
+      repo.commit('feat: 처음')
+      repo.write({
+        'node_modules/yaml/package.json': JSON.stringify({ name: 'yaml', main: 'index.js' }),
+        'node_modules/yaml/index.js': "module.exports = require('./lib/inner.js')\n",
+        'node_modules/yaml/lib/inner.js': 'module.exports = { parse: () => ({}) }\n',
+      })
+      // 대소문자를 유니코드로 접는 디스크(macOS)에서는 같은 폴더라 설치한 파일을 덮어쓴다
+      repo.write({ 'node_moduleſ/yaml/lib/inner.js': `${writer(marker)}\nmodule.exports = { parse: () => ({}) }\n` })
+      repo.git('add', '-f', 'node_moduleſ/yaml/lib/inner.js')
+      repo.git('commit', '-q', '-m', 'feat: 접히는 이름')
+      const sameFolder = statSync(join(repo.dir, 'node_moduleſ')).ino === statSync(join(repo.dir, 'node_modules')).ino
+      const yaml = loadYaml({ root: repo.dir })
+      assert.equal(existsSync(marker), false)
+      if (sameFolder) assert.match(yaml.reason, /node_modules와 같은 폴더/)
+    } finally {
+      repo.cleanup()
+    }
+  })
+
+  it('저장소 밖으로 이어져도 경로에 node_modules가 없으면 불러오지 않는다', () => {
+    const repo = makeRepo()
+    const outside = mkdtempSync(join(tmpdir(), 'gimi-outside-'))
+    try {
+      const marker = join(repo.dir, 'ran-outside.txt')
+      writeFileSync(join(outside, 'evil.js'), `${writer(marker)}\nmodule.exports = { parse: () => ({}) }\n`)
+      repo.write({ 'package.json': JSON.stringify({ name: 'yaml', exports: { '.': './gl/evil.js' } }) })
+      symlinkSync(outside, join(repo.dir, 'gl'))
+      repo.commit('feat: 밖으로 잇는 링크')
+      const yaml = loadYaml({ root: repo.dir })
+      assert.equal(yaml.name, '내장')
+      assert.match(yaml.reason, /node_modules가 없는 곳/)
+      assert.equal(existsSync(marker), false)
+    } finally {
+      repo.cleanup()
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('함께 보는 저장소의 커밋된 typescript도 맥락 수집 흐름에서 실행하지 않는다', () => {
+    const front = makeRepo()
+    const repo = makeRepo()
+    try {
+      const marker = join(front.dir, 'ran-linked.txt')
+      front.write(fakePackage({ name: 'typescript', marker, exports: '{ createLanguageService() {} }' }))
+      front.write({ 'src/api.js': "export const get = () => fetch('/orders/' + 1)\n" })
+      front.commit('feat: 화면')
+      const api = (extra) => `openapi: 3.0.0\npaths:\n  /orders/{id}:\n    get:\n      responses:\n        '200':\n          description: ok\n${extra}`
+      repo.write({ 'api/openapi.yaml': api('  /health:\n    get:\n      responses:\n        \'200\':\n          description: ok\n') })
+      repo.commit('feat: 처음')
+      repo.git('switch', '-q', '-c', 'feat/x')
+      repo.write({ 'api/openapi.yaml': 'openapi: 3.0.0\npaths:\n  /health:\n    get:\n      responses:\n        \'200\':\n          description: ok\n' })
+      repo.commit('feat: 주문 조회를 지움')
+      const context = collectContext({ exec: execFor({ dir: repo.dir }), useGh: false, linkedRepos: [front.dir] })
+      assert.equal(existsSync(marker), false)
+      assert.ok(context.impact.notes.some((n) => n.includes(front.dir) && /node_modules에 git이 추적하는 파일이 있다/.test(n)), context.impact.notes.join('\n'))
+    } finally {
+      repo.cleanup()
+      front.cleanup()
+    }
+  })
+
+  it('git으로 확인할 수 없으면(저장소가 아님) 불러오지 않는다', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gimi-plain-'))
+    try {
+      mkdirSync(join(dir, 'node_modules/yaml'), { recursive: true })
+      writeFileSync(join(dir, 'node_modules/yaml/package.json'), JSON.stringify({ name: 'yaml', main: 'index.js' }))
+      writeFileSync(join(dir, 'node_modules/yaml/index.js'), 'module.exports = { parse: () => ({}) }\n')
+      const yaml = loadYaml({ root: dir })
+      assert.equal(yaml.name, '내장')
+      assert.match(yaml.reason, /git으로 node_modules를 확인하지 못했다/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('설치됐지만 불러오다 실패한 typescript는 "없다"와 구분해 알린다', () => {
+    const repo = makeRepo()
+    try {
+      repo.write({ '.gitignore': 'node_modules/\n', 'src/a.ts': 'export const a = 1\n' })
+      repo.commit('feat: 처음')
+      repo.write({ 'node_modules/typescript/package.json': JSON.stringify({ name: 'typescript', main: 'index.js' }), 'node_modules/typescript/index.js': "throw new Error('깨짐')\n" })
+      const { ts, reason } = loadTypescript({ root: repo.dir })
+      assert.equal(ts, null)
+      assert.match(reason, /typescript을\(를\) 불러오지 못했다/)
+    } finally {
+      repo.cleanup()
+    }
+  })
+
+  it('docs/gimi/reviews가 없는 곳을 가리키는 심볼릭 링크여도 죽지 않고, 쓰지 않았다고 요약 끝에 적는다', () => {
+    const repo = makeRepo()
+    try {
+      repo.write({ 'src/a.ts': 'export const a = 1\n' })
+      mkdirSync(join(repo.dir, 'docs/gimi'), { recursive: true })
+      symlinkSync(join(tmpdir(), 'gimi-없는-폴더-0000'), join(repo.dir, 'docs/gimi/reviews'))
+      repo.commit('feat: 처음')
+      repo.git('switch', '-q', '-c', 'feat/x')
+      repo.write({ 'src/a.ts': 'export const a = 2\n' })
+      repo.commit('feat: 바꿈')
+      const cli = fileURLToPath(new URL('../skills/gimi-review/scripts/context.mjs', import.meta.url))
+      const result = spawnSync(process.execPath, [cli, '--no-gh'], { cwd: repo.dir, encoding: 'utf8' })
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(result.stdout, /^전체 {4}쓰지 않았다 — --out <경로>나 --json으로 다시 돌린다$/m)
+      assert.equal(existsSync(join(tmpdir(), 'gimi-없는-폴더-0000')), false)
+    } finally {
+      repo.cleanup()
     }
   })
 })

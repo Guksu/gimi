@@ -13,8 +13,8 @@
  * 설정(.agents/gimi.json): history.recentCommits(기본 10), requirements[].keyPattern(티켓 번호 형식), linkedRepos(함께 보는 저장소 경로 — 이 체크아웃의 루트 기준)
  * 종료 코드: 0 성공(건너뛴 맥락이 있어도), 2 사용법·환경 오류. 의존성 없음, Node 22 이상.
  */
-import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { staleBundles } from './lib/bundles.mjs'
 import { collectContext } from './lib/collect.mjs'
 import { ContextError, attempt, createExec, readRepoFile } from './lib/exec.mjs'
@@ -48,15 +48,19 @@ const today = (now) => [now.getFullYear(), String(now.getMonth() + 1).padStart(2
 const bundleName = (context) => (context.scope.pr ? `pr-${context.scope.pr.number}` : (context.scope.branch ?? context.scope.head.slice(0, 7))).replace(/[^\w.-]+/g, '-')
 const defaultOut = ({ context, now }) => `docs/gimi/reviews/${today(now)}-${bundleName(context)}.context.json`
 
-/** 그 경로(아직 없으면 있는 가장 가까운 상위 폴더)의 실제 위치가 저장소 안인지, 그 파일이 심볼릭 링크가 아닌지 */
+/** 저장소 루트부터 그 경로까지 심볼릭 링크가 하나도 없는지 — 있으면 저장소 밖(또는 없는 곳)을 가리킬 수 있다 */
 const insideRoot = ({ root, path }) => {
-  const rootReal = attempt(() => realpathSync(root))
-  if (!rootReal) return false
-  if (attempt(() => lstatSync(path).isSymbolicLink())) return false
-  let probe = dirname(path)
-  while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe)
-  const real = attempt(() => realpathSync(probe))
-  return real != null && (real === rootReal || real.startsWith(`${rootReal}${sep}`))
+  const rel = relative(root, path)
+  if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return false
+  let current = root
+  for (const part of rel.split(sep)) {
+    current = join(current, part)
+    const stat = attempt(() => lstatSync(current))
+    // 아직 없는 부분부터는 mkdir가 저장소 안에 만든다
+    if (!stat) return true
+    if (stat.isSymbolicLink()) return false
+  }
+  return true
 }
 
 const readConfig = ({ root, notes }) => {
@@ -117,7 +121,7 @@ const main = () => {
   // 기본 위치는 저장소가 정하는 경로다 — 저장소의 심볼릭 링크가 밖을 가리키면 쓰지도 지우지도 않는다(--out은 사용자가 정한다)
   if (!args.out && !insideRoot({ root, path: target })) {
     context.notes.push(`${outPath}이(가) 저장소 밖을 가리킨다(심볼릭 링크) — 맥락 묶음을 쓰지 않았다`)
-    process.stdout.write(renderSummary({ context, outPath: null, maxLines: args.maxLines }))
+    process.stdout.write(renderSummary({ context, outPath: null, notWritten: true, maxLines: args.maxLines }))
     return 0
   }
   mkdirSync(dirname(target), { recursive: true })

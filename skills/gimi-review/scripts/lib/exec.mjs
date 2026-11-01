@@ -37,10 +37,11 @@ export const attempt = (fn) => {
 /**
  * 리뷰하는 저장소의 패키지(typescript·yaml 등)를 불러온다 — 저장소에 커밋된 코드는 실행하지 않는다.
  * 남의 PR을 체크아웃해 리뷰할 때 PR이 커밋한 코드가 리뷰하는 사람 컴퓨터에서 돌지 않게 두 가지를 본다.
- *   1. 저장소 루트의 node_modules 아래에 git이 추적하는 것이 하나라도 있으면(대소문자 무시, 하위 모듈 포함) 아무것도 불러오지 않는다.
- *      커밋된 패키지뿐 아니라, 체크아웃이 설치해 둔 패키지의 안쪽 파일을 덮어쓴 경우도 막는다.
- *   2. 찾은 파일(require.resolve — 실행하지 않는다)의 실제 경로가 저장소 안이면 node_modules 아래여야 한다.
- *      main이 .git·루트 파일을 가리키거나 루트 package.json의 자기 참조로 저장소 파일을 부르는 경우를 막는다.
+ *   1. 저장소 루트의 node_modules 아래에 git이 추적하는 것이 하나라도 있으면(하위 모듈 포함) 아무것도 불러오지 않는다.
+ *      커밋된 패키지뿐 아니라, 체크아웃이 설치해 둔 패키지의 안쪽 파일을 덮어쓴 경우도 막는다. 이름은 글자가 아니라 같은 폴더인지로 본다 —
+ *      대소문자를 접는 디스크(macOS)에서는 node_moduleſ처럼 git이 다르게 보는 이름이 같은 폴더일 수 있다.
+ *   2. 찾은 파일(require.resolve — 실행하지 않는다)의 실제 경로가 저장소 안이면 node_modules 아래여야 하고, 저장소 밖이면 경로에 node_modules가 있어야 한다.
+ *      main이 .git·루트 파일을 가리키거나, 루트 package.json의 자기 참조·심볼릭 링크로 저장소 파일이나 밖의 다른 파일을 부르는 경우를 막는다.
  * git이 실패하면 불러오지 않는다. 설치한 패키지(git이 추적하지 않는 node_modules)와 저장소 밖의 패키지는 그대로 불러온다.
  * @param {{ root: string, name: string }} args
  * @returns {{ module: any, reason: string | null }} 설치되지 않았으면 module·reason 모두 null
@@ -53,6 +54,15 @@ export const requireFromProject = ({ root, name }) => {
   if (tracked == null) return refuse('git으로 node_modules를 확인하지 못했다')
   const first = tracked.split('\0').find(Boolean)
   if (first) return refuse(`node_modules에 git이 추적하는 파일이 있다(${first}) — 저장소에 커밋된 코드를 실행할 수 있다`)
+  const installed = attempt(() => statSync(join(rootReal, 'node_modules')))
+  if (installed) {
+    const all = attempt(() => execFileSync('git', [...GIT_FIXED, 'ls-files', '-z'], { cwd: rootReal, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: MAX_BUFFER }))
+    if (all == null) return refuse('git으로 저장소 파일을 확인하지 못했다')
+    for (const top of new Set(all.split('\0').filter(Boolean).map((path) => path.split('/')[0]))) {
+      const stat = attempt(() => statSync(join(rootReal, top)))
+      if (stat && stat.ino === installed.ino && stat.dev === installed.dev) return refuse(`git이 추적하는 ${top}이(가) 디스크에서 node_modules와 같은 폴더다 — 저장소에 커밋된 코드를 실행할 수 있다`)
+    }
+  }
   const require = createRequire(join(rootReal, 'gimi-context.cjs'))
   const file = attempt(() => require.resolve(name))
   if (!file) return { module: null, reason: null }
@@ -61,7 +71,9 @@ export const requireFromProject = ({ root, name }) => {
   const rel = relative(rootReal, real)
   const outside = rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)
   if (!outside && rel.split(sep)[0].toLowerCase() !== 'node_modules') return refuse(`찾은 파일(${rel.split(sep).join('/')})이 저장소 안의 node_modules 밖에 있다`)
-  return { module: attempt(() => require(name)), reason: null }
+  if (outside && !real.split(sep).includes('node_modules')) return refuse(`찾은 파일(${real})이 node_modules가 없는 곳에 있다`)
+  const module = attempt(() => require(name))
+  return module == null ? { module: null, reason: `${name}을(를) 불러오지 못했다` } : { module, reason: null }
 }
 
 // 저장소에서 읽는 파일 한 개의 상한 — 이보다 크면 소스·설정 파일로 보지 않는다
