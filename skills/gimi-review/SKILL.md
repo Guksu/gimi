@@ -7,9 +7,9 @@ description: 코드 리뷰를 diff 안에서 끝내지 않고 맥락까지 본�
 
 AI 리뷰어는 diff 안에서만 판단한다. 바뀐 함수를 쓰는 다른 화면, 티켓에 적힌 요구사항, 그 줄을 예전에 일부러 그렇게 둔 이유는 보지 않는다. 사람이 리뷰하며 잡는 결함은 대개 diff 밖에 있다. 이 스킬은 그 맥락을 먼저 모으고, 근거가 있는 지적만 남긴다.
 
-## 지금 상태 (0.0.1)
+## 지금 상태 (0.1.0)
 
-맥락 수집 스크립트(`scripts/context.mjs`)는 범위·바뀐 파일·의도·이력·영향 범위를 모으고, 계약 파일(OpenAPI·GraphQL 스키마)이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾는다. proto와 코드 안의 GraphQL typeDefs는 아직 읽지 않는다. 규칙은 공통 금지선(`shared/rules/`), 분야 프리셋(`shared/domains/` — `commerce`·`kr-commerce-law`), 회사 규칙(`docs/gimi/rules.md`) 세 겹이고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 공통 금지선 가운데 측정에서 나온 줄(테스트·코드·리뷰)은 "지키는 것" 절의 표에 있다.
+맥락 수집 스크립트(`scripts/context.mjs`)는 범위·바뀐 파일·의도·이력·영향 범위를 모으고, 계약 파일(OpenAPI·GraphQL 스키마)이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾는다(설정 `linkedRepos`의 다른 저장소에서도). proto와 코드 안의 GraphQL typeDefs는 아직 읽지 않는다. 규칙은 공통 금지선(`shared/rules/`), 분야 프리셋(`shared/domains/` — `commerce`·`kr-commerce-law`), 회사 규칙(`docs/gimi/rules.md`) 세 겹이고, `scripts/rules.mjs`가 설정에 맞는 것만 보인다. 공통 금지선 가운데 측정에서 나온 줄(테스트·코드·리뷰)은 "지키는 것" 절의 표에 있다.
 
 ## 리뷰 절차
 
@@ -79,6 +79,7 @@ AI 리뷰어는 diff 안에서만 판단한다. 바뀐 함수를 쓰는 다른 �
 3. 코드에서 도메인 규칙 초안(enum·union 타입, 상태 전이 함수, 검증 스키마, 금액·날짜 계산)을 뽑아 `docs/gimi/candidates.md`에 후보로 쓴다.
 4. 사람이 승인한 후보만 `docs/gimi/rules.md`로 옮긴다.
 5. 고른 값을 `.agents/gimi.json`에 쓴다. 프론트와 백엔드가 다른 저장소면 함께 보는 저장소의 로컬 경로를 `linkedRepos`에 적는다(예: `["../shop-web"]`).
+6. `.gitignore`에 `docs/gimi/reviews/*.context.json`을 더한다(맥락 묶음은 커밋하지 않는다).
 
 같은 종류의 지적이 리뷰 기록에 세 번 쌓이면 규칙 후보로 올린다. 사람이 승인해야 규칙이 된다.
 

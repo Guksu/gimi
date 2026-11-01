@@ -1,6 +1,6 @@
 {
   "name": "gimi",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Code review that reads beyond the diff — impact scope, requirements and change history — for Claude Code and Codex.",
   "author": { "name": "Guksu", "url": "https://github.com/Guksu" },
   "homepage": "https://github.com/Guksu/gimi",

@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Context-aware code review skill for Claude Code and Codex",
-    "version": "0.0.1"
+    "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "gimi",
       "source": "./",
       "description": "Code review that reads beyond the diff — impact scope, requirements and change history — for Claude Code and Codex.",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "author": { "name": "Guksu" },
       "homepage": "https://github.com/Guksu/gimi",
       "keywords": ["code-review", "ai-slop", "frontend", "backend", "commerce"]
