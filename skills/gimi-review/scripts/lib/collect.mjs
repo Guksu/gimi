@@ -81,7 +81,9 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   const linked = maybeContract ? resolveLinked({ root, linkedRepos: trustedLinkedRepos({ exec, scope, linkedRepos, notes: impact.notes }), loadTs }) : { linked: [], skipped: [], notes: [] }
   impact.notes.push(...linked.notes)
   skipped.push(...linked.skipped)
-  const contracts = collectContracts({ exec, root, scope, files, ts, yaml: loadYaml({ root }), linked: linked.linked })
+  const yaml = loadYaml({ root })
+  const contracts = collectContracts({ exec, root, scope, files, ts, yaml, linked: linked.linked })
+  if (yaml.reason && contracts.contracts.length > 0) impact.notes.push(`${yaml.reason} — 계약 파일은 내장 YAML 파서로 읽었다`)
   impact.contracts = contracts.contracts
   impact.notes.push(...contracts.notes)
   skipped.push(...contracts.skipped)

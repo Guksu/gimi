@@ -3,20 +3,20 @@
  * 내장 파서는 OpenAPI에 흔한 문법만 읽는다 — 들여쓰기 맵·목록, 따옴표·평문 값, 한 줄 흐름 목록·맵, 블록 문자열(|·>), 여러 줄 평문, 주석.
  * 앵커·별칭·태그·복합 키·탭 들여쓰기·여러 문서는 틀리게 읽지 않도록 YamlUnsupported를 던진다. 부르는 쪽이 "건너뜀"으로 적는다.
  */
-import { createRequire } from 'node:module'
-import { join } from 'node:path'
-import { attempt } from './exec.mjs'
+import { requireFromProject } from './exec.mjs'
 
 export class YamlUnsupported extends Error {}
 
-/** 프로젝트의 YAML 파서 — 없으면 내장 파서 @returns {{ parse: (text: string) => any, name: string }} */
+/**
+ * 프로젝트의 YAML 파서 — 없거나 git에 커밋된 것(PR이 커밋한 코드일 수 있다)이면 내장 파서
+ * @returns {{ parse: (text: string) => any, name: string, reason: string | null }} reason은 커밋돼 있어 불러오지 않은 까닭
+ */
 export const loadYaml = ({ root }) => {
-  const require = createRequire(join(root, 'gimi-context.cjs'))
-  const yaml = attempt(() => require('yaml'))
-  if (typeof yaml?.parse === 'function') return { parse: (text) => yaml.parse(text), name: 'yaml' }
-  const jsYaml = attempt(() => require('js-yaml'))
-  if (typeof jsYaml?.load === 'function') return { parse: (text) => jsYaml.load(text), name: 'js-yaml' }
-  return { parse: parseYaml, name: '내장' }
+  const yaml = requireFromProject({ root, name: 'yaml' })
+  if (typeof yaml.module?.parse === 'function') return { parse: (text) => yaml.module.parse(text), name: 'yaml', reason: null }
+  const jsYaml = requireFromProject({ root, name: 'js-yaml' })
+  if (typeof jsYaml.module?.load === 'function') return { parse: (text) => jsYaml.module.load(text), name: 'js-yaml', reason: null }
+  return { parse: parseYaml, name: '내장', reason: yaml.reason ?? jsYaml.reason }
 }
 
 const unsupported = (what, line) => new YamlUnsupported(`내장 YAML 파서가 읽지 못하는 문법(${what}, ${line}번째 줄)`)

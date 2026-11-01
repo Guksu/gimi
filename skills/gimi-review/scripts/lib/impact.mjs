@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join, relative } from 'node:path'
-import { attempt } from './exec.mjs'
+import { attempt, requireFromProject } from './exec.mjs'
 import { compareExports, extractExportsText, extractExportsTs } from './exports.mjs'
 import { changedLiterals, removedFieldsOf } from './literals.mjs'
 
@@ -30,7 +30,9 @@ export const loadTypescript = ({ root }) => {
   const require = createRequire(join(root, 'gimi-context.cjs'))
   const version = attempt(() => require('typescript/package.json').version)
   if (!version) return { ts: null, reason: '이 프로젝트에 typescript가 없다' }
-  const ts = attempt(() => require('typescript'))
+  // git에 커밋된 typescript는 불러오지 않는다(PR이 커밋한 코드일 수 있다)
+  const { module: ts, reason } = requireFromProject({ root, name: 'typescript' })
+  if (reason) return { ts: null, reason }
   if (!ts) return { ts: null, reason: `이 프로젝트의 typescript ${version}을(를) 불러오지 못했다` }
   if (typeof ts.createLanguageService !== 'function') return { ts: null, reason: `이 프로젝트의 typescript ${version}에는 언어 서비스 API가 없다` }
   return { ts, reason: null }
