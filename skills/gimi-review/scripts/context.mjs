@@ -13,11 +13,11 @@
  * 설정(.agents/gimi.json): history.recentCommits(기본 10), requirements[].keyPattern(티켓 번호 형식), linkedRepos(함께 보는 저장소 경로 — 이 체크아웃의 루트 기준)
  * 종료 코드: 0 성공(건너뛴 맥락이 있어도), 2 사용법·환경 오류. 의존성 없음, Node 22 이상.
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { staleBundles } from './lib/bundles.mjs'
 import { collectContext } from './lib/collect.mjs'
-import { ContextError, attempt, createExec } from './lib/exec.mjs'
+import { ContextError, attempt, createExec, readRepoFile } from './lib/exec.mjs'
 import { renderSummary } from './lib/summary.mjs'
 
 const USAGE = '사용: node context.mjs [--pr 번호] [--base 브랜치] [--out 경로] [--json] [--no-gh] [--recent N] [--max-lines N]'
@@ -48,10 +48,21 @@ const today = (now) => [now.getFullYear(), String(now.getMonth() + 1).padStart(2
 const bundleName = (context) => (context.scope.pr ? `pr-${context.scope.pr.number}` : (context.scope.branch ?? context.scope.head.slice(0, 7))).replace(/[^\w.-]+/g, '-')
 const defaultOut = ({ context, now }) => `docs/gimi/reviews/${today(now)}-${bundleName(context)}.context.json`
 
+/** 그 경로(아직 없으면 있는 가장 가까운 상위 폴더)의 실제 위치가 저장소 안인지, 그 파일이 심볼릭 링크가 아닌지 */
+const insideRoot = ({ root, path }) => {
+  const rootReal = attempt(() => realpathSync(root))
+  if (!rootReal) return false
+  if (attempt(() => lstatSync(path).isSymbolicLink())) return false
+  let probe = dirname(path)
+  while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe)
+  const real = attempt(() => realpathSync(probe))
+  return real != null && (real === rootReal || real.startsWith(`${rootReal}${sep}`))
+}
+
 const readConfig = ({ root, notes }) => {
   const path = resolve(root, '.agents/gimi.json')
   if (!existsSync(path)) return {}
-  const config = attempt(() => JSON.parse(readFileSync(path, 'utf8')))
+  const config = attempt(() => JSON.parse(readRepoFile({ root, path })))
   if (config == null) notes.push('.agents/gimi.json을 읽지 못했다 — 기본값으로 돌렸다')
   return config ?? {}
 }
@@ -103,6 +114,12 @@ const main = () => {
     context.notes.push(`${outPath}이(가) .gitignore에 없다 — docs/gimi/reviews/*.context.json을 더해 커밋하지 않게 한다`)
   }
   const target = resolve(root, outPath)
+  // 기본 위치는 저장소가 정하는 경로다 — 저장소의 심볼릭 링크가 밖을 가리키면 쓰지도 지우지도 않는다(--out은 사용자가 정한다)
+  if (!args.out && !insideRoot({ root, path: target })) {
+    context.notes.push(`${outPath}이(가) 저장소 밖을 가리킨다(심볼릭 링크) — 맥락 묶음을 쓰지 않았다`)
+    process.stdout.write(renderSummary({ context, outPath: null, maxLines: args.maxLines }))
+    return 0
+  }
   mkdirSync(dirname(target), { recursive: true })
   // 기본 위치에 쓸 때만 같은 PR·브랜치의 예전 묶음을 지운다(설계 결정 54) — --out으로 정한 파일은 사용자가 관리한다
   if (!args.out) {

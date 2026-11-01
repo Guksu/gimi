@@ -7,9 +7,8 @@
  * 지운 필드는 옛 스키마로 푼다. 더하기만 한 변경은 아직 쓰는 곳이 없으니 찾지 않는다.
  * 함께 보는 저장소(설계 결정 57)가 있으면 그 저장소에서도 같은 방법으로 찾고, 사용처에 repo를 붙인다.
  */
-import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { attempt } from './exec.mjs'
+import { attempt, readRepoFile } from './exec.mjs'
 import { diffSchema, extractDocuments, hasTypeDefinitions, parseDocument, parseSchema, resolveOperations } from './graphql.mjs'
 import { CODE_GLOBS, createFileReader, createTsIndex, finalize, grep, lineOfPos, usageAt } from './impact.mjs'
 import { diffOpenApi, isOpenApi } from './openapi.mjs'
@@ -187,8 +186,9 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
         if (!target.index || change.target !== 'schema') continue
         for (const genPath of target.openApiGenerated) {
           const abs = join(target.root, genPath)
-          if (!existsSync(abs)) continue
-          const pos = memberPos({ ts: target.ts, text: readFileSync(abs, 'utf8'), fileName: abs, schema: change.schema, field: change.field })
+          const text = readRepoFile({ root: target.root, path: genPath })
+          if (text == null) continue
+          const pos = memberPos({ ts: target.ts, text, fileName: abs, schema: change.schema, field: change.field })
           if (pos === null) continue
           const refs = target.index.referencesOf({ path: genPath, namePos: pos })
           if (!refs) {
@@ -241,8 +241,8 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
             ...(attempt(() => target.exec.git(['ls-files', '-z', '--', ...scoped(target, ['*.graphql', '*.gql'])])) ?? '').split('\0').filter((p) => p && !(target === self && schemaPaths.has(p))),
           ].slice(0, MAX_DOCUMENT_FILES)
           const documents = candidates.flatMap((path) => {
-            const abs = join(target.root, path)
-            return existsSync(abs) ? extractDocuments({ path, text: readFileSync(abs, 'utf8') }) : []
+            const text = readRepoFile({ root: target.root, path })
+            return text == null ? [] : extractDocuments({ path, text })
           })
           documentCount += documents.length
           const resolvedNew = resolveOperations({ schema: after, documents })

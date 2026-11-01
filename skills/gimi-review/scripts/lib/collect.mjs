@@ -10,7 +10,7 @@ import { collectImpact, loadTypescript } from './impact.mjs'
 import { collectIntent } from './intent.mjs'
 import { resolveLinked } from './linked.mjs'
 import { resolveScope } from './scope.mjs'
-import { loadYaml } from './yaml.mjs'
+import { builtinYaml, loadYaml } from './yaml.mjs'
 
 const PR_FIELDS = 'number,title,body,url,baseRefName,headRefOid,closingIssuesReferences'
 const MAX_LINE_TEXT = 300
@@ -65,7 +65,7 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
 
   const scope = resolveScope({ exec, base, pr: prInfo })
   // 사용자의 diff 설정(접두어 없애기 등)이 출력 모양을 바꾸지 않게 접두어를 정해 준다
-  const files = parseDiff(exec.git(['diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '--unified=0', '-M', scope.mergeBase, 'HEAD']))
+  const files = parseDiff(exec.git(['diff', '--no-color', '--no-ext-diff', '--no-textconv', '--src-prefix=a/', '--dst-prefix=b/', '--unified=0', '-M', scope.mergeBase, 'HEAD']))
   const intent = collectIntent({ exec, gh, scope, prInfo, keyPatterns })
 
   const shallow = exec.git(['rev-parse', '--is-shallow-repository']).trim() === 'true'
@@ -81,9 +81,10 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   const linked = maybeContract ? resolveLinked({ root, linkedRepos: trustedLinkedRepos({ exec, scope, linkedRepos, notes: impact.notes }), loadTs }) : { linked: [], skipped: [], notes: [] }
   impact.notes.push(...linked.notes)
   skipped.push(...linked.skipped)
-  const yaml = loadYaml({ root })
+  // YAML 파일이 바뀐 때만 프로젝트의 YAML 파서를 불러온다
+  const yaml = files.some((file) => !file.binary && /\.ya?ml$/i.test(file.newPath ?? file.oldPath)) ? loadYaml({ root }) : builtinYaml()
+  if (yaml.reason) impact.notes.push(`${yaml.reason} — YAML은 내장 파서로 읽는다`)
   const contracts = collectContracts({ exec, root, scope, files, ts, yaml, linked: linked.linked })
-  if (yaml.reason && contracts.contracts.length > 0) impact.notes.push(`${yaml.reason} — 계약 파일은 내장 YAML 파서로 읽었다`)
   impact.contracts = contracts.contracts
   impact.notes.push(...contracts.notes)
   skipped.push(...contracts.skipped)

@@ -6,10 +6,8 @@
  * 바뀐 export를 같은 파일의 다른 export가 부르면(감싼 export) 그 export의 사용처도 한 단계 더 찾는다.
  * 지운 필드(응답 객체에서 뺀 키 등)는 export도 계약도 바뀌지 않으면 참조로 이어지지 않아 이름으로 찾는다(정확도 낮음).
  */
-import { existsSync, readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { dirname, join, relative } from 'node:path'
-import { attempt, requireFromProject } from './exec.mjs'
+import { attempt, readRepoFile, requireFromProject } from './exec.mjs'
 import { compareExports, extractExportsText, extractExportsTs } from './exports.mjs'
 import { changedLiterals, removedFieldsOf } from './literals.mjs'
 
@@ -27,13 +25,11 @@ const CONTEXT = 2
  * @param {{ root: string }} args @returns {{ ts: any, reason: string | null }}
  */
 export const loadTypescript = ({ root }) => {
-  const require = createRequire(join(root, 'gimi-context.cjs'))
-  const version = attempt(() => require('typescript/package.json').version)
-  if (!version) return { ts: null, reason: '이 프로젝트에 typescript가 없다' }
-  // git에 커밋된 typescript는 불러오지 않는다(PR이 커밋한 코드일 수 있다)
+  // 검사(저장소에 커밋된 코드는 실행하지 않는다)를 먼저 하고, 버전은 불러온 뒤 읽는다 — package.json도 exports로 JS에 이어질 수 있다
   const { module: ts, reason } = requireFromProject({ root, name: 'typescript' })
   if (reason) return { ts: null, reason }
-  if (!ts) return { ts: null, reason: `이 프로젝트의 typescript ${version}을(를) 불러오지 못했다` }
+  if (!ts) return { ts: null, reason: '이 프로젝트에 typescript가 없다' }
+  const version = typeof ts.version === 'string' ? ts.version : '(버전 모름)'
   if (typeof ts.createLanguageService !== 'function') return { ts: null, reason: `이 프로젝트의 typescript ${version}에는 언어 서비스 API가 없다` }
   return { ts, reason: null }
 }
@@ -43,8 +39,8 @@ export const createFileReader = ({ root }) => {
   const cache = new Map()
   return (path) => {
     if (!cache.has(path)) {
-      const abs = join(root, path)
-      cache.set(path, existsSync(abs) ? readFileSync(abs, 'utf8').replace(/\n$/, '').split('\n') : [])
+      const text = readRepoFile({ root, path })
+      cache.set(path, text == null ? [] : text.replace(/\n$/, '').split('\n'))
     }
     return cache.get(path)
   }
@@ -206,7 +202,7 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
     const beforeText = file.status === 'added' ? '' : (attempt(() => exec.git(['show', `${scope.mergeBase}:${file.oldPath}`])) ?? '')
     const afterText = file.status === 'deleted' ? '' : (attempt(() => exec.git(['show', `HEAD:${file.newPath}`])) ?? '')
     // 참조 찾기는 디스크의 파일을 읽는다 — 커밋하지 않은 변경이 있으면 위치가 어긋나니 그 파일은 문자열로 찾는다
-    const diskMatches = file.newPath != null && existsSync(join(root, file.newPath)) && readFileSync(join(root, file.newPath), 'utf8') === afterText
+    const diskMatches = file.newPath != null && readRepoFile({ root, path: file.newPath }) === afterText
     if (ts && file.newPath != null && !diskMatches) dirtyFiles += 1
     const extract = (text, name) => (ts ? extractExportsTs({ ts, text, fileName: name }) : extractExportsText({ text }))
     const afterDecls = extract(afterText, path)

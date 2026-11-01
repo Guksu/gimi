@@ -42,7 +42,7 @@ Requirements:
 - A git repository to review. In a shallow clone, history is skipped.
 - To read pull request and issue text, sign in to the GitHub CLI (`gh`). Without it, gimi reports that intent was skipped.
 - Impact search uses the reviewed project's own `typescript`. Without it, gimi falls back to text search.
-- If that `typescript` or YAML parser is committed to git, gimi does not load it, so that code committed in someone else's pull request never runs on your machine.
+- If anything under the reviewed repository's `node_modules` is tracked by git, gimi loads neither `typescript` nor a YAML parser from it, so code committed in someone else's pull request does not run on your machine. It cannot protect packages you install yourself from a pull request's `package.json`; check dependency changes before installing them.
 
 ## Updating
 

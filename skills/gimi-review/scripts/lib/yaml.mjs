@@ -19,6 +19,9 @@ export const loadYaml = ({ root }) => {
   return { parse: parseYaml, name: '내장', reason: yaml.reason ?? jsYaml.reason }
 }
 
+/** 내장 파서만 — YAML 파일이 바뀌지 않았으면 프로젝트의 파서를 불러오지 않는다 */
+export const builtinYaml = () => ({ parse: parseYaml, name: '내장', reason: null })
+
 const unsupported = (what, line) => new YamlUnsupported(`내장 YAML 파서가 읽지 못하는 문법(${what}, ${line}번째 줄)`)
 
 const scalar = (raw) => {

@@ -2,10 +2,9 @@
  * 변경 이력 맥락 — 바꾸거나 지운 줄을 마지막으로 바꾼 커밋(blame)과 파일마다 최근 커밋 N개를 모은다(설계 결정 22).
  * 기준은 이번 변경 전(갈림점)이다. 새 변경이 예전 수정을 되돌리는지는 에이전트가 판단한다.
  */
-import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { oldChangedRanges } from './diff.mjs'
-import { attempt } from './exec.mjs'
+import { attempt, readRepoFile } from './exec.mjs'
 
 /** git log 형식 — 필드는 \x1f, 커밋은 \x1e로 나눈다(제목·본문에 거의 나오지 않는 문자) */
 export const LOG_FORMAT = '%H%x1f%s%x1f%b%x1f%cI%x1e'
@@ -103,7 +102,8 @@ const describe = (commit) => ({
 export const collectHistory = ({ exec, scope, files, recentCommits }) => {
   const root = exec.git(['rev-parse', '--show-toplevel']).trim()
   const ignoreFile = join(root, '.git-blame-ignore-revs')
-  const ignoreArgs = existsSync(ignoreFile) ? ['--ignore-revs-file', ignoreFile] : []
+  // 무시 목록은 저장소 안의 일반 파일일 때만 쓴다(심볼릭 링크로 밖·장치 파일을 가리키지 못하게)
+  const ignoreArgs = readRepoFile({ root, path: '.git-blame-ignore-revs' }) != null ? ['--ignore-revs-file', ignoreFile] : []
   const notes = []
   const commits = new Map()
   const result = []
@@ -115,7 +115,8 @@ export const collectHistory = ({ exec, scope, files, recentCommits }) => {
     let changedOldLines = 0
     for (const [start, end] of oldChangedRanges(file)) {
       changedOldLines += end - start + 1
-      const args = ['blame', '--porcelain', '-L', `${start},${end}`, scope.mergeBase, '--', file.oldPath]
+      // --no-textconv — 저장소의 .gitattributes가 고른 변환 프로그램을 돌리지 않는다
+      const args = ['blame', '--porcelain', '--no-textconv', '-L', `${start},${end}`, scope.mergeBase, '--', file.oldPath]
       // 무시 목록에 잘못된 커밋이 있으면 blame이 실패한다 — 목록 없이 다시 돌리고 알린다
       let out = attempt(() => exec.git([...args.slice(0, 2), ...ignoreArgs, ...args.slice(2)]))
       if (out == null && ignoreArgs.length > 0) {
