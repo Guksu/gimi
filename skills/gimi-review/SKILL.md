@@ -79,6 +79,7 @@ AI 리뷰어는 diff 안에서만 판단한다. 바뀐 함수를 쓰는 다른 �
 3. 코드에서 도메인 규칙 초안(enum·union 타입, 상태 전이 함수, 검증 스키마, 금액·날짜 계산)을 뽑아 `docs/gimi/candidates.md`에 후보로 쓴다.
 4. 사람이 승인한 후보만 `docs/gimi/rules.md`로 옮긴다.
 5. 고른 값을 `.agents/gimi.json`에 쓴다. 프론트와 백엔드가 다른 저장소면 함께 보는 저장소의 로컬 경로를 `linkedRepos`에 적는다(예: `["../shop-web"]`).
+6. `.gitignore`에 `docs/gimi/reviews/*.context.json`을 더한다(맥락 묶음은 커밋하지 않는다).
 
 같은 종류의 지적이 리뷰 기록에 세 번 쌓이면 규칙 후보로 올린다. 사람이 승인해야 규칙이 된다.
 
