@@ -59,7 +59,7 @@ node scripts/buildSlopTable.mjs          # 규칙 파일의 근거로 SKILL.md�
 | 2 | 구조·트리거 평가 | `npm run validate` |
 | 3 | 예제 저장소(`evals/shop-fixture/`를 고쳤을 때) | 그 폴더에서 `npm run typecheck && npm test`, 루트에서 `node scripts/defects.mjs check` |
 
-릴리스 때 버전은 매니페스트 4곳(`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`의 두 곳, `.codex-plugin/plugin.json`), SKILL.md의 "지금 상태" 절, `CHANGELOG.md`에서 함께 고친다. 매니페스트끼리 맞는지는 구조 검사가 보지만 SKILL.md는 보지 않는다.
+릴리스 때 버전은 매니페스트 4곳(`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`의 두 곳, `.codex-plugin/plugin.json`), SKILL.md의 "지금 상태" 절, `CHANGELOG.md`에서 함께 고친다. 두 README의 배지 숫자(프리셋 규칙 수·테스트 수)도 손으로 적은 값이라 함께 본다. 매니페스트끼리 맞는지는 구조 검사가 보지만 SKILL.md는 보지 않는다.
 
 릴리스 전에는 법령 프리셋(`skills/gimi-review/shared/domains/kr-commerce-law/rules.md`)의 기준 버전 표와 시행 예정 조문을 국가법령정보센터에서 다시 확인하고, 시행일이 바뀌었으면 규칙을 고친 뒤 표의 확인한 날을 고친다(설계 결정 55).
 
