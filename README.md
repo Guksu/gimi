@@ -1,48 +1,10 @@
 # gimi
 
-기미(氣味)상궁이 임금의 수라를 먼저 맛보듯, 코드를 올리기 전에 먼저 맛보는 Claude Code·Codex 코드 리뷰 스킬입니다.
+A code review skill for Claude Code and Codex. It gathers the context outside the diff first — where the changed code is used, what the ticket asked for, why a line was written that way — and leaves only findings it can back with a location.
 
-AI 리뷰어는 보통 diff(이번 변경에서 바뀐 줄) 안에서만 판단합니다. 사람이 리뷰하며 잡는 결함은 대개 diff 밖에 있습니다. 바뀐 함수를 쓰는 다른 화면, 티켓에 적힌 요구사항, 그 줄을 예전에 일부러 그렇게 둔 이유 같은 것입니다. **gimi-review**는 리뷰 전에 이 맥락을 먼저 모읍니다. 그리고 근거 위치를 댈 수 있는 지적만 남깁니다.
+AI reviews judge only what is inside the diff, so they kept missing the defects people catch in review: another screen that uses the changed function, a requirement written only in the ticket. I built gimi to review with that context gathered first.
 
-## 하는 일
-
-- **영향 범위** — 바뀐 함수·타입·클래스 메서드를 이 변경에서 안 바뀐 곳이 쓰는지 찾습니다(TypeScript·JavaScript). 바뀐 쿼리 키·경로 같은 문자열과 지운 필드도 찾습니다.
-- **계약** — 계약은 프론트와 백엔드가 주고받는 API의 약속(OpenAPI·GraphQL 스키마)입니다. 계약이 바뀌면 바뀐 엔드포인트·필드와 그 사용처를 찾습니다. 프론트와 백엔드가 다른 저장소면 설정에 적은 저장소에서도 찾습니다.
-- **의도** — PR·이슈 본문을 읽고 요구사항과 diff를 맞춰 봅니다. Jira·Notion·Linear 번호는 에이전트에 연결된 도구로 읽고, 읽을 수 없으면 붙여 넣기를 요청합니다.
-- **변경 이력** — 바꾸거나 지운 줄을 넣은 커밋을 찾아, 예전 수정을 되돌리는지 봅니다.
-- **규칙** — 세 겹으로 대조합니다.
-  - 공통 금지선: AI가 쓴 코드·테스트·리뷰에 흔히 보이는 티(예: 빈 catch, 근거 없는 단정)
-  - 분야 프리셋: 커머스 29개, 국내 전자상거래 법령 14개
-  - 팀 규칙: `docs/gimi/rules.md`
-- **리뷰 기록** — 지적을 `docs/gimi/reviews/`에 남깁니다. 같은 종류의 지적이 기록에 세 번 쌓이면 에이전트가 기록을 읽어 팀 규칙 후보로 올립니다. 사람이 승인해야 규칙이 됩니다.
-
-## 설치
-
-**Claude Code** — 대화창에서:
-
-```text
-/plugin install gimi --marketplace Guksu/gimi
-```
-
-**Codex** — 터미널에서:
-
-```bash
-codex plugin marketplace add Guksu/gimi
-codex plugin add gimi@gimi
-```
-
-필요한 것은 이렇습니다.
-
-- Node.js 22 이상. 맥락 수집 스크립트는 런타임 의존성이 없습니다.
-- 리뷰할 git 저장소. 얕은 복제면 변경 이력을 건너뜁니다.
-- PR·이슈 본문을 읽으려면 GitHub CLI(`gh`)에 로그인해 둡니다. 없으면 의도를 건너뛰었다고 알립니다.
-- 영향 범위는 리뷰하는 프로젝트의 `typescript`를 씁니다. 없으면 문자열 검색으로 내려갑니다.
-
-## 쓰는 법
-
-리뷰할 저장소에서 "PR 42 리뷰해줘", "이 브랜치 코드 리뷰해줘", "다른 화면에 영향 없는지 봐줘"처럼 요청합니다. Claude Code에서는 `/gimi:gimi-review`로 직접 부를 수 있습니다. 내장 `/code-review`와 겹치는 요청이면 이 이름으로 부르는 편이 확실합니다.
-
-채팅에는 지적 수와 "고쳐야 함"만 짧게 나옵니다. 전체는 리뷰 기록 파일에 남습니다. 지적은 이런 모양입니다.
+[한국어](README.ko.md) · [Install](#installation) · [Full guide](docs/guide.en.md) · [Evaluation](evals/review/README.md)
 
 ```text
 [고쳐야 함] 영향 범위
@@ -52,68 +14,54 @@ codex plugin add gimi@gimi
          status: string → { code, label }
 근거    src/components/OrderBadge.tsx:12
          status === 'PAID'  (이 PR에서 안 바뀜)
+상황    결제 완료 주문 → 배지가 항상 '알 수 없음'
 ```
 
-리뷰하면 저장소에 두 가지 파일이 생깁니다.
+A finding in Korean: the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
 
-- `docs/gimi/reviews/{날짜}-pr-{번호}.md` — 리뷰 기록. 지적과 확인한 맥락을 적습니다.
-- `docs/gimi/reviews/{날짜}-pr-{번호}.context.json` — 모은 맥락. 크고 다시 만들 수 있어 커밋하지 않습니다. `.gitignore`에 `docs/gimi/reviews/*.context.json`을 더합니다.
+I reviewed 32 pull requests with planted defects in an example app, once with gimi and once with Claude Code's built-in `/code-review`, using the same model and instructions. Both found almost every defect. Findings outside the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean those findings were wrong. Each pull request was reviewed once, and gimi took about 1.3 times the time and cost per review. [Method, all results and limitations](evals/review/README.md)
 
-PR에 코멘트를 달지는 않습니다. 리뷰는 요청할 때만 돕니다.
+## Installation
 
-## 설정
+**Claude Code** — run in the chat:
 
-설정이 없어도 리뷰는 됩니다. 이때 공통 금지선은 공통 줄과 프론트엔드(TypeScript) 줄만 씁니다. 백엔드 줄과 분야 프리셋은 쓰지 않습니다.
-
-프리셋을 쓰려면 "도메인 규칙 설정해줘"라고 합니다. 분야 프리셋과 요구사항 출처를 고르면 `.agents/gimi.json`에 씁니다.
-
-```json
-{
-  "stacks": ["frontend-ts", "backend"],
-  "presets": ["commerce", "kr-commerce-law"],
-  "kcl": { "periodCounting": "civil-code", "businessDays": "docs/gimi/business-days.json" },
-  "requirements": [{ "source": "github" }, { "source": "jira", "keyPattern": "SHOP-\\d+" }],
-  "linkedRepos": ["../shop-web"]
-}
+```text
+/plugin marketplace add Guksu/gimi
+/plugin install gimi@gimi
 ```
 
-- `stacks`는 공통 금지선의 대상(`frontend-ts`·`backend`), `presets`는 분야 프리셋입니다.
-- 국내 법령 프리셋(`kr-commerce-law`)은 법률 자문이 아닙니다. 청약철회 기간을 세는 방식(`kcl.periodCounting`)과 영업일 달력(`kcl.businessDays`)은 팀이 정합니다. 정하지 않으면 리뷰가 그 계산을 단정하지 않고 확인 질문으로 올립니다.
-- `linkedRepos`는 함께 볼 다른 저장소의 경로입니다. 경로는 이 체크아웃의 루트 기준입니다. 그 저장소는 지금 체크아웃된 그대로 읽습니다.
-- PR이 `linkedRepos`를 바꾸면 PR의 값 대신 기준 브랜치(갈림점)에 있던 값을 쓰고 알립니다.
-- 프리셋 규칙 하나를 끄려면 팀 규칙 파일의 "끈 프리셋 규칙" 절에 이유와 함께 적습니다.
-
-설정 항목의 뜻은 [설계 문서의 설정 절](docs/design/2026-10-19-gimi.md#설정--agentsgimijson)에 있습니다. `promoteAfter`·`rulePrefix`는 아직 스크립트가 읽지 않습니다.
-
-## 측정
-
-예제 앱(`evals/shop-fixture`, 국수집 주문 앱)에 결함을 심은 PR로 gimi-review와 Claude Code 내장 `/code-review`를 비교했습니다. 두 리뷰어는 같은 모델(`claude-opus-5-5`)·같은 지시로 돌렸습니다.
-
-- **찾음** — 결함은 두 리뷰어 모두 거의 다 찾았습니다(새 결함 32개에서 `/code-review` 32개, gimi 31개). 찾음은 지적 위치가 정답 줄에서 3줄 안이면 맞음으로 센 것이라, 같은 줄의 다른 문제도 맞음이 될 수 있습니다.
-- **정답 밖 지적** — 심은 결함이 아닌 곳을 짚은 지적입니다. 틀린 지적이라는 뜻은 아닙니다. 새 결함 32개에서 `/code-review`는 55개, gimi는 19개였습니다. 그 내용이 맞는지는 읽지 않았습니다.
-- **이슈에만 있는 요구사항** — 요구사항이 이슈에만 있는 결함 4개를 리뷰어마다 2번씩 돌렸습니다. 요구사항을 읽어 낸 리뷰는 gimi 8번 중 8번, `/code-review` 8번 중 5번이었습니다(제가 읽고 센 것).
-- **비용·시간** — gimi가 더 듭니다. 새 결함 32개에서 리뷰 한 번에 gimi 평균 $0.41·57초, `/code-review` 평균 $0.31·45초였습니다.
-
-모델 하나와 예제 앱 한 곳으로 잰 결과입니다. 새 결함은 PR마다 1번씩만 돌렸습니다. 결과와 조건은 [evals/review/results/](evals/review/results/)에 있습니다.
-
-## 한계
-
-- 바뀐 이름의 사용처는 TypeScript·JavaScript(Vue·Svelte 포함)에서만 찾습니다. 다른 언어 파일은 바뀐 문자열만 찾습니다.
-- proto 계약(gRPC의 `.proto` 파일)과 서버 코드 안에 쓴 GraphQL 스키마(typeDefs)는 아직 읽지 않습니다.
-- 테스트를 쓰거나 돌리지 않습니다. PR에 든 테스트 코드는 리뷰합니다.
-
-설계는 [docs/design/2026-10-19-gimi.md](docs/design/2026-10-19-gimi.md)에 있습니다. 바뀐 내용은 [CHANGELOG.md](CHANGELOG.md)에 있습니다.
-
-## 개발
-
-Node.js 22 이상이 필요합니다. `typescript`는 테스트에서만 씁니다.
+**Codex** — run in a terminal:
 
 ```bash
-npm ci            # 개발 의존성 설치
-npm test          # 단위·통합 테스트 (node:test)
-npm run validate  # 스킬 구조 검사 + 트리거 평가
+codex plugin marketplace add Guksu/gimi
+codex plugin add gimi@gimi
 ```
 
-## 라이선스
+You need Node.js 22 or later and a git repository to review. To read pull request and issue text, sign in to the GitHub CLI (`gh`).
 
-[MIT](LICENSE) © 2026 Guksu
+[Requirements and settings](docs/guide.en.md#installation) · [Updating](docs/guide.en.md#updating)
+
+## Try it
+
+After installing, ask your agent in the repository you want reviewed:
+
+> Use gimi-review to review the current branch. Check that screens using the changed API still work and that it does what the issue asked for.
+
+Before reviewing, the agent collects where the changed code is used, the pull request and issue text, and the history of the changed lines. It then leaves only findings it can back with a location and writes the full review to `docs/gimi/reviews/`. In Claude Code you can also call it directly as `/gimi:gimi-review`. The skill and its rules are written in Korean, and so are the findings; [English usage notes](docs/guide.en.md#how-it-works) are in the full guide.
+
+To also review against the commerce and Korean e-commerce law rules, ask "도메인 규칙 설정해줘" (set up domain rules). [Settings](docs/guide.en.md#settings)
+
+## Follow development
+
+I use gimi in my own work and will keep fixing issues and widening its rules and context collection. If something feels wrong, [open an issue](https://github.com/Guksu/gimi/issues) with your request and what happened.
+
+[Releases](https://github.com/Guksu/gimi/releases) · [Changelog](CHANGELOG.md) · [Evaluation](evals/review/README.md) · [Design (Korean)](docs/design/2026-10-19-gimi.md)
+
+[![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
+![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
+![Tests](https://img.shields.io/badge/tests-287%20passing-555555)
+[![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
+
+## License
+
+The code is [MIT](LICENSE) (© 2026 Guksu).
