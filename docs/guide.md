@@ -4,6 +4,8 @@
 
 ## 소개
 
+기미(氣味)상궁이 임금의 수라를 먼저 맛보듯, 코드를 올리기 전에 먼저 맛본다는 뜻으로 지은 이름입니다.
+
 gimi는 Claude Code·Codex의 코드 리뷰 스킬(**gimi-review**)입니다. AI 리뷰어는 보통 diff(이번 변경에서 바뀐 줄) 안에서만 판단합니다. 사람이 리뷰하며 잡는 결함은 대개 diff 밖에 있습니다. 바뀐 함수를 쓰는 다른 화면, 티켓에 적힌 요구사항, 그 줄을 예전에 일부러 그렇게 둔 이유 같은 것입니다. gimi-review는 리뷰 전에 이 맥락을 먼저 모읍니다. 그리고 근거 위치를 댈 수 있는 지적만 남깁니다.
 
 ## 하는 일
@@ -43,7 +45,7 @@ codex plugin add gimi@gimi
 
 ## 업데이트
 
-업데이트 전에 [릴리스 노트](https://github.com/Guksu/gimi/releases)를 확인하세요.
+업데이트 전에 [릴리스 노트](https://github.com/Guksu/gimi/releases)를 확인합니다.
 
 **Claude Code**는 터미널에서 아래 명령을 실행하고 새 세션을 시작합니다.
 
@@ -52,7 +54,9 @@ claude plugin marketplace update gimi
 claude plugin update gimi@gimi
 ```
 
-**Codex**는 `codex plugin marketplace upgrade gimi`로 마켓플레이스를 갱신합니다. 그다음 앱의 플러그인 설정에서 gimi의 설치 버전을 확인하고 업데이트합니다.
+**Codex**는 `codex plugin marketplace upgrade gimi`로 마켓플레이스를 갱신합니다. 그다음 앱의 플러그인 설정에서 gimi의 설치 버전을 확인하고 업데이트합니다. 마켓플레이스 갱신만으로 설치된 플러그인까지 바뀌었다고 보지 않습니다.
+
+명령 참고: [Claude Code](https://code.claude.com/docs/en/discover-plugins#update-plugins-now) · [Codex 플러그인](https://developers.openai.com/plugins/build/plugins)
 
 ## 동작 방식
 
@@ -66,7 +70,7 @@ claude plugin update gimi@gimi
 4. **근거가 있는 지적만 씁니다.** 근거는 diff 밖이어야 합니다. AI 코드의 티(슬롭) 지적만 diff 안의 줄을 근거로 씁니다.
 5. **보고합니다.** 채팅에는 지적 수와 "고쳐야 함"만 짧게 나옵니다. 전체는 리뷰 기록 파일에 남습니다.
 
-지적은 이런 모양입니다.
+지적은 이런 모양입니다(예시).
 
 ```text
 [고쳐야 함] 영향 범위
@@ -76,6 +80,7 @@ claude plugin update gimi@gimi
          status: string → { code, label }
 근거    src/components/OrderBadge.tsx:12
          status === 'PAID'  (이 PR에서 안 바뀜)
+상황    결제 완료 주문 → 배지가 항상 '알 수 없음'
 ```
 
 리뷰하면 저장소에 두 가지 파일이 생깁니다.
