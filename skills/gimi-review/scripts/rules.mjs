@@ -1,6 +1,7 @@
 /**
  * 규칙 보이기(설계 결정 43) — 공통 금지선·분야 프리셋·회사 규칙 가운데 이 프로젝트의 설정에 맞는 것만 보인다.
  * 설정 .agents/gimi.json의 stacks(대상)·presets와 회사 규칙(docs/gimi/rules.md)의 "끈 프리셋 규칙"을 반영한다.
+ * 설정에 stacks가 없으면 저장소를 보고 정하고(결정 59), presets가 없으면 분야 프리셋을 쓰지 않았다고 알린다.
  * 에이전트는 목록을 먼저 보고, 필요한 규칙만 --id로 전문을 읽는다.
  *
  *   node rules.mjs                        # 설정에 맞는 규칙을 한 줄씩
@@ -17,12 +18,27 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { attempt, createExec, readRepoFile } from './lib/exec.mjs'
 import { itemText, matchesStacks, parseRuleFile } from './lib/rulefile.mjs'
+import { guessStacks } from './lib/stacks.mjs'
 
 const USAGE = '사용: node rules.mjs [--area test,code,review] [--id ID,…] [--full] [--boundaries] [--json]'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const AREAS = ['test', 'code', 'review']
 const COMPANY_PATH = 'docs/gimi/rules.md'
 const INTERPRETED = /해석 — 팀 확인 필요/
+// 큰 모노레포에서도 목록이 늦지 않게, 얕은 것부터 이만큼만 읽는다
+const MAX_PACKAGE_FILES = 200
+
+/** git이 추적하는 파일과 package.json으로 대상을 추정한다 — git이 실패하면 신호 없이(둘 다) */
+const guessFromRepo = (root) => {
+  const listed = attempt(() => createExec({ cwd: root }).git(['ls-files', '-z']))
+  const files = listed ? listed.split('\0').filter(Boolean) : []
+  const packages = files
+    .filter((path) => path.split('/').at(-1) === 'package.json')
+    .sort((a, b) => a.split('/').length - b.split('/').length)
+    .slice(0, MAX_PACKAGE_FILES)
+    .map((path) => ({ path, json: attempt(() => JSON.parse(readRepoFile({ root, path }) ?? 'null')) }))
+  return guessStacks({ files, packages })
+}
 
 const parseArgs = (argv) => {
   const args = { areas: AREAS, ids: null, full: false, boundaries: false, json: false, help: false }
@@ -80,7 +96,9 @@ const main = () => {
   // 저장소 안의 파일은 일반 파일일 때만 읽는다(심볼릭 링크로 밖·장치 파일을 가리키지 못하게)
   const configText = readRepoFile({ root, path: '.agents/gimi.json' })
   const config = configText == null ? {} : (attempt(() => JSON.parse(configText)) ?? (notes.push('.agents/gimi.json을 읽지 못했다 — 기본값으로 보였다'), {}))
-  const stacks = Array.isArray(config.stacks) && config.stacks.length > 0 ? config.stacks : ['frontend-ts']
+  const configured = Array.isArray(config.stacks) && config.stacks.length > 0
+  const guess = configured ? null : guessFromRepo(root)
+  const stacks = configured ? config.stacks : guess.stacks
   const available = existsSync(join(HERE, '../shared/domains')) ? readdirSync(join(HERE, '../shared/domains')).filter((name) => existsSync(join(HERE, '../shared/domains', name, 'rules.md'))).sort() : []
   const presets = (Array.isArray(config.presets) ? config.presets : []).filter((name) => {
     if (available.includes(name)) return true
@@ -129,6 +147,7 @@ const main = () => {
     off: source.kind === 'preset' ? source.file.rules.filter((rule) => disabled.has(rule.id)).length : 0,
   }))
 
+  if (!Array.isArray(config.presets)) notes.push(`설정에 presets가 없어 분야 프리셋(${available.join('·')})을 쓰지 않았다 — 리뷰 기록의 건너뛴 맥락에 적고, 쓰려면 "도메인 규칙 설정해줘"로 고른다`)
   if (presets.includes('kr-commerce-law') && !(config.kcl?.periodCounting && config.kcl?.businessDays)) {
     const kcl = sources.find((s) => s.name === 'kr-commerce-law')
     const interpreted = kcl.file.rules.filter((rule) => INTERPRETED.test(sectionOf(kcl.text, rule))).map((rule) => rule.id)
@@ -139,7 +158,7 @@ const main = () => {
     const rules = picked.flatMap(({ source, rules }) =>
       rules.map((rule) => ({ source: source.name, id: rule.id, title: rule.title, target: targetOf(rule), check: source.kind === 'slop' ? head(itemText(rule, '검사')) : null })),
     )
-    process.stdout.write(`${JSON.stringify({ version: 1, stacks, presets, company: company ? COMPANY_PATH : null, rules, notes }, null, 2)}\n`)
+    process.stdout.write(`${JSON.stringify({ version: 1, stacks, stacksGuess: guess && { evidence: guess.evidence }, presets, company: company ? COMPANY_PATH : null, rules, notes }, null, 2)}\n`)
     return 0
   }
 
@@ -158,7 +177,8 @@ const main = () => {
   } else if (args.full) {
     for (const { source, rules } of picked) for (const rule of rules) rows.push(sectionOf(source.text, rule), '')
   } else {
-    rows.push(`규칙      stacks ${stacks.join('·')} · 프리셋 ${presets.length > 0 ? presets.join('·') : '없음'} · 회사 규칙 ${company ? `${COMPANY_PATH} ${company.file.rules.length}개` : '없음'}`)
+    const how = guess ? ` (설정 없음 — ${guess.evidence.length > 0 ? `추정: ${guess.evidence.join(', ')}` : '프론트·백엔드 신호를 못 찾아 둘 다'})` : ''
+    rows.push(`규칙      stacks ${stacks.join('·')}${how} · 프리셋 ${presets.length > 0 ? presets.join('·') : '없음'} · 회사 규칙 ${company ? `${COMPANY_PATH} ${company.file.rules.length}개` : '없음'}`)
     const slop = picked.filter(({ source }) => source.kind === 'slop')
     if (slop.length > 0) {
       rows.push(`공통 금지선  ${slop.map(({ source, rules }) => `${source.name} ${rules.length}`).join(' · ')}`)
