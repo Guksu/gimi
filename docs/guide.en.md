@@ -95,7 +95,7 @@ gimi does not comment on pull requests. It reviews only when you ask.
 
 ## Settings
 
-Reviews work without settings. In that case gimi decides whether the common guardrails target the front end, the back end or both by looking at the repository: `package.json` dependencies (React or Vue for the front end; NestJS, Express or pg for the back end) and server build files such as `go.mod` or `pom.xml`. If it finds neither, it uses both. Domain presets are not used, and the review record says so.
+Reviews work without settings. In that case gimi decides whether the common guardrails target the front end, the back end or both by looking at the repository: `package.json` dependencies (React or Vue for the front end; NestJS, Express or pg for the back end) and server build files such as `go.mod` or `pom.xml`. It looks only at files tracked by git. Frameworks with both server and UI code, such as Next.js, count as both. If it finds neither, or cannot tell, it uses both. Domain presets are not used; if `presets` is missing from the settings, the review record says so (an empty `[]` is not reported).
 
 To use presets, ask "도메인 규칙 설정해줘" (set up domain rules). After you choose presets and requirement sources, the agent writes `.agents/gimi.json`.
 

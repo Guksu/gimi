@@ -38,6 +38,33 @@ describe('guessStacks — 설정에 stacks가 없을 때 저장소를 보고 대
     assert.deepEqual(guessStacks({ files: ['README.md', 'scripts/build.mjs'], packages: [pkg('package.json', { lodash: '1' })] }), { stacks: ['frontend-ts', 'backend'], evidence: [] })
   })
 
+  it('서버와 화면을 함께 가진 프레임워크(next·nuxt·@sveltejs/kit 등)는 둘 다로 본다', () => {
+    assert.deepEqual(guessStacks({ files: ['app/page.tsx'], packages: [pkg('package.json', { next: '15', react: '19' })] }), {
+      stacks: ['frontend-ts', 'backend'],
+      evidence: ['package.json의 next'],
+    })
+  })
+
+  it('화면 파일이 있어도 서버 언어 소스·매니페스트·TS 서버 의존성이 있으면 백엔드도 본다', () => {
+    const django = guessStacks({ files: ['manage.py', 'app/views.py', 'requirements/base.txt', 'frontend/src/App.tsx'], packages: [] })
+    assert.deepEqual(django.stacks, ['frontend-ts', 'backend'])
+    assert.equal(django.evidence[1], 'manage.py')
+    const trpc = guessStacks({ files: ['emails/Welcome.tsx'], packages: [pkg('package.json', { '@trpc/server': '11' })] })
+    assert.deepEqual(trpc.stacks, ['frontend-ts', 'backend'])
+    assert.deepEqual(guessStacks({ files: ['web/x.tsx'], packages: [pkg('lib/package.json', { '@nestjs/common': '11' })] }).stacks, ['frontend-ts', 'backend'])
+    assert.deepEqual(guessStacks({ files: ['src/Main.kt'], packages: [] }), { stacks: ['backend'], evidence: ['src/Main.kt 같은 .kt 파일'] })
+  })
+
+  it('대상마다 가장 얕은 신호를 근거로 — 깊이가 같으면 경로 순서', () => {
+    const files = ['a/b/c/go.mod', 'z/go.mod', 'm/go.mod', 'deep/web/src/A.tsx', 'web/B.vue']
+    assert.deepEqual(guessStacks({ files, packages: [] }).evidence, ['web/B.vue 같은 .vue 파일', 'm/go.mod'])
+  })
+
+  it('package.json을 다 읽지 못했는데 한쪽만 찾았으면 둘 다 — 못 읽은 곳에 다른 쪽이 있을 수 있다', () => {
+    const result = guessStacks({ files: [], packages: [pkg('packages/p000/package.json', { react: '1' })], truncated: true })
+    assert.deepEqual(result, { stacks: ['frontend-ts', 'backend'], evidence: ['packages/p000/package.json의 react', 'package.json을 다 읽지 못함'] })
+  })
+
   it('node_modules 아래 경로와 형식이 이상한 package.json은 보지 않는다', () => {
     const packages = [pkg('node_modules/express/package.json', { express: '1' }), { path: 'web/package.json', json: null }, { path: 'a/package.json', json: { dependencies: 'react' } }]
     assert.deepEqual(guessStacks({ files: ['node_modules/x/go.mod', 'node_modules/x/A.tsx'], packages }), { stacks: ['frontend-ts', 'backend'], evidence: [] })

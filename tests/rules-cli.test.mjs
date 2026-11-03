@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { makeRepo } from './helpers/repo.mjs'
 
@@ -58,9 +61,41 @@ describe('rules.mjs — 설정에 맞는 규칙만 보이기', () => {
     })
   })
 
+  it('git이 아닌 곳에서도 죽지 않고 둘 다 보인다. 설정의 stacks가 비었거나 모르는 값이면 알리고 저장소를 보고 정한다', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gimi-rules-'))
+    try {
+      writeFileSync(join(dir, 'a.tsx'), 'x\n')
+      const result = run({ cwd: dir })
+      assert.equal(result.status, 0, result.stderr)
+      assert.match(result.stdout, /^규칙 {6}stacks frontend-ts·backend \(설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다\)/m)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+    withRepo({ '.agents/gimi.json': JSON.stringify({ stacks: [] }) }, (repo) => {
+      assert.match(run({ cwd: repo.dir }).stdout, /^규칙 {6}stacks frontend-ts·backend \(설정 없음 — /m)
+    })
+    withRepo({ '.agents/gimi.json': JSON.stringify({ stacks: ['frontend', 'backend'] }) }, (repo) => {
+      const { stdout } = run({ cwd: repo.dir })
+      assert.match(stdout, /^규칙 {6}stacks backend · /m)
+      assert.match(stdout, /^참고 {6}설정의 stacks에 모르는 값 frontend이 있다 — frontend-ts·backend 중에서 적는다$/m)
+    })
+    withRepo({ '.agents/gimi.json': JSON.stringify({ stacks: 'backend' }) }, (repo) => {
+      const { stdout } = run({ cwd: repo.dir })
+      assert.match(stdout, /^규칙 {6}stacks frontend-ts·backend \(설정을 쓸 수 없음 — /m)
+      assert.match(stdout, /^참고 {6}설정의 stacks가 목록이 아니다/m)
+    })
+  })
+
+  it('package.json이 아주 많아 다 읽지 못했는데 한쪽만 찾았으면 둘 다 보인다', () => {
+    const files = Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`packages/p${String(i).padStart(3, '0')}/package.json`, JSON.stringify({ dependencies: { react: '1' } })]))
+    withRepo(files, (repo) => {
+      assert.match(run({ cwd: repo.dir }).stdout, /^규칙 {6}stacks frontend-ts·backend \(설정 없음 — 추정: packages\/p000\/package\.json의 react, package\.json을 다 읽지 못함\)/m)
+    })
+  })
+
   it('설정에 presets가 없으면 분야 프리셋을 쓰지 않았다고 알린다 — 설정에서 비워 둔 것([])은 알리지 않는다', () => {
     withRepo({}, (repo) => {
-      assert.match(run({ cwd: repo.dir }).stdout, /^참고 {6}설정에 presets가 없어 분야 프리셋\(commerce·kr-commerce-law\)을 쓰지 않았다 — 리뷰 기록의 건너뛴 맥락에 적고, 쓰려면 "도메인 규칙 설정해줘"로 고른다$/m)
+      assert.match(run({ cwd: repo.dir }).stdout, /^참고 {6}설정에 presets가 없어 분야 프리셋\(commerce·kr-commerce-law\)을 쓰지 않았다 — 리뷰 기록의 건너뛴 맥락에 적는다\(켜는 것은 사용자가 "도메인 규칙 설정해줘"로 한다\)$/m)
     })
     withRepo({ '.agents/gimi.json': JSON.stringify({ stacks: ['backend'], presets: [] }) }, (repo) => {
       const { stdout } = run({ cwd: repo.dir })
