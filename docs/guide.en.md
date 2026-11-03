@@ -126,7 +126,7 @@ gimi-review and Claude Code's built-in `/code-review` reviewed pull requests wit
 - **Requirements only in issues** — four defects whose requirements were written only in an issue, reviewed twice per reviewer. gimi read the requirement in 8 of 8 reviews, `/code-review` in 5 of 8 (counted by me).
 - **Cost and time** — gimi costs more. On the 32 new defects, one review averaged $0.41 and 57 seconds with gimi, $0.31 and 45 seconds with `/code-review`.
 
-These results come from one model and one example app. The new defects were reviewed once each. gimi ran without a settings file, so the domain presets (commerce and Korean e-commerce law) and the backend-only common guardrails were not in its rule list; the effect of the preset rules has not been measured yet. Results and conditions are in the [evaluation notes](../evals/review/README.md) and [result files](../evals/review/results/) (Korean).
+These results come from one model and one example app. The new defects were reviewed once each. gimi ran without a settings file. The domain presets (commerce and Korean e-commerce law) are on only when set, so they were off. At the time (before 2026-11-03), no settings also meant a frontend-only target, so the backend-only common guardrails were not in the rule list. The effect of the preset rules has not been measured yet. Results and conditions are in the [evaluation notes](../evals/review/README.md) and [result files](../evals/review/results/) (Korean).
 
 ## Limitations
 

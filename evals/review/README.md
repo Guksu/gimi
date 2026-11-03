@@ -25,7 +25,7 @@ node scripts/review-eval.mjs score <폴더>
 - 사용자 설정·플러그인·MCP는 읽지 않는다(`--setting-sources project`, `--strict-mcp-config`).
 - 도구는 Read·Grep·Glob·Write·Skill·Agent·Bash를 허용하고, 테스트 명령(`npm`·`npx`·`pnpm`·`yarn`)만 묻지 않고 막는다(`--disallowedTools`, `--permission-mode dontAsk`). 이어 붙인 명령은 하나라도 허용 밖이면 통째로 막힌다. code-review는 `git diff`에 따옴표 없는 `find` 패턴과 `~/.claude/CLAUDE.md` 읽기를 이어 붙여서, `Bash(git *)` 같은 명령 이름 규칙으로는 diff를 못 본다.
 - 실행마다 도구 조건(`tools`)과 막힌 도구 호출(`permissionDenials`)을 결과에 남긴다. 조건이 다른 실행을 한 표에 섞을 때는 결과 문서에 적는다.
-- **설정.** 평가용 저장소에는 기본으로 `.agents/gimi.json`이 없다. 설정하지 않은 사용자와 같은 조건이라, 분야 프리셋이 꺼져 있다(설계 결정 59). `--config <파일>`을 주면 그 JSON을 정상 버전(main)에 넣는다. 두 리뷰어가 같은 설정을 보고, PR diff에는 없다. 실행마다 설정(`config`)과 규칙 목록 첫 줄(`rules` — 모델 없이 평가용 저장소에서 `rules.mjs`를 돌린 것)을 결과에 남긴다. `score`는 채점표 위에 리뷰어·조건마다 한 줄을 보이고, 조건이 다른 실행이 섞이면 알린다. 이 기록이 생기기 전의 결과는 "기록 없음"이다.
+- **설정.** 평가용 저장소에는 기본으로 `.agents/gimi.json`이 없다. 설정하지 않은 사용자와 같은 조건이라, 분야 프리셋이 꺼져 있다(설계 결정 59). `--config <파일>`을 주면 그 JSON을 정상 버전(main)에 넣는다. 두 리뷰어가 같은 설정을 보고, PR diff에는 없다. 실행마다 설정(`config` — 평가용 저장소의 정상 버전에서 읽은 것)과 gimi의 규칙 목록 첫 줄(`rules` — 모델 없이 평가용 저장소에서 `rules.mjs`를 돌린 것)을 결과에 남긴다. code-review는 이 목록을 읽지 않지만, 같은 저장소라 조건을 견줄 수 있게 같은 값을 남긴다. `score`는 채점표 위에 리뷰어·조건마다 한 줄을 보이고, 조건이 다른 실행이 섞이면 알린다. 이 기록이 생기기 전의 결과는 "기록 없음"이다. `coverage`는 설정을 요약 줄에만 적고 `coverage.json`에는 남기지 않는다. `score`가 그 파일로 수집 실패를 나누므로, `coverage`는 `run`과 같은 `--config`로 돌린다.
 - 평가용 저장소는 이름이 중립인 임시 폴더에 만들고, 결함 브랜치 이름은 `feature/pr`이다. 처음에 `defect/COM-024`로 만들었더니 `context.mjs`가 브랜치 이름을 티켓 번호로 읽었다.
 - 결함의 `issues`는 가짜 gh(`scripts/fake-gh.mjs`)가 돌려준다. 평가용 저장소 밖에 두고 두 리뷰어의 PATH 앞에 똑같이 넣는다. `auth status`·`issue view`·`issue list`·`repo view`·`api …/issues/N`에 답하고 PR은 없다고 답한다. `coverage`도 같은 가짜 gh로 맥락을 모은다.
 - 부르는 말은 gimi가 `/gimi:gimi-review`, code-review가 `/code-review feature/pr`이다. gimi는 범위를 스스로 정한다(지금 브랜치와 기본 브랜치의 갈림점부터).
@@ -63,4 +63,4 @@ node scripts/review-eval.mjs score <폴더>
 | 2026-10-27 | 요구사항이 이슈에만 있는 결함 4개(INTENT)를 리뷰어마다 2번 — 처음으로 갈렸다(읽은 판단 8/8 대 5/8) | `results/2026-10-27-intent.md` |
 | 2026-10-31 | 지난 평가 뒤 새 결함 32개(프리셋 29·2차 패턴 짝 3)를 리뷰어마다 1번 — 찾음 32/32 대 31/32(위치로 맞춤), 정답 밖 지적 55 대 19 | `results/2026-10-31-new.md` |
 
-위 평가는 모두 설정 없이 돌았다. 그때 규칙 목록은 설정이 없으면 대상을 프론트엔드로만 잡아, 백엔드에만 해당하는 공통 금지선 18줄과 분야 프리셋이 목록에 없었다. 그래서 프리셋 규칙의 효과는 아직 재지 않았다. 결과 문서마다 조건 표의 "설정" 줄에 적었다.
+위 평가는 모두 설정 없이 돌았다. 분야 프리셋은 설정해야 켜져서 꺼져 있었다. 그때(설계 결정 59 전)는 설정이 없으면 대상도 프론트엔드로만 잡아, 백엔드에만 해당하는 공통 금지선 18줄이 목록에 없었다. 그래서 프리셋 규칙의 효과는 아직 재지 않았다. 결과 문서마다 조건 표의 "설정" 줄에 적었다.
