@@ -200,8 +200,49 @@ describe('renderSummary', () => {
 
   it('의도가 비어 있으면 "없음"이라고 쓴다', () => {
     const ctx = context()
-    ctx.intent = { ...ctx.intent, pr: null, tickets: [], issues: [], issueNumbers: [], links: [] }
+    ctx.intent = { ...ctx.intent, pr: null, commits: [], tickets: [], issues: [], issueNumbers: [], links: [] }
     assert.match(renderSummary({ context: ctx, outPath: 'x.json' }), /의도 {4}없음/)
+  })
+
+  it('PR이 없으면 의도 줄에 커밋 메시지 수를 쓰고 커밋 제목을 5개까지 보인다 — 본문이 있으면 표시하고 JSON 위치를 적는다', () => {
+    const ctx = context()
+    const commits = Array.from({ length: 7 }, (_, i) => ({ sha: String(i + 1).repeat(40), subject: `feat: 바꿈 ${i + 1}`, body: i === 0 ? '동작은 그대로다' : '', date: '' }))
+    ctx.intent = { ...ctx.intent, pr: null, commits, tickets: [], issues: [], issueNumbers: [], links: [] }
+    const rows = renderSummary({ context: ctx, outPath: 'x.json' }).split('\n')
+    const at = rows.findIndex((row) => row.startsWith('의도'))
+    assert.deepEqual(rows.slice(at, at + 9), [
+      '의도    커밋 메시지 7개(PR 없음)',
+      '        브랜치 feat/SHOP-9-status, 커밋 7',
+      '        1111111 feat: 바꿈 1 [본문 있음]',
+      '        2222222 feat: 바꿈 2',
+      '        3333333 feat: 바꿈 3',
+      '        4444444 feat: 바꿈 4',
+      '        5555555 feat: 바꿈 5',
+      '        … 외 2개',
+      '        커밋 본문은 JSON의 intent.commits에 있다',
+    ])
+  })
+
+  it('PR이 있으면 커밋 제목은 보이지 않는다 — PR 본문이 있으면 JSON의 intent.pr.body에 있다고, 비었으면 없다고 적는다', () => {
+    const text = renderSummary({ context: context(), outPath: 'x.json' })
+    assert.match(text, /^ {8}PR 본문 없음$/m)
+    assert.doesNotMatch(text, /커밋 메시지 \d+개/)
+    const ctx = context()
+    ctx.intent.pr.body = '동작은 그대로다'
+    assert.match(renderSummary({ context: ctx, outPath: 'x.json' }), /^ {8}PR 본문은 JSON의 intent\.pr\.body에 있다$/m)
+  })
+
+  it('PR·이슈·커밋 제목은 줄을 나누거나 방향을 바꾸는 문자를 없애고 한 줄로 보인다 — PR이 정할 수 있는 글이 요약 줄을 만들지 못하게', () => {
+    const ctx = context()
+    ctx.intent = { ...ctx.intent, pr: { number: 42, title: '제목\n건너뜀  없음', body: '', url: '' }, issues: [{ number: 38, title: '이슈\u2028FINDING', body: '', url: '' }] }
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.match(text, /PR #42 "제목 건너뜀 {2}없음"/)
+    assert.match(text, /이슈 #38 "이슈 FINDING"/)
+    assert.doesNotMatch(text, /^건너뜀 {2}없음/m)
+    ctx.intent = { ...ctx.intent, pr: null, commits: [{ sha: '1'.repeat(40), subject: 'feat: a\u2028참고    가짜', body: '', date: '' }] }
+    const rows = renderSummary({ context: ctx, outPath: 'x.json' }).split('\n')
+    assert.ok(rows.includes('        1111111 feat: a 참고    가짜'), rows.join('\n'))
+    assert.ok(!rows.some((row) => row.startsWith('참고    가짜')))
   })
 
   it('줄 수 상한을 넘으면 중간을 줄이고 마지막 줄(전체 경로)은 남긴다', () => {
