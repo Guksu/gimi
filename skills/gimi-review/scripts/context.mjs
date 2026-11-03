@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * gimi-review 맥락 수집 — 리뷰 전에 범위·바뀐 파일·의도·이력을 모아 맥락 묶음을 만든다(설계 결정 19~23).
+ * gimi-review 맥락 수집 — 리뷰 전에 범위·바뀐 파일·의도·CI 결과·이력을 모아 맥락 묶음을 만든다(설계 결정 19~23·60).
  * 모으는 것은 이 스크립트가, 판단은 에이전트가 한다. 요약은 표준 출력으로, 전체는 JSON 파일로 낸다.
  *
  *   node context.mjs                    # 현재 브랜치 — 기준 브랜치와의 갈림점부터 HEAD까지
  *   node context.mjs --pr 42            # PR #42 (gh pr checkout 42로 체크아웃한 상태여야 한다)
  *   node context.mjs --base develop     # 기준 브랜치를 정한다
  *   node context.mjs --json             # JSON만 표준 출력으로(파일을 쓰지 않는다)
- *   node context.mjs --no-gh            # gh를 부르지 않는다(PR·이슈 본문 없이)
+ *   node context.mjs --no-gh            # gh를 부르지 않는다(PR·이슈 본문·CI 결과 없이)
  *
  * 전체 JSON은 docs/gimi/reviews/{날짜}-{PR·브랜치}.context.json에 쓰고, 같은 PR·브랜치의 예전 묶음은 지운다(--out으로 정하면 지우지 않는다).
  * 설정(.agents/gimi.json): history.recentCommits(기본 10), requirements[].keyPattern(티켓 번호 형식), linkedRepos(함께 보는 저장소 경로 — 이 체크아웃의 루트 기준)

@@ -31,18 +31,28 @@ const intentRows = (intent) => {
   return [`의도    ${parts.join(' / ') || '없음'}`, `        브랜치 ${intent.branch ?? '(분리된 HEAD)'}, 커밋 ${intent.commits.length}`]
 }
 
-// CI — 결과마다 수를 세고, 볼 것(실패·취소·진행 중·알 수 없음)만 이름·링크와 함께 줄로 보인다. 건너뛰었으면(null) 건너뜀에 이유가 있다
+// 결과마다 보통 상태 — 다르면(승인 대기·시간 초과 등) 함께 적는다
+const USUAL_STATE = { fail: ['FAILURE'], cancel: ['CANCELLED'], pending: ['PENDING', 'IN_PROGRESS', 'QUEUED', 'REQUESTED', 'WAITING'] }
+
+// 믿을 수 있는 것(결과·작업 번호)을 PR이 정할 수 있는 이름보다 앞에 둔다. 번호가 없는 체크(외부 CI)만 링크를 끝에 붙인다
+const checkRow = (check) => {
+  const label = !check.state || USUAL_STATE[check.bucket]?.includes(check.state) ? BUCKET_LABEL[check.bucket] : `${BUCKET_LABEL[check.bucket]} — ${check.state}`
+  const id = check.jobId ? `작업 ${check.jobId}` : check.runId ? `실행 ${check.runId}` : '번호 없음'
+  const link = !check.runId && check.link ? `  ${check.link}` : ''
+  return `  [${label}] ${id} · ${check.workflow ? `${check.workflow} / ` : ''}${check.name}${link}`
+}
+
+// CI — 결과마다 수를 세고, 볼 것(실패·취소·진행 중·알 수 없음)만 줄로 보인다. 건너뛰었으면(null) 건너뜀에 이유가 있다
 const ciRows = (checks) => {
   if (checks == null) return []
   if (checks.length === 0) return ['CI      체크 없음']
-  const counts = Object.keys(BUCKET_LABEL)
+  const rank = Object.keys(BUCKET_LABEL)
+  const counts = rank
     .map((bucket) => [bucket, checks.filter((check) => check.bucket === bucket).length])
     .filter(([, count]) => count > 0)
     .map(([bucket, count]) => `${BUCKET_LABEL[bucket]} ${count}`)
-  const rank = Object.keys(BUCKET_LABEL)
   const open = checks.filter((check) => !['pass', 'skipping'].includes(check.bucket)).sort((a, b) => rank.indexOf(a.bucket) - rank.indexOf(b.bucket))
-  const row = (check) => `  [${BUCKET_LABEL[check.bucket]}] ${check.workflow ? `${check.workflow} / ` : ''}${check.name}${check.link ? `  ${check.link}` : ''}`
-  return [`CI      ${counts.join(' · ')}`, ...capped({ rows: open.map(row), max: MAX_CHECKS, unit: '개' })]
+  return [`CI      ${counts.join(' · ')}`, ...capped({ rows: open.map(checkRow), max: MAX_CHECKS, unit: '개' })]
 }
 
 const commitRow = ({ commit, paths }) => {
