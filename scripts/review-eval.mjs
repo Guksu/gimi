@@ -17,10 +17,11 @@
  * 판단은 scripts/lib/review-eval.mjs가 맡는다.
  */
 import { execFileSync, spawn } from 'node:child_process'
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseConfig } from './lib/defects.mjs'
 import { coverageOf, formatScore, hunksOf, scoreRuns } from './lib/review-eval.mjs'
 import { parseStream } from './lib/stream.mjs'
 
@@ -98,15 +99,21 @@ const pick = (fixture, ids) => {
 /** --config 파일 — JSON 객체여야 한다. 주지 않았으면 null(설정 없이 돈다) */
 const readConfig = (path) => {
   if (!path) return null
-  if (!existsSync(path)) throw new UsageError(`--config 파일이 없다: ${path}`)
-  let config
-  try {
-    config = JSON.parse(readFileSync(path, 'utf8'))
-  } catch {
-    throw new UsageError(`--config 파일을 JSON으로 읽지 못했다: ${path}`)
-  }
-  if (config === null || typeof config !== 'object' || Array.isArray(config)) throw new UsageError(`--config 파일은 JSON 객체여야 한다: ${path}`)
+  if (!(existsSync(path) && statSync(path).isFile())) throw new UsageError(`--config 파일이 없다: ${path}`)
+  const { config, error } = parseConfig(readFileSync(path, 'utf8'))
+  if (error) throw new UsageError(`--config 파일이 ${error}: ${path}`)
   return config
+}
+
+/** 평가용 저장소의 정상 버전에 들어간 설정 — 리뷰어가 본 그대로 남긴다(없으면 null, 객체가 아니면 글 그대로) */
+const configIn = (repo) => {
+  let text
+  try {
+    text = execFileSync('git', ['show', 'main:.agents/gimi.json'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    return null
+  }
+  return parseConfig(text).config ?? text
 }
 
 /**
@@ -126,7 +133,8 @@ const prepare = (fixture, id, config) => {
   return { holder, repo, env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` } }
 }
 
-// 리뷰어가 볼 규칙 목록의 첫 줄 — 모델 없이 평가용 저장소에서 돌려 설정 조건으로 남긴다(돌리지 못하면 null)
+// gimi가 볼 규칙 목록의 첫 줄 — 모델 없이 평가용 저장소에서 돌려 설정 조건으로 남긴다(돌리지 못하면 null).
+// code-review는 이 목록을 읽지 않지만, 같은 평가용 저장소라 조건을 견줄 때 같은 값을 남긴다
 const rulesHeader = (repo) => {
   try {
     return execFileSync(process.execPath, [RULES], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).split('\n')[0]
@@ -187,13 +195,15 @@ const runReviews = async ({ fixture, ids, options }) => {
   const reviewer = REVIEWERS[options.reviewer]
   if (!reviewer) throw new UsageError(`--reviewer는 ${Object.keys(REVIEWERS).join('·')} 중 하나다`)
   if (!Number.isInteger(options.runs) || options.runs < 1) throw new UsageError('--runs는 1 이상의 정수다')
-  const config = readConfig(options.config)
+  // 설정 파일은 시작할 때 검사만 한다 — 결과에는 실행마다 평가용 저장소에서 읽은 설정을 남긴다
+  readConfig(options.config)
   const out = options.out ?? join(ROOT, 'evals/review/runs', new Date().toISOString().slice(0, 10))
   const folder = join(out, options.reviewer)
   mkdirSync(folder, { recursive: true })
   for (const id of pick(fixture, ids)) {
     for (let n = 1; n <= options.runs; n++) {
       const { holder, repo, env } = prepare(fixture, id, options.config)
+      const config = configIn(repo)
       const rules = rulesHeader(repo)
       const prompt = reviewer.prompt
       const args = [

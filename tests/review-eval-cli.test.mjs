@@ -9,7 +9,7 @@ import { makeRepo } from './helpers/repo.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const CLI = join(ROOT, 'scripts/review-eval.mjs')
-const run = (args) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' })
+const run = (args, env = {}) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', env: { ...process.env, ...env } })
 
 // 예제 저장소를 흉내 낸 작은 저장소 — 결함 PR 하나(COM-007)와 결함 없는 PR 하나(CLEAN-001)
 let repo
@@ -57,6 +57,8 @@ try {
   ghBody = execFileSync('gh', ['issue', 'view', '41', '--json', 'body', '--jq', '.body'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
 } catch {}
 appendFileSync(${JSON.stringify(join(out, 'calls.jsonl'))}, JSON.stringify({ args, cwd: process.cwd(), branch, ghBody, config, changed }) + '\\n')
+// 실행 도중 설정 파일이 바뀌는 경우를 흉내 낸다
+if (process.env.REWRITE_CONFIG) writeFileSync(process.env.REWRITE_CONFIG, '{ "presets": [] }\\n')
 const gimi = args.includes('--plugin-dir')
 if (gimi) {
   mkdirSync('docs/gimi/reviews', { recursive: true })
@@ -150,7 +152,7 @@ describe('review-eval.mjs', () => {
     assert.match(result.stdout, /\| gimi \| 0 — 0 · 0 · 0 \| 1 — 0 · 0 · 1 \|/)
     assert.equal(existsSync(join(out, 'runs/score.md')), true)
     // 채점표 위에 설정 조건 — 두 리뷰어가 같은 조건이라 알림은 없다
-    assert.ok(result.stdout.startsWith('| 리뷰어 | 실행 | 설정(.agents/gimi.json) | 규칙 목록 첫 줄 |'), result.stdout)
+    assert.ok(result.stdout.startsWith('| 리뷰어 | 실행 | 설정(.agents/gimi.json) | gimi의 규칙 목록 첫 줄 |'), result.stdout)
     assert.ok(result.stdout.includes('| gimi | 2 | 없음 | stacks frontend-ts·backend (설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다) · 프리셋 없음 · 회사 규칙 없음 |'), result.stdout)
     assert.doesNotMatch(result.stdout, /설정 조건이 다르다/)
   })
@@ -163,6 +165,7 @@ describe('review-eval.mjs', () => {
       const result = run(['run', 'COM-007', '--reviewer', reviewer, '--fixture', repo.dir, '--out', join(out, 'runs-config'), '--claude', fake, '--config', config])
       assert.equal(result.status, 0, result.stdout + result.stderr)
     }
+
     const calls = readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n').slice(before).map((line) => JSON.parse(line))
     assert.equal(calls.length, 2)
     for (const call of calls) {
@@ -183,6 +186,15 @@ describe('review-eval.mjs', () => {
     const result = run(['coverage', 'COM-007', '--fixture', repo.dir, '--config', join(out, 'gimi.json')])
     assert.equal(result.status, 0, result.stdout + result.stderr)
     assert.match(result.stdout, /^맥락 수집 점검 \(설정 \{"stacks":\["backend"\],"presets":\["commerce"\]\}\)/)
+  })
+
+  it('run — 결과의 config는 실행마다 평가용 저장소에서 읽는다(실행 도중 설정 파일이 바뀌어도 리뷰어가 본 설정을 남긴다)', () => {
+    const config = join(out, 'changing.json')
+    writeFileSync(config, '{ "presets": ["commerce"] }\n')
+    const result = run(['run', 'COM-007', '--reviewer', 'gimi', '--runs', '2', '--fixture', repo.dir, '--out', join(out, 'runs-changing'), '--claude', fake, '--config', config], { REWRITE_CONFIG: config })
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    const configOf = (n) => JSON.parse(readFileSync(join(out, `runs-changing/gimi/COM-007-${n}.json`), 'utf8')).config
+    assert.deepEqual([configOf(1), configOf(2)], [{ presets: ['commerce'] }, { presets: [] }])
   })
 
   it('--config가 JSON 객체가 아니거나 없는 파일이면 돌리지 않는다', () => {

@@ -271,13 +271,19 @@ const dash = (value) => (value === null ? '-' : String(value))
 const byLocation = (total, at) => (at ? `${total} — ${at.hunk} · ${at.file} · ${at.outside}` : '-')
 // 표 칸 — |는 표를 깬다
 const cell = (text) => text.replaceAll('|', '\\|')
+// 코드 표시 — 글 안의 가장 긴 백틱보다 하나 더 긴 백틱으로 감싼다
+const code = (text) => {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length))
+  const fence = '`'.repeat(longest + 1)
+  return longest > 0 ? `${fence} ${text} ${fence}` : `${fence}${text}${fence}`
+}
 
 /** 채점표 — 설정 조건(리뷰어·조건마다 한 줄), 리뷰어마다 한 줄, (diff 조각이 있으면) 지적의 위치, 결함마다 한 줄 */
 export const formatScore = ({ reviewers, perDefect, mixed = false }) =>
   [
-    '| 리뷰어 | 실행 | 설정(.agents/gimi.json) | 규칙 목록 첫 줄 |',
+    '| 리뷰어 | 실행 | 설정(.agents/gimi.json) | gimi의 규칙 목록 첫 줄 |',
     '|---|---|---|---|',
-    ...reviewers.flatMap((r) => r.conditions.map((c) => `| ${r.name} | ${c.runs} | ${cell(c.config.startsWith('{') ? `\`${c.config}\`` : c.config)} | ${cell(c.rules)} |`)),
+    ...reviewers.flatMap((r) => r.conditions.map((c) => `| ${r.name} | ${c.runs} | ${cell(c.config.startsWith('{') ? code(c.config) : c.config)} | ${cell(c.rules)} |`)),
     ...(mixed ? ['', '실행마다 설정 조건이 다르다 — 결과 문서에 어느 실행이 어떤 조건인지 적는다.'] : []),
     '',
     '| 리뷰어 | 실행 | 찾음 | 수집 실패 | 판단 실패 | 정답 밖 지적 | 오탐(결함 없는 PR) | 형식 어김 |',

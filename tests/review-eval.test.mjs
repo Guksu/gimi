@@ -230,7 +230,8 @@ describe('설정 조건 — 실행마다 평가용 저장소의 설정(.agents/g
   it('formatScore — 채점표 위에 설정 조건 표를 두고, 조건이 다른 실행이 섞이면 알린다', () => {
     const text = formatScore(scoreRuns({ runs: [{ ...base, reviewer: 'gimi', run: 1, config: { stacks: ['backend'] }, rules: header }, { ...base, reviewer: 'code-review', run: 1, config: null, rules: header }] }))
     const lines = text.split('\n')
-    assert.equal(lines[0], '| 리뷰어 | 실행 | 설정(.agents/gimi.json) | 규칙 목록 첫 줄 |')
+    // 규칙 목록은 gimi만 읽는다 — code-review 줄의 값은 같은 평가용 저장소에서 gimi가 볼 목록이다
+    assert.equal(lines[0], '| 리뷰어 | 실행 | 설정(.agents/gimi.json) | gimi의 규칙 목록 첫 줄 |')
     assert.ok(lines.includes('| gimi | 1 | `{"stacks":["backend"]}` | stacks frontend-ts·backend (설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다) · 프리셋 없음 · 회사 규칙 없음 |'), text)
     assert.ok(lines.includes('| code-review | 1 | 없음 | stacks frontend-ts·backend (설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다) · 프리셋 없음 · 회사 규칙 없음 |'), text)
     assert.ok(lines.includes('실행마다 설정 조건이 다르다 — 결과 문서에 어느 실행이 어떤 조건인지 적는다.'), text)
@@ -243,5 +244,10 @@ describe('설정 조건 — 실행마다 평가용 저장소의 설정(.agents/g
     assert.equal(scoreRuns({ runs }).mixed, false)
     assert.doesNotMatch(text, /설정 조건이 다르다/)
     assert.ok(text.includes('| gimi | 1 | `{"note":"a\\|b"}` |'), text)
+  })
+
+  it('설정에 백틱이 있으면 더 긴 백틱으로 감싼다 — 코드 표시가 깨지지 않게', () => {
+    const text = formatScore(scoreRuns({ runs: [{ ...base, reviewer: 'gimi', run: 1, config: { note: 'a`b' }, rules: header }] }))
+    assert.ok(text.includes('| gimi | 1 | `` {"note":"a`b"} `` |'), text)
   })
 })

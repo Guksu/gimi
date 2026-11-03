@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseRuleFile } from '../skills/gimi-review/scripts/lib/rulefile.mjs'
-import { formatCheck, patchedPaths, runCatches, validateDefect } from './lib/defects.mjs'
+import { formatCheck, parseConfig, patchedPaths, runCatches, validateDefect } from './lib/defects.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BASE_MESSAGE = 'feat: 국수집 주문 앱'
@@ -51,7 +51,11 @@ const parseArgs = (argv) => {
     else if (arg === '--no-tests') options.tests = false
     else if (arg === '--branch') options.branch = argv[++i] ?? ''
     else if (arg === '--link-deps') options.linkDeps = true
-    else if (arg === '--config') options.config = resolve(argv[++i] ?? '')
+    else if (arg === '--config') {
+      const value = argv[++i]
+      if (value === undefined || value.startsWith('--')) throw new UsageError('--config에 값이 없다')
+      options.config = resolve(value)
+    }
     else if (arg.startsWith('--')) throw new UsageError(`모르는 옵션: ${arg}`)
     else positional.push(arg)
   }
@@ -265,7 +269,11 @@ const main = async () => {
     const dir = resolve(args[1])
     const branch = options.branch || `defect/${args[0]}`
     if (!/^[\w./-]+$/.test(branch)) throw new UsageError(`브랜치 이름이 틀렸다: ${branch}`)
-    if (options.config && !(existsSync(options.config) && statSync(options.config).isFile())) throw new UsageError(`설정 파일이 없다: ${options.config}`)
+    if (options.config) {
+      if (!(existsSync(options.config) && statSync(options.config).isFile())) throw new UsageError(`설정 파일이 없다: ${options.config}`)
+      const { error } = parseConfig(readFileSync(options.config, 'utf8'))
+      if (error) throw new UsageError(`설정 파일이 ${error}: ${options.config}`)
+    }
     ensureEmpty(dir)
     materialize(options.fixture, args[0], dir, { branch, config: options.config })
     if (options.linkDeps) linkNodeModules(options.fixture, dir)
