@@ -59,6 +59,10 @@ const context = () => ({
     literals: [{ value: 'orders/list', path: 'src/keys.ts', total: 1, unchanged: 1, usages: [{ path: 'src/cache.ts', line: 1, text: '', context: [], changedInPr: false }] }],
     notes: [],
   },
+  checks: [
+    { name: 'lint', workflow: 'CI', bucket: 'pass', state: 'SUCCESS', event: 'pull_request', link: 'https://github.com/a/b/actions/runs/7/job/1', runId: '7', jobId: '1' },
+    { name: 'test', workflow: 'CI', bucket: 'fail', state: 'FAILURE', event: 'pull_request', link: 'https://github.com/a/b/actions/runs/7/job/2', runId: '7', jobId: '2' },
+  ],
   skipped: [{ context: '의도', reason: 'gh 없음' }],
   notes: [],
 })
@@ -66,7 +70,7 @@ const context = () => ({
 describe('renderSummary', () => {
   it('범위·바뀐 파일·의도·이력·영향 범위·건너뜀·전체 경로를 차례로 보인다', () => {
     const text = renderSummary({ context: context(), outPath: 'docs/gimi/reviews/x.context.json' })
-    const order = ['범위', '바뀐 파일', '의도', '이력', '영향 범위', '건너뜀', '전체'].map((label) => text.indexOf(label))
+    const order = ['범위', '바뀐 파일', '의도', 'CI      ', '이력', '영향 범위', '건너뜀', '전체'].map((label) => text.indexOf(label))
     assert.ok(order.every((index, i) => index >= 0 && (i === 0 || index > order[i - 1])), text)
     assert.match(text, /main\.\.\.feat\/SHOP-9-status/)
     assert.match(text, /M src\/order\.ts {2}\+3 −1/)
@@ -150,6 +154,48 @@ describe('renderSummary', () => {
     const text = renderSummary({ context: ctx, outPath: 'x.json' })
     assert.doesNotMatch(text, /^이력 /m)
     assert.match(text, /이력 — 얕은 복제/)
+  })
+
+  it('CI 줄 — 결과마다 수를 세고, 실패·취소·진행 중인 체크만 줄로 보인다(통과는 수만). 믿을 수 있는 작업 번호를 PR이 정하는 이름보다 앞에 둔다', () => {
+    const rows = renderSummary({ context: context(), outPath: 'x.json' }).split('\n')
+    const at = rows.findIndex((row) => row.startsWith('CI '))
+    assert.deepEqual(rows.slice(at, at + 2), ['CI      실패 1 · 통과 1', '  [실패] 작업 2 · CI / test'])
+    assert.ok(!rows.some((row) => row.includes('작업 1 ')))
+    const ctx = context()
+    ctx.checks = [
+      ...Array.from({ length: 12 }, (_, i) => ({ name: `t${i}`, workflow: '', bucket: 'pending', state: 'IN_PROGRESS', event: 'push', link: null, runId: null, jobId: null })),
+      { name: 'deploy', workflow: 'CD', bucket: 'cancel', state: 'CANCELLED', event: 'push', link: 'https://github.com/a/b/actions/runs/9', runId: '9', jobId: null },
+      { name: 'docs', workflow: 'CI', bucket: 'skipping', state: 'SKIPPED', event: 'push', link: null, runId: null, jobId: null },
+    ]
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.match(text, /^CI {6}취소 1 · 진행 중 12 · 생략 1$/m)
+    assert.match(text, /^ {2}\[취소\] 실행 9 · CD \/ deploy$/m)
+    assert.match(text, /^ {2}\[진행 중\] 번호 없음 · t0$/m)
+    assert.match(text, /^ {2}… 외 3개$/m)
+  })
+
+  it('번호가 없는 체크(외부 CI)는 링크를 끝에 두고, 보통과 다른 상태(승인 대기·시간 초과 등)는 함께 적는다', () => {
+    const ctx = context()
+    ctx.checks = [
+      { name: 'build', workflow: '', bucket: 'fail', state: 'FAILURE', event: '', link: 'https://ci.example.com/b/1', runId: null, jobId: null },
+      { name: 'test', workflow: 'CI', bucket: 'fail', state: 'ACTION_REQUIRED', event: 'pull_request', link: 'https://github.com/a/b/actions/runs/7/job/3', runId: '7', jobId: '3' },
+      { name: 'e2e', workflow: 'CI', bucket: 'fail', state: 'TIMED_OUT', event: 'pull_request', link: null, runId: null, jobId: null },
+    ]
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.match(text, /^ {2}\[실패\] 번호 없음 · build {2}https:\/\/ci\.example\.com\/b\/1$/m)
+    assert.match(text, /^ {2}\[실패 — ACTION_REQUIRED\] 작업 3 · CI \/ test$/m)
+    assert.match(text, /^ {2}\[실패 — TIMED_OUT\] 번호 없음 · CI \/ e2e$/m)
+  })
+
+  it('CI를 건너뛰었으면(null) CI 줄 없이 건너뜀에만 보이고, 체크가 없는 PR이면 "체크 없음"이라고 쓴다', () => {
+    const ctx = context()
+    ctx.checks = null
+    ctx.skipped = [{ context: 'CI', reason: 'PR을 찾지 못해 CI 결과를 읽지 않았다(PR이 없는 브랜치 리뷰거나 gh가 PR을 열지 못했다)' }]
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.doesNotMatch(text, /^CI /m)
+    assert.match(text, /건너뜀 {2}CI — PR을 찾지 못해/)
+    ctx.checks = []
+    assert.match(renderSummary({ context: ctx, outPath: 'x.json' }), /^CI {6}체크 없음$/m)
   })
 
   it('의도가 비어 있으면 "없음"이라고 쓴다', () => {

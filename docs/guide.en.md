@@ -13,6 +13,7 @@ gimi is a code review skill (**gimi-review**) for Claude Code and Codex. AI revi
 - **Impact** — finds places this change did not touch that use a changed function, type or class method (TypeScript and JavaScript). It also searches for changed strings such as query keys and paths, and for removed fields.
 - **Contracts** — a contract is the API agreement between front end and back end (an OpenAPI or GraphQL schema). When it changes, gimi lists the changed endpoints and fields and where they are used. If the front end and back end live in different repositories, it also searches the repositories listed in the settings.
 - **Intent** — reads the pull request and issue text and checks the diff against the requirements. Jira, Notion and Linear tickets are read through tools connected to your agent; if they cannot be read, the agent asks you to paste them.
+- **CI** — if there is a pull request, collects its check results (name, result and link). For a failed check, the agent opens the log and uses it as evidence when this change caused the failure. gimi does not run tests itself, because that would run the pull request's code.
 - **History** — finds the commits that added the changed or removed lines, to see whether the change undoes an earlier fix.
 - **Rules** — checks against three layers.
   - Common guardrails: signs of AI-written code, tests and reviews (for example an empty catch, or a claim with no evidence)
@@ -40,7 +41,7 @@ Requirements:
 
 - Node.js 22 or later. The context script has no runtime dependencies.
 - A git repository to review. In a shallow clone, history is skipped.
-- To read pull request and issue text, sign in to the GitHub CLI (`gh`). Without it, gimi reports that intent was skipped.
+- To read pull request and issue text and CI results, sign in to the GitHub CLI (`gh`). Without it, gimi reports that intent and CI were skipped. A branch review with no pull request also skips CI.
 - Impact search uses the reviewed project's own `typescript`. Without it, gimi falls back to text search.
 - If anything under the reviewed repository's `node_modules` is tracked by git, gimi loads neither `typescript` nor a YAML parser from it, so code committed in someone else's pull request does not run on your machine. It cannot protect packages you install yourself from a pull request's `package.json`; check dependency changes before installing them. In a repository that commits a file under `node_modules` (such as `.gitkeep`), impact search always falls back to text search.
 
@@ -66,7 +67,7 @@ In the repository you want reviewed, ask for things like "review PR 42", "review
 A review runs in five steps.
 
 1. **Scope** — the pull request if you give a number, otherwise the current branch since it split from the default branch.
-2. **Gather context** — a script that ships with the skill (`scripts/context.mjs`) collects changed files, intent, history, impact and contracts, and prints a summary.
+2. **Gather context** — a script that ships with the skill (`scripts/context.mjs`) collects changed files, intent, CI results, history, impact and contracts, and prints a summary.
 3. **Check rules** — only the rules that fit the project are listed, and the ones the diff touches are read.
 4. **Write findings with evidence** — evidence must be outside the diff. Only findings about AI-code tells (slop) may cite lines inside the diff.
 5. **Report** — the chat shows the number of findings and the must-fix ones. The full review goes to the record file.
