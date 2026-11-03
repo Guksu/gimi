@@ -2,6 +2,7 @@
  * 맥락 묶음 요약 — 에이전트가 먼저 읽는 짧은 글. 전체는 JSON 파일에 있고, 요약은 줄 수 상한을 지킨다(설계 결정 19).
  * 순서: 범위 → 바뀐 파일 → 의도 → CI → 이력 → 영향 범위 → 건너뜀 → 참고 → 전체 경로
  */
+import { oneLine } from './text.mjs'
 
 const STATUS = { added: 'A', deleted: 'D', modified: 'M', renamed: 'R' }
 const TAG_LABEL = { fix: '수정', revert: '되돌리기', hotfix: '긴급', workaround: '우회' }
@@ -21,14 +22,27 @@ const fileRow = (file) => {
   return `  ${STATUS[file.status] ?? '?'} ${path}  ${counts}`
 }
 
+const MAX_INTENT_COMMITS = 5
+
+// PR이 없으면 커밋 메시지가 의도의 출처다 — 주장(리팩터링만·동작 그대로 등)을 맞춰 볼 수 있게 제목을 보인다. 본문은 JSON에 있다
 const intentRows = (intent) => {
   const parts = []
-  if (intent.pr) parts.push(`PR #${intent.pr.number} "${intent.pr.title}"`)
-  for (const issue of intent.issues ?? []) parts.push(`이슈 #${issue.number} "${issue.title}"`)
+  const commits = intent.commits ?? []
+  if (intent.pr) parts.push(`PR #${intent.pr.number} "${oneLine(intent.pr.title)}"`)
+  else if (commits.length > 0) parts.push(`커밋 메시지 ${commits.length}개(PR 없음)`)
+  for (const issue of intent.issues ?? []) parts.push(`이슈 #${issue.number} "${oneLine(issue.title)}"`)
   for (const number of intent.unreadIssues ?? []) parts.push(`이슈 #${number}(읽지 못함)`)
   for (const ticket of intent.tickets ?? []) parts.push(`${ticket.id}(${ticket.source === 'unknown' ? '출처 모름' : ticket.source} — 에이전트가 읽음)`)
   if ((intent.links ?? []).length > 0) parts.push(`링크 ${intent.links.length}개(${[...new Set(intent.links.map((link) => link.source))].join('·')} — 에이전트가 읽음)`)
-  return [`의도    ${parts.join(' / ') || '없음'}`, `        브랜치 ${intent.branch ?? '(분리된 HEAD)'}, 커밋 ${intent.commits.length}`]
+  const rows = [`의도    ${parts.join(' / ') || '없음'}`, `        브랜치 ${intent.branch ?? '(분리된 HEAD)'}, 커밋 ${commits.length}`]
+  if (intent.pr) {
+    rows.push(intent.pr.body?.trim() ? '        PR 본문은 JSON의 intent.pr.body에 있다' : '        PR 본문 없음')
+  } else if (commits.length > 0) {
+    const commitRows = commits.map((commit) => `        ${commit.sha.slice(0, 7)} ${oneLine(commit.subject)}${commit.body ? ' [본문 있음]' : ''}`)
+    rows.push(...(commitRows.length > MAX_INTENT_COMMITS ? [...commitRows.slice(0, MAX_INTENT_COMMITS), `        … 외 ${commitRows.length - MAX_INTENT_COMMITS}개`] : commitRows))
+    if (commits.some((commit) => commit.body)) rows.push('        커밋 본문은 JSON의 intent.commits에 있다')
+  }
+  return rows
 }
 
 // 결과마다 보통 상태 — 다르면(승인 대기·시간 초과 등) 함께 적는다
@@ -57,7 +71,7 @@ const ciRows = (checks) => {
 
 const commitRow = ({ commit, paths }) => {
   const tags = commit.tags.length > 0 ? ` [${commit.tags.map((tag) => TAG_LABEL[tag]).join('·')}]` : ''
-  return `    ${commit.short} ${commit.subject}${tags} — ${paths.join(', ')}`
+  return `    ${commit.short} ${oneLine(commit.subject)}${tags} — ${paths.join(', ')}`
 }
 
 const historyRows = (history) => {
