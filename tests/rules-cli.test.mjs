@@ -32,15 +32,40 @@ const COMPANY = `# 회사 규칙
 `
 
 describe('rules.mjs — 설정에 맞는 규칙만 보이기', () => {
-  it('설정이 없으면 stacks는 frontend-ts, 프리셋은 없다 — 백엔드 줄은 빼고 프론트·둘 다만 한 줄씩 보인다', () => {
-    withRepo({}, (repo) => {
+  it('설정에 stacks가 없으면 저장소를 보고 정한다 — 프론트 의존성만 있으면 백엔드 줄은 빼고 프론트·둘 다만 한 줄씩 보인다', () => {
+    withRepo({ 'web/package.json': JSON.stringify({ dependencies: { react: '^19.0.0' } }) }, (repo) => {
       const result = run({ cwd: repo.dir })
       assert.equal(result.status, 0, result.stderr)
-      assert.match(result.stdout, /^규칙 {6}stacks frontend-ts · 프리셋 없음 · 회사 규칙 없음$/m)
+      assert.match(result.stdout, /^규칙 {6}stacks frontend-ts \(설정 없음 — 추정: web\/package\.json의 react\) · 프리셋 없음 · 회사 규칙 없음$/m)
       assert.match(result.stdout, /^ {2}test\/only-left {2}\.only·fit을 남기지 않는다 {2}\[둘 다 · 검사 리뷰\]$/m)
       assert.match(result.stdout, /^ {2}test\/implementation-detail /m)
       assert.doesNotMatch(result.stdout, /test\/mock-repository|code\/n-plus-one/)
       assert.doesNotMatch(result.stdout, /^프리셋/m)
+    })
+  })
+
+  it('백엔드 의존성이 있으면 백엔드 줄도 보이고, 신호가 없으면 둘 다 보인다', () => {
+    const files = { 'server/package.json': JSON.stringify({ dependencies: { '@nestjs/core': '^11.0.0' } }), 'web/src/App.tsx': 'export {}\n' }
+    withRepo(files, (repo) => {
+      const { stdout } = run({ cwd: repo.dir })
+      assert.match(stdout, /^규칙 {6}stacks frontend-ts·backend \(설정 없음 — 추정: web\/src\/App\.tsx 같은 \.tsx 파일, server\/package\.json의 @nestjs\/core\) · /m)
+      assert.match(stdout, /code\/n-plus-one/)
+    })
+    withRepo({}, (repo) => {
+      const { stdout } = run({ cwd: repo.dir })
+      assert.match(stdout, /^규칙 {6}stacks frontend-ts·backend \(설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다\) · /m)
+      assert.match(stdout, /test\/mock-repository/)
+    })
+  })
+
+  it('설정에 presets가 없으면 분야 프리셋을 쓰지 않았다고 알린다 — 설정에서 비워 둔 것([])은 알리지 않는다', () => {
+    withRepo({}, (repo) => {
+      assert.match(run({ cwd: repo.dir }).stdout, /^참고 {6}설정에 presets가 없어 분야 프리셋\(commerce·kr-commerce-law\)을 쓰지 않았다 — 리뷰 기록의 건너뛴 맥락에 적고, 쓰려면 "도메인 규칙 설정해줘"로 고른다$/m)
+    })
+    withRepo({ '.agents/gimi.json': JSON.stringify({ stacks: ['backend'], presets: [] }) }, (repo) => {
+      const { stdout } = run({ cwd: repo.dir })
+      assert.match(stdout, /^규칙 {6}stacks backend · 프리셋 없음 · 회사 규칙 없음$/m)
+      assert.doesNotMatch(stdout, /presets가 없어/)
     })
   })
 
@@ -100,7 +125,7 @@ describe('rules.mjs — 전문과 경계값', () => {
   })
 
   it('--boundaries는 프리셋·회사 규칙의 경계값 가운데 stacks에 맞는 층만 보인다', () => {
-    withRepo({ '.agents/gimi.json': JSON.stringify({ presets: ['commerce'] }), 'docs/gimi/rules.md': COMPANY }, (repo) => {
+    withRepo({ '.agents/gimi.json': JSON.stringify({ stacks: ['frontend-ts'], presets: ['commerce'] }), 'docs/gimi/rules.md': COMPANY }, (repo) => {
       const { stdout } = run({ cwd: repo.dir, args: ['--boundaries'] })
       assert.match(stdout, /^ {2}COM-001 금액은 통화의 최소 단위 정수로 다루고 통화 코드를 함께 둔다\n {4}프론트: 999원의 10% 할인 표시$/m)
       assert.doesNotMatch(stdout, /백엔드: 1\/3 나눗셈/)
@@ -108,10 +133,16 @@ describe('rules.mjs — 전문과 경계값', () => {
     })
   })
 
-  it('--json은 거른 규칙과 참고를 담는다', () => {
-    withRepo({ '.agents/gimi.json': JSON.stringify({ presets: ['commerce'] }) }, (repo) => {
+  it('--json은 거른 규칙과 참고, 추정한 stacks의 근거를 담는다', () => {
+    withRepo({ '.agents/gimi.json': JSON.stringify({ stacks: ['frontend-ts'] }) }, (repo) => {
+      const report = JSON.parse(run({ cwd: repo.dir, args: ['--json'] }).stdout)
+      assert.equal(report.stacksGuess, null)
+      assert.ok(report.notes.some((note) => note.startsWith('설정에 presets가 없어')))
+    })
+    withRepo({ '.agents/gimi.json': JSON.stringify({ presets: ['commerce'] }), 'web/package.json': JSON.stringify({ dependencies: { vue: '3' } }) }, (repo) => {
       const report = JSON.parse(run({ cwd: repo.dir, args: ['--json'] }).stdout)
       assert.deepEqual(report.stacks, ['frontend-ts'])
+      assert.deepEqual(report.stacksGuess, { evidence: ['web/package.json의 vue'] })
       assert.ok(report.rules.some((r) => r.id === 'COM-001' && r.source === 'commerce' && r.target === '둘 다'))
       assert.ok(report.rules.some((r) => r.id === 'test/only-left' && r.check === '리뷰'))
     })
