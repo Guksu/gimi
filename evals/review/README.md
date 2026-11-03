@@ -27,7 +27,7 @@ node scripts/review-eval.mjs score <폴더>
 - 실행마다 도구 조건(`tools`)과 막힌 도구 호출(`permissionDenials`)을 결과에 남긴다. 조건이 다른 실행을 한 표에 섞을 때는 결과 문서에 적는다.
 - **설정.** 평가용 저장소에는 기본으로 `.agents/gimi.json`이 없다. 설정하지 않은 사용자와 같은 조건이라, 분야 프리셋이 꺼져 있다(설계 결정 59). `--config <파일>`을 주면 그 JSON을 정상 버전(main)에 넣는다. 두 리뷰어가 같은 설정을 보고, PR diff에는 없다. 실행마다 설정(`config` — 평가용 저장소의 정상 버전에서 읽은 것)과 gimi의 규칙 목록 첫 줄(`rules` — 모델 없이 평가용 저장소에서 `rules.mjs`를 돌린 것)을 결과에 남긴다. code-review는 이 목록을 읽지 않지만, 같은 저장소라 조건을 견줄 수 있게 같은 값을 남긴다. `score`는 채점표 위에 리뷰어·조건마다 한 줄을 보이고, 조건이 다른 실행이 섞이면 알린다. 이 기록이 생기기 전의 결과는 "기록 없음"이다. `coverage`는 설정을 요약 줄에만 적고 `coverage.json`에는 남기지 않는다. `score`가 그 파일로 수집 실패를 나누므로, `coverage`는 `run`과 같은 `--config`로 돌린다.
 - 평가용 저장소는 이름이 중립인 임시 폴더에 만들고, 결함 브랜치 이름은 `feature/pr`이다. 처음에 `defect/COM-024`로 만들었더니 `context.mjs`가 브랜치 이름을 티켓 번호로 읽었다.
-- 결함의 `issues`는 가짜 gh(`scripts/fake-gh.mjs`)가 돌려준다. 평가용 저장소 밖에 두고 두 리뷰어의 PATH 앞에 똑같이 넣는다. `auth status`·`issue view`·`issue list`·`repo view`·`api …/issues/N`에 답하고 PR은 없다고 답한다. `coverage`도 같은 가짜 gh로 맥락을 모은다.
+- 결함의 `issues`는 가짜 gh(`scripts/fake-gh.mjs`)가 돌려준다. 가짜 gh는 PR이 없다고 답하므로, 맥락 묶음의 CI 결과(설계 결정 60)는 평가에서 늘 건너뜀이고 재지 않는다. 평가용 저장소 밖에 두고 두 리뷰어의 PATH 앞에 똑같이 넣는다. `auth status`·`issue view`·`issue list`·`repo view`·`api …/issues/N`에 답하고 PR은 없다고 답한다. `coverage`도 같은 가짜 gh로 맥락을 모은다.
 - 부르는 말은 gimi가 `/gimi:gimi-review`, code-review가 `/code-review feature/pr`이다. gimi는 범위를 스스로 정한다(지금 브랜치와 기본 브랜치의 갈림점부터).
 
 ## 채점
