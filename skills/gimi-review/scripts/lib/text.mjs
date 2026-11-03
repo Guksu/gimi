@@ -4,10 +4,11 @@
  */
 const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]+/g
 
-/** @param {unknown} text @param {number} [max] @returns {string} */
+/** 위험한 문자만 빈칸으로 — 앞뒤 빈칸(들여쓰기)은 그대로 둔다. 요약의 모든 줄에 마지막으로 쓴다 @param {unknown} text @returns {string} */
+export const safeLine = (text) => String(text ?? '').replace(UNSAFE, ' ')
+
+/** 한 줄로 만들고 앞뒤 빈칸을 없앤 뒤 max 글자로 자른다 @param {unknown} text @param {number} [max] @returns {string} */
 export const oneLine = (text, max = 120) => {
-  const one = String(text ?? '')
-    .replace(UNSAFE, ' ')
-    .trim()
+  const one = safeLine(text).trim()
   return one.length > max ? `${one.slice(0, max)}…` : one
 }

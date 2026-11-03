@@ -59,7 +59,8 @@ export const intentTexts = ({ branch, prInfo, commits }) =>
  * @param {{ exec: { git: (args: string[]) => string }, gh: ((args: string[]) => string) | null, scope: { mergeBase: string, branch: string | null }, prInfo: any, keyPatterns: { source: string, pattern: string }[] }} args
  */
 export const collectIntent = ({ exec, gh, scope, prInfo, keyPatterns }) => {
-  const commits = parseLog(exec.git(['log', `--format=${LOG_FORMAT}`, `${scope.mergeBase}..HEAD`]))
+  // 머지 커밋(기준 브랜치를 합친 것)은 이 변경의 주장이 아니고, "Merge pull request #N"의 번호를 이슈로 잘못 읽게 한다
+  const commits = parseLog(exec.git(['log', '-z', '--no-merges', `--format=${LOG_FORMAT}`, `${scope.mergeBase}..HEAD`]))
   const refs = extractTicketRefs({ texts: intentTexts({ branch: scope.branch, prInfo, commits }), keyPatterns })
   const issueNumbers = new Set([...(prInfo?.closingIssuesReferences ?? []).map((issue) => issue.number), ...refs.issueNumbers])
   if (prInfo) issueNumbers.delete(prInfo.number)

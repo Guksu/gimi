@@ -209,6 +209,7 @@ describe('renderSummary', () => {
     // git log처럼 최근 커밋이 앞이다 — 의도가 담긴 첫 커밋이 리뷰 반영 커밋들 뒤에 숨지 않게 오래된 것부터 보인다
     const commits = Array.from({ length: 7 }, (_, i) => ({ sha: String(i + 1).repeat(40), subject: `feat: 바꿈 ${i + 1}`, body: i === 0 ? '동작은 그대로다' : '', date: '' })).reverse()
     ctx.intent = { ...ctx.intent, pr: null, commits, tickets: [], issues: [], issueNumbers: [], links: [] }
+    ctx.skipped = []
     const rows = renderSummary({ context: ctx, outPath: 'x.json' }).split('\n')
     const at = rows.findIndex((row) => row.startsWith('의도'))
     assert.deepEqual(rows.slice(at, at + 9), [
