@@ -95,7 +95,7 @@ gimi does not comment on pull requests. It reviews only when you ask.
 
 ## Settings
 
-Reviews work without settings. In that case only the shared and front-end (TypeScript) common guardrails apply. Back-end guardrails and domain presets do not.
+Reviews work without settings. In that case gimi decides whether the common guardrails target the front end, the back end or both by looking at the repository: `package.json` dependencies (React or Vue for the front end; NestJS, Express or pg for the back end) and server build files such as `go.mod` or `pom.xml`. If it finds neither, it uses both. Domain presets are not used, and the review record says so.
 
 To use presets, ask "도메인 규칙 설정해줘" (set up domain rules). After you choose presets and requirement sources, the agent writes `.agents/gimi.json`.
 
@@ -109,7 +109,7 @@ To use presets, ask "도메인 규칙 설정해줘" (set up domain rules). After
 }
 ```
 
-- `stacks` selects the common guardrails (`frontend-ts`, `backend`); `presets` selects domain presets.
+- `stacks` selects the common guardrails (`frontend-ts`, `backend`) instead of guessing; `presets` selects domain presets.
 - The Korean law preset (`kr-commerce-law`) is not legal advice. Your team decides how the withdrawal period is counted (`kcl.periodCounting`) and the business-day calendar (`kcl.businessDays`). If they are not set, the review asks instead of asserting those calculations.
 - `linkedRepos` lists other repositories to search, relative to the root of this checkout. They are read as currently checked out.
 - If a pull request changes `linkedRepos`, gimi uses the value from the base branch (the merge base) instead and says so.
