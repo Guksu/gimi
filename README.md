@@ -21,7 +21,7 @@ A finding looks like this (example):
 
 In English: the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
 
-I reviewed 32 pull requests with defects planted in an example app, with gimi and with Claude Code's built-in `/code-review`. Both reviewers used the same model and instructions. Both found almost every defect (counted by where a finding points). Findings on something other than the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean they were wrong. Each pull request was reviewed once. One review averaged 57 seconds and $0.41 with gimi, and 45 seconds and $0.31 with `/code-review`. [Method and all results (Korean)](evals/review/README.md) · [Caveats](docs/guide.en.md#evaluation)
+I reviewed 32 pull requests with defects planted in an example app, with gimi and with Claude Code's built-in `/code-review`. Both reviewers used the same model and instructions. Both found almost every defect (counted by where a finding points). Findings on something other than the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean they were wrong. Each pull request was reviewed once, and gimi ran without a settings file (domain presets off). One review averaged 57 seconds and $0.41 with gimi, and 45 seconds and $0.31 with `/code-review`. [Method and all results (Korean)](evals/review/README.md) · [Caveats](docs/guide.en.md#evaluation)
 
 ## Installation
 
