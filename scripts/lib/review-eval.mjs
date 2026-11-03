@@ -182,8 +182,29 @@ export const coverageOf = ({ bundle, defect, tolerance = TOLERANCE }) => {
 }
 
 /**
+ * 실행의 설정 조건 — 평가용 저장소의 설정(.agents/gimi.json)과 그 저장소에서 돌린 규칙 목록의 첫 줄.
+ * 이 기록이 생기기 전의 결과는 '기록 없음', 규칙 목록을 돌리지 못했으면 '읽지 못함'
+ */
+const conditionOf = (run) => ({
+  config: run.config === undefined ? '기록 없음' : run.config === null ? '없음' : JSON.stringify(run.config),
+  rules: run.rules === undefined ? '기록 없음' : typeof run.rules === 'string' ? run.rules.replace(/^규칙\s+/, '') : '읽지 못함',
+})
+
+/** 같은 조건끼리 묶어 실행 수를 센다(처음 나온 순서) */
+const groupConditions = (runs) => {
+  const groups = new Map()
+  for (const run of runs) {
+    const condition = conditionOf(run)
+    const key = `${condition.config}\0${condition.rules}`
+    groups.set(key, { ...condition, runs: (groups.get(key)?.runs ?? 0) + 1 })
+  }
+  return [...groups.values()]
+}
+
+/**
  * 리뷰어마다 집계한다
- * @param {{ runs: { reviewer: string, id: string, run: number, defect: any, output: string, root?: string }[], coverage?: Record<string, ReturnType<typeof coverageOf>> }} args
+ * @param {{ runs: { reviewer: string, id: string, run: number, defect: any, output: string, root?: string, config?: object | null, rules?: string | null }[], coverage?: Record<string, ReturnType<typeof coverageOf>> }} args
+ * @returns 리뷰어마다의 집계(conditions — 설정 조건별 실행 수), 결함마다의 한 줄, mixed — 실행마다 설정 조건이 다른가
  */
 export const scoreRuns = ({ runs, coverage = {} }) => {
   const names = [...new Set(runs.map((run) => run.reviewer))]
@@ -225,6 +246,7 @@ export const scoreRuns = ({ runs, coverage = {} }) => {
       noFormat: mine.filter((run) => !run.declared).length,
       extraAt: located ? tally(defectRuns.flatMap((run) => run.extra.map((finding) => ({ finding, hunks: run.hunks })))) : null,
       falseAt: located ? tally(cleanRuns.flatMap((run) => run.findings.map((finding) => ({ finding, hunks: run.hunks })))) : null,
+      conditions: groupConditions(mine),
     }
   })
   const ids = [...new Set(runs.map((run) => run.id))]
@@ -240,17 +262,30 @@ export const scoreRuns = ({ runs, coverage = {} }) => {
       .filter(Boolean)
     return { id, context: sample.clean ? '결함 없음' : sample.defect.context ?? '', text: byReviewer.map((entry) => entry.text).join(' · ') }
   })
-  return { reviewers, perDefect, runs: perRun }
+  return { reviewers, perDefect, runs: perRun, mixed: groupConditions(runs).length > 1 }
 }
 
 const percent = (rate) => (rate === null ? '-' : `${Math.round(rate * 100)}%`)
 const dash = (value) => (value === null ? '-' : String(value))
 
 const byLocation = (total, at) => (at ? `${total} — ${at.hunk} · ${at.file} · ${at.outside}` : '-')
+// 표 칸 — |는 표를 깬다
+const cell = (text) => text.replaceAll('|', '\\|')
+// 코드 표시 — 글 안의 가장 긴 백틱보다 하나 더 긴 백틱으로 감싼다
+const code = (text) => {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length))
+  const fence = '`'.repeat(longest + 1)
+  return longest > 0 ? `${fence} ${text} ${fence}` : `${fence}${text}${fence}`
+}
 
-/** 채점표 — 리뷰어마다 한 줄, (diff 조각이 있으면) 지적의 위치, 결함마다 한 줄 */
-export const formatScore = ({ reviewers, perDefect }) =>
+/** 채점표 — 설정 조건(리뷰어·조건마다 한 줄), 리뷰어마다 한 줄, (diff 조각이 있으면) 지적의 위치, 결함마다 한 줄 */
+export const formatScore = ({ reviewers, perDefect, mixed = false }) =>
   [
+    '| 리뷰어 | 실행 | 설정(.agents/gimi.json) | gimi의 규칙 목록 첫 줄 |',
+    '|---|---|---|---|',
+    ...reviewers.flatMap((r) => r.conditions.map((c) => `| ${r.name} | ${c.runs} | ${cell(c.config.startsWith('{') ? code(c.config) : c.config)} | ${cell(c.rules)} |`)),
+    ...(mixed ? ['', '실행마다 설정 조건이 다르다 — 결과 문서에 어느 실행이 어떤 조건인지 적는다.'] : []),
+    '',
     '| 리뷰어 | 실행 | 찾음 | 수집 실패 | 판단 실패 | 정답 밖 지적 | 오탐(결함 없는 PR) | 형식 어김 |',
     '|---|---|---|---|---|---|---|---|',
     ...reviewers.map((r) => `| ${r.name} | ${r.runs} | ${r.found}/${r.answers} (${percent(r.foundRate)}) | ${dash(r.collectMiss)} | ${dash(r.judgeMiss)} | ${r.extra} | ${r.falsePositives} (고쳐야 함 ${dash(r.blockingFalsePositives)}) | ${r.noFormat} |`),

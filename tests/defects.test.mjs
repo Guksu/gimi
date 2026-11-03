@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { formatCheck, patchedPaths, runCatches, validateDefect } from '../scripts/lib/defects.mjs'
+import { formatCheck, parseConfig, patchedPaths, runCatches, validateDefect } from '../scripts/lib/defects.mjs'
 
 const good = () => ({
   id: 'COM-007',
@@ -189,3 +189,14 @@ describe('formatCheck — 보고', () => {
   })
 })
 
+
+describe('parseConfig — 평가용 저장소에 넣을 설정(.agents/gimi.json)', () => {
+  it('JSON 객체면 그대로 돌려준다', () => {
+    assert.deepEqual(parseConfig('{ "presets": ["commerce"] }\n'), { config: { presets: ['commerce'] } })
+  })
+
+  it('JSON이 아니거나 객체가 아니면 이유를 돌려준다 — rules.mjs는 객체가 아닌 설정을 말없이 설정 없음으로 본다', () => {
+    assert.deepEqual(parseConfig('{ presets'), { error: 'JSON으로 읽지 못했다' })
+    for (const text of ['[1]', 'null', '"backend"']) assert.deepEqual(parseConfig(text), { error: 'JSON 객체가 아니다' })
+  })
+})

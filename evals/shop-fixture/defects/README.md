@@ -56,6 +56,8 @@ node scripts/defects.mjs check --no-tests      # 잡는 테스트를 빼고(Post
 node scripts/defects.mjs materialize <ID> <폴더> # 평가용 저장소 — main = 정상 버전, defect/<ID> = 결함 PR
 node scripts/defects.mjs materialize <ID> <폴더> --branch feature/pr --link-deps
                                                # 결함 브랜치 이름을 바꾸고, 예제 저장소의 node_modules를 링크한다(리뷰 평가가 쓴다)
+node scripts/defects.mjs materialize <ID> <폴더> --config <파일>
+                                               # 그 JSON(객체)을 main에 .agents/gimi.json으로 넣는다 — 결함 PR diff에는 없다
 node scripts/defects.mjs base <폴더>             # 정상 버전만 — 새 결함을 만들 때
 ```
 

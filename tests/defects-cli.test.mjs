@@ -113,6 +113,14 @@ describe('defects.mjs materialize·base', () => {
     assert.equal(git(dir, 'show', 'main:app/src/stock.ts'), fixed.trimEnd())
     assert.equal(git(dir, 'log', '-1', '--format=%s'), 'feat: 재고 부족을 알린다')
     assert.equal(run(['check', 'HIST-001', '--fixture', repo.dir, '--no-tests']).status, 0)
+
+    // --config를 주면 설정은 처음 커밋에 들어가고, 이력 커밋·결함 커밋에는 섞이지 않는다
+    writeFileSync(join(out, 'history-config.json'), '{ "presets": ["commerce"] }\n')
+    const configured = join(out, 'history-config')
+    assert.equal(run(['materialize', 'HIST-001', configured, '--fixture', repo.dir, '--config', join(out, 'history-config.json')]).status, 0)
+    assert.equal(git(configured, 'show', 'main~1:.agents/gimi.json'), '{ "presets": ["commerce"] }')
+    assert.equal(git(configured, 'show', '--name-only', '--format=', 'main'), 'app/src/stock.ts')
+    assert.equal(git(configured, 'diff', '--name-only', 'main'), 'app/src/stock.ts')
   })
 
   it('이력 패치가 정상 버전에서 거꾸로 붙지 않으면 실패한다', () => {
@@ -128,6 +136,34 @@ describe('defects.mjs materialize·base', () => {
     assert.equal(result.status, 0, result.stderr)
     assert.equal(git(dir, 'branch', '--show-current'), 'feature/stock-message')
     assert.equal(git(dir, 'branch', '--format=%(refname:short)'), 'feature/stock-message\nmain')
+  })
+
+  it('--config면 설정 파일을 정상 버전(main)에 .agents/gimi.json으로 넣는다 — 결함 PR diff에는 없다', () => {
+    const config = join(out, 'gimi.json')
+    writeFileSync(config, '{ "presets": ["commerce"] }\n')
+    const dir = join(out, 'config')
+    const result = run(['materialize', 'COM-007', dir, '--fixture', repo.dir, '--config', config])
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(git(dir, 'show', 'main:.agents/gimi.json'), '{ "presets": ["commerce"] }')
+    assert.equal(git(dir, 'diff', '--name-only', 'main'), 'app/src/stock.ts')
+    assert.equal(git(dir, 'status', '--porcelain'), '')
+  })
+
+  it('--config 파일이 없거나 JSON 객체가 아니거나 값이 없으면 만들지 않는다', () => {
+    writeFileSync(join(out, 'array.json'), '[1]\n')
+    const cases = [
+      [['--config', join(out, 'missing.json')], /설정 파일이 없다/],
+      [['--config', join(out, 'array.json')], /JSON 객체가 아니다/],
+      [['--config'], /--config에 값이 없다/],
+      [['--config', '--link-deps'], /--config에 값이 없다/],
+    ]
+    for (const [extra, message] of cases) {
+      const dir = join(out, 'config-bad')
+      const result = run(['materialize', 'COM-007', dir, '--fixture', repo.dir, ...extra])
+      assert.equal(result.status, 1, `${extra.join(' ')} — ${result.stderr}`)
+      assert.match(result.stderr, message)
+      assert.equal(existsSync(dir), false)
+    }
   })
 
   it('--link-deps면 예제 저장소의 node_modules를 링크한다 — 커밋에는 들어가지 않는다', () => {

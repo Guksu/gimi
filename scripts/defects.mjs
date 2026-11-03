@@ -6,18 +6,19 @@
  *   node scripts/defects.mjs materialize <ID> <폴더>      main = 정상 버전, defect/<ID> = 결함 PR(체크아웃)
  *        --branch <이름>   결함 브랜치 이름(기본 defect/<ID>) — 리뷰 평가에서 결함 ID가 드러나지 않게
  *        --link-deps       예제 저장소의 node_modules를 링크한다(맥락 수집이 프로젝트의 typescript를 쓰게)
+ *        --config <파일>   그 파일을 정상 버전(main)에 .agents/gimi.json으로 넣는다 — 리뷰 평가의 설정 조건, 결함 PR diff에는 없다
  *   node scripts/defects.mjs base <폴더>                  정상 버전만 — 새 결함 패치를 만들 때 쓴다
  *   공통: --fixture <폴더>(기본 evals/shop-fixture)
  *
  * 잡는 테스트는 예제 저장소의 의존성(npm ci)과 PostgreSQL(npm run db:up)이 있어야 돌린다. 판단은 lib/defects.mjs가 맡는다.
  */
 import { execFileSync, spawn } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseRuleFile } from '../skills/gimi-review/scripts/lib/rulefile.mjs'
-import { formatCheck, patchedPaths, runCatches, validateDefect } from './lib/defects.mjs'
+import { formatCheck, parseConfig, patchedPaths, runCatches, validateDefect } from './lib/defects.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BASE_MESSAGE = 'feat: 국수집 주문 앱'
@@ -43,13 +44,18 @@ class UsageError extends Error {}
 const parseArgs = (argv) => {
   const positional = []
   const defaultFixture = join(ROOT, 'evals/shop-fixture')
-  const options = { fixture: defaultFixture, tests: true, branch: null, linkDeps: false }
+  const options = { fixture: defaultFixture, tests: true, branch: null, linkDeps: false, config: null }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--fixture') options.fixture = resolve(argv[++i] ?? '')
     else if (arg === '--no-tests') options.tests = false
     else if (arg === '--branch') options.branch = argv[++i] ?? ''
     else if (arg === '--link-deps') options.linkDeps = true
+    else if (arg === '--config') {
+      const value = argv[++i]
+      if (value === undefined || value.startsWith('--')) throw new UsageError('--config에 값이 없다')
+      options.config = resolve(value)
+    }
     else if (arg.startsWith('--')) throw new UsageError(`모르는 옵션: ${arg}`)
     else positional.push(arg)
   }
@@ -108,15 +114,19 @@ const readDefect = (fixture, id) => {
 /**
  * 결함 버전 — 정상 버전 위에 defect/<ID> 브랜치를 따고 패치를 PR 제목·본문으로 커밋한다.
  * 이력(history)이 있으면 정상 버전에서 이력 패치를 거꾸로 풀어 처음 상태를 커밋하고, 이력 패치를 차례로 다시 올려 main에 쌓는다.
- * 그래서 main의 마지막 상태는 언제나 정상 버전과 같다
+ * 그래서 main의 마지막 상태는 언제나 정상 버전과 같다. config(파일 경로)를 주면 첫 커밋에 .agents/gimi.json으로 넣는다
  */
-const materialize = (fixture, id, dir, { branch = `defect/${id}` } = {}) => {
+const materialize = (fixture, id, dir, { branch = `defect/${id}`, config = null } = {}) => {
   const { json, patchPath } = readDefect(fixture, id)
   const history = Array.isArray(json.history) ? json.history : []
   const historyPath = (commit) => join(fixture, 'defects', id, commit.patch ?? '')
   copyBase(fixture, dir)
   for (let index = history.length - 1; index >= 0; index--) {
     applyPatch(dir, historyPath(history[index]), { reverse: true, what: `이력 패치가 정상 버전에서 거꾸로 붙지 않는다 — history ${index + 1}` })
+  }
+  if (config) {
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    copyFileSync(config, join(dir, '.agents/gimi.json'))
   }
   commitAll(dir, BASE_MESSAGE, BASE_DATE)
   history.forEach((commit, index) => {
@@ -259,8 +269,13 @@ const main = async () => {
     const dir = resolve(args[1])
     const branch = options.branch || `defect/${args[0]}`
     if (!/^[\w./-]+$/.test(branch)) throw new UsageError(`브랜치 이름이 틀렸다: ${branch}`)
+    if (options.config) {
+      if (!(existsSync(options.config) && statSync(options.config).isFile())) throw new UsageError(`설정 파일이 없다: ${options.config}`)
+      const { error } = parseConfig(readFileSync(options.config, 'utf8'))
+      if (error) throw new UsageError(`설정 파일이 ${error}: ${options.config}`)
+    }
     ensureEmpty(dir)
-    materialize(options.fixture, args[0], dir, { branch })
+    materialize(options.fixture, args[0], dir, { branch, config: options.config })
     if (options.linkDeps) linkNodeModules(options.fixture, dir)
     console.log(`${dir}\n  main = 정상 버전\n  ${branch} = 결함 PR(체크아웃됨) — 리뷰 범위는 main...${branch}`)
     return 0
@@ -272,7 +287,7 @@ const main = async () => {
     console.log(`${dir}\n  main = 정상 버전 — 고친 뒤 git diff > defects/<ID>/change.patch`)
     return 0
   }
-  throw new UsageError('사용법: defects.mjs check [ID…] [--no-tests] | materialize <ID> <폴더> [--branch <이름>] [--link-deps] | base <폴더> [--link-deps]  [--fixture <폴더>]')
+  throw new UsageError('사용법: defects.mjs check [ID…] [--no-tests] | materialize <ID> <폴더> [--branch <이름>] [--link-deps] [--config <파일>] | base <폴더> [--link-deps]  [--fixture <폴더>]')
 }
 
 main().then(

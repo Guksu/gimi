@@ -117,6 +117,21 @@ export const validateDefect = ({ dir, json, ruleIds, patchedLines, baseLines, to
   return errors
 }
 
+/**
+ * 평가용 저장소에 넣을 설정(.agents/gimi.json)의 글 — JSON 객체여야 한다.
+ * rules.mjs는 객체가 아닌 설정을 알림 없이 설정 없음으로 보므로, 넣기 전에 막는다
+ * @returns {{ config: object } | { error: string }}
+ */
+export const parseConfig = (text) => {
+  let config
+  try {
+    config = JSON.parse(text)
+  } catch {
+    return { error: 'JSON으로 읽지 못했다' }
+  }
+  return config !== null && typeof config === 'object' && !Array.isArray(config) ? { config } : { error: 'JSON 객체가 아니다' }
+}
+
 /** 패치가 고치는 파일 — 고친 파일, 새 파일, 지운 파일, 이름을 바꾼 파일의 옛 이름과 새 이름 */
 export const patchedPaths = (patch) => {
   const paths = []

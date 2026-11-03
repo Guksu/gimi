@@ -2,29 +2,33 @@
 /**
  * 리뷰 품질 평가(설계 결정 15) — 결함 PR마다 리뷰어를 돌리고 정답과 맞춰 채점한다.
  *
- *   node scripts/review-eval.mjs coverage [ID…] [--out <폴더>]
+ *   node scripts/review-eval.mjs coverage [ID…] [--out <폴더>] [--config <파일>]
  *        모델 없이 — 결함마다 정답·근거 위치가 gimi의 맥락 묶음(context.mjs)에 있는지
- *   node scripts/review-eval.mjs run [ID…] --reviewer gimi|code-review [--runs N] [--model M] [--out <폴더>] [--claude <실행 파일>]
+ *   node scripts/review-eval.mjs run [ID…] --reviewer gimi|code-review [--runs N] [--model M] [--out <폴더>] [--claude <실행 파일>] [--config <파일>]
  *        결함 PR마다 평가용 저장소를 만들어 claude -p로 리뷰한다. 두 리뷰어에 같은 지시를 주고, gimi만 --plugin-dir로 이 저장소를 받는다
+ *        실행마다 설정 조건(평가용 저장소의 .agents/gimi.json, 모델 없이 돌린 규칙 목록의 첫 줄)을 결과에 남긴다
  *   node scripts/review-eval.mjs score <폴더>
- *        run이 쓴 결과를 채점표로(<폴더>/score.md)
+ *        run이 쓴 결과를 채점표로(<폴더>/score.md) — 맨 위에 설정 조건
  *   공통: --fixture <폴더>(기본 evals/shop-fixture)
+ *   --config <파일>: 그 JSON을 평가용 저장소의 정상 버전(main)에 .agents/gimi.json으로 넣는다(PR diff에는 없다). 없으면 설정 없이 돈다
  *
  * 공정하게 — 사용자 설정·플러그인·MCP는 읽지 않는다(--setting-sources project, --strict-mcp-config). 평가용 저장소의 폴더·브랜치
  * 이름에는 결함 ID를 넣지 않는다(feature/pr). 결함의 issues는 가짜 gh(scripts/fake-gh.mjs)로 두 리뷰어에게 똑같이 준다.
  * 판단은 scripts/lib/review-eval.mjs가 맡는다.
  */
 import { execFileSync, spawn } from 'node:child_process'
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseConfig } from './lib/defects.mjs'
 import { coverageOf, formatScore, hunksOf, scoreRuns } from './lib/review-eval.mjs'
 import { parseStream } from './lib/stream.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
 const DEFECTS = join(ROOT, 'scripts/defects.mjs')
 const CONTEXT = join(ROOT, 'skills/gimi-review/scripts/context.mjs')
+const RULES = join(ROOT, 'skills/gimi-review/scripts/rules.mjs')
 const FAKE_GH = join(ROOT, 'scripts/fake-gh.mjs')
 const ISSUE_REPO = 'guksu-shop/shop'
 const BRANCH = 'feature/pr'
@@ -54,7 +58,7 @@ class UsageError extends Error {}
 
 const parseArgs = (argv) => {
   const positional = []
-  const options = { fixture: join(ROOT, 'evals/shop-fixture'), out: null, reviewer: null, runs: 1, model: null, claude: 'claude' }
+  const options = { fixture: join(ROOT, 'evals/shop-fixture'), out: null, reviewer: null, runs: 1, model: null, claude: 'claude', config: null }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     const value = () => {
@@ -68,6 +72,7 @@ const parseArgs = (argv) => {
     else if (arg === '--runs') options.runs = Number(value())
     else if (arg === '--model') options.model = value()
     else if (arg === '--claude') options.claude = value()
+    else if (arg === '--config') options.config = resolve(value())
     else if (arg.startsWith('--')) throw new UsageError(`모르는 옵션: ${arg}`)
     else positional.push(arg)
   }
@@ -91,14 +96,35 @@ const pick = (fixture, ids) => {
   return ids.length > 0 ? ids : all
 }
 
+/** --config 파일 — JSON 객체여야 한다. 주지 않았으면 null(설정 없이 돈다) */
+const readConfig = (path) => {
+  if (!path) return null
+  if (!(existsSync(path) && statSync(path).isFile())) throw new UsageError(`--config 파일이 없다: ${path}`)
+  const { config, error } = parseConfig(readFileSync(path, 'utf8'))
+  if (error) throw new UsageError(`--config 파일이 ${error}: ${path}`)
+  return config
+}
+
+/** 평가용 저장소의 정상 버전에 들어간 설정 — 리뷰어가 본 그대로 남긴다(없으면 null, 객체가 아니면 글 그대로) */
+const configIn = (repo) => {
+  let text
+  try {
+    text = execFileSync('git', ['show', 'main:.agents/gimi.json'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    return null
+  }
+  return parseConfig(text).config ?? text
+}
+
 /**
  * 평가용 저장소 — 이름이 중립인 임시 폴더에, 결함 브랜치는 feature/pr, 예제 저장소의 의존성을 링크한다.
+ * 설정 파일을 주면 정상 버전(main)에 .agents/gimi.json으로 넣는다 — 두 리뷰어가 같은 설정을 보고, PR diff에는 없다.
  * 저장소 밖(holder/bin)에 가짜 gh를 두고 그 폴더를 PATH 앞에 넣는다 — 결함의 issues를 이슈로 돌려준다(없으면 빈 목록)
  */
-const prepare = (fixture, id) => {
+const prepare = (fixture, id, config) => {
   const holder = mkdtempSync(join(tmpdir(), 'shop-'))
   const repo = join(holder, 'shop')
-  execFileSync(process.execPath, [DEFECTS, 'materialize', id, repo, '--fixture', fixture, '--branch', BRANCH, '--link-deps'], { stdio: ['ignore', 'pipe', 'pipe'] })
+  execFileSync(process.execPath, [DEFECTS, 'materialize', id, repo, '--fixture', fixture, '--branch', BRANCH, '--link-deps', ...(config ? ['--config', config] : [])], { stdio: ['ignore', 'pipe', 'pipe'] })
   const bin = join(holder, 'bin')
   mkdirSync(bin)
   writeFileSync(join(bin, 'issues.json'), `${JSON.stringify({ repo: ISSUE_REPO, issues: readDefect(fixture, id).issues ?? [] })}\n`)
@@ -107,13 +133,24 @@ const prepare = (fixture, id) => {
   return { holder, repo, env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` } }
 }
 
-const coverage = ({ fixture, ids, out }) => {
+// gimi가 볼 규칙 목록의 첫 줄 — 모델 없이 평가용 저장소에서 돌려 설정 조건으로 남긴다(돌리지 못하면 null).
+// code-review는 이 목록을 읽지 않지만, 같은 평가용 저장소라 조건을 견줄 때 같은 값을 남긴다
+const rulesHeader = (repo) => {
+  try {
+    return execFileSync(process.execPath, [RULES], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).split('\n')[0]
+  } catch {
+    return null
+  }
+}
+
+const coverage = ({ fixture, ids, out, config }) => {
+  const settings = readConfig(config)
   const result = {}
   const lines = []
   for (const id of pick(fixture, ids)) {
     const defect = readDefect(fixture, id)
     if (defect.clean === true) continue
-    const { holder, repo, env } = prepare(fixture, id)
+    const { holder, repo, env } = prepare(fixture, id, config)
     try {
       const bundle = JSON.parse(execFileSync(process.execPath, [CONTEXT, '--json'], { cwd: repo, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }))
       result[id] = coverageOf({ bundle, defect })
@@ -126,7 +163,7 @@ const coverage = ({ fixture, ids, out }) => {
   }
   const total = Object.values(result).flat()
   const tally = ['바뀐 조각', '바뀐 파일', '영향 범위', '이력', '의도'].map((where) => `${where} ${total.filter((item) => item.where === where).length}`).join(' · ')
-  console.log(`맥락 수집 점검 — 정답·근거 ${total.length}개 가운데 ${total.filter((item) => item.covered).length}개가 맥락 묶음에 있다(${tally})`)
+  console.log(`맥락 수집 점검 (설정 ${settings ? JSON.stringify(settings) : '없음'}) — 정답·근거 ${total.length}개 가운데 ${total.filter((item) => item.covered).length}개가 맥락 묶음에 있다(${tally})`)
   for (const line of lines) console.log(line)
   if (out) {
     mkdirSync(out, { recursive: true })
@@ -158,12 +195,16 @@ const runReviews = async ({ fixture, ids, options }) => {
   const reviewer = REVIEWERS[options.reviewer]
   if (!reviewer) throw new UsageError(`--reviewer는 ${Object.keys(REVIEWERS).join('·')} 중 하나다`)
   if (!Number.isInteger(options.runs) || options.runs < 1) throw new UsageError('--runs는 1 이상의 정수다')
+  // 설정 파일은 시작할 때 검사만 한다 — 결과에는 실행마다 평가용 저장소에서 읽은 설정을 남긴다
+  readConfig(options.config)
   const out = options.out ?? join(ROOT, 'evals/review/runs', new Date().toISOString().slice(0, 10))
   const folder = join(out, options.reviewer)
   mkdirSync(folder, { recursive: true })
   for (const id of pick(fixture, ids)) {
     for (let n = 1; n <= options.runs; n++) {
-      const { holder, repo, env } = prepare(fixture, id)
+      const { holder, repo, env } = prepare(fixture, id, options.config)
+      const config = configIn(repo)
+      const rules = rulesHeader(repo)
       const prompt = reviewer.prompt
       const args = [
         '-p',
@@ -199,6 +240,9 @@ const runReviews = async ({ fixture, ids, options }) => {
           model: options.model ?? '(기본)',
           prompt,
           tools: { allowed: ALLOWED_TOOLS, disallowed: DISALLOWED_TOOLS },
+          // 설정 조건 — 평가용 저장소의 설정과 규칙 목록 첫 줄. 조건이 다른 실행을 한 표에 섞지 않으려고
+          config,
+          rules,
           exitCode: result.code,
           durationMs: parsed?.duration_ms ?? result.durationMs,
           costUsd: parsed?.total_cost_usd ?? null,
@@ -243,12 +287,12 @@ const score = ({ fixture, dir }) => {
 const main = async () => {
   const { command, args, options } = parseArgs(process.argv.slice(2))
   if (command === 'coverage') {
-    coverage({ fixture: options.fixture, ids: args, out: options.out })
+    coverage({ fixture: options.fixture, ids: args, out: options.out, config: options.config })
     return 0
   }
   if (command === 'run') return runReviews({ fixture: options.fixture, ids: args, options })
   if (command === 'score') return score({ fixture: options.fixture, dir: args[0] ? resolve(args[0]) : null })
-  throw new UsageError('사용법: review-eval.mjs coverage [ID…] [--out <폴더>] | run [ID…] --reviewer gimi|code-review [--runs N] [--model M] [--out <폴더>] [--claude <실행 파일>] | score <폴더>  [--fixture <폴더>]')
+  throw new UsageError('사용법: review-eval.mjs coverage [ID…] [--out <폴더>] [--config <파일>] | run [ID…] --reviewer gimi|code-review [--runs N] [--model M] [--out <폴더>] [--claude <실행 파일>] [--config <파일>] | score <폴더>  [--fixture <폴더>]')
 }
 
 main().then(
