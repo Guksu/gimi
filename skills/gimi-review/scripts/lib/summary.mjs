@@ -1,6 +1,6 @@
 /**
  * 맥락 묶음 요약 — 에이전트가 먼저 읽는 짧은 글. 전체는 JSON 파일에 있고, 요약은 줄 수 상한을 지킨다(설계 결정 19).
- * 순서: 범위 → 바뀐 파일 → 의도 → 이력 → 영향 범위 → 건너뜀 → 참고 → 전체 경로
+ * 순서: 범위 → 바뀐 파일 → 의도 → CI → 이력 → 영향 범위 → 건너뜀 → 참고 → 전체 경로
  */
 
 const STATUS = { added: 'A', deleted: 'D', modified: 'M', renamed: 'R' }
@@ -10,6 +10,8 @@ const CHANGE_ORDER = { signature: 0, removed: 1, body: 2, wraps: 3 }
 const MAX_FILES = 30
 const MAX_COMMITS = 10
 const MAX_USAGES = 10
+const MAX_CHECKS = 10
+const BUCKET_LABEL = { fail: '실패', cancel: '취소', pending: '진행 중', unknown: '알 수 없음', pass: '통과', skipping: '생략' }
 
 const capped = ({ rows, max, unit }) => (rows.length > max ? [...rows.slice(0, max), `  … 외 ${rows.length - max}${unit}`] : rows)
 
@@ -27,6 +29,20 @@ const intentRows = (intent) => {
   for (const ticket of intent.tickets ?? []) parts.push(`${ticket.id}(${ticket.source === 'unknown' ? '출처 모름' : ticket.source} — 에이전트가 읽음)`)
   if ((intent.links ?? []).length > 0) parts.push(`링크 ${intent.links.length}개(${[...new Set(intent.links.map((link) => link.source))].join('·')} — 에이전트가 읽음)`)
   return [`의도    ${parts.join(' / ') || '없음'}`, `        브랜치 ${intent.branch ?? '(분리된 HEAD)'}, 커밋 ${intent.commits.length}`]
+}
+
+// CI — 결과마다 수를 세고, 볼 것(실패·취소·진행 중·알 수 없음)만 이름·링크와 함께 줄로 보인다. 건너뛰었으면(null) 건너뜀에 이유가 있다
+const ciRows = (checks) => {
+  if (checks == null) return []
+  if (checks.length === 0) return ['CI      체크 없음']
+  const counts = Object.keys(BUCKET_LABEL)
+    .map((bucket) => [bucket, checks.filter((check) => check.bucket === bucket).length])
+    .filter(([, count]) => count > 0)
+    .map(([bucket, count]) => `${BUCKET_LABEL[bucket]} ${count}`)
+  const rank = Object.keys(BUCKET_LABEL)
+  const open = checks.filter((check) => !['pass', 'skipping'].includes(check.bucket)).sort((a, b) => rank.indexOf(a.bucket) - rank.indexOf(b.bucket))
+  const row = (check) => `  [${BUCKET_LABEL[check.bucket]}] ${check.workflow ? `${check.workflow} / ` : ''}${check.name}${check.link ? `  ${check.link}` : ''}`
+  return [`CI      ${counts.join(' · ')}`, ...capped({ rows: open.map(row), max: MAX_CHECKS, unit: '개' })]
 }
 
 const commitRow = ({ commit, paths }) => {
@@ -160,6 +176,7 @@ export const renderSummary = ({ context, outPath, notWritten = false, maxLines =
   const rows = [`범위    ${scope.baseRef}...${scope.branch ?? scope.head.slice(0, 7)} (갈림점 ${scope.mergeBase.slice(0, 7)}, 커밋 ${scope.commitCount}, 파일 ${files.length})`]
   rows.push('바뀐 파일', ...(files.length > 0 ? capped({ rows: files.map(fileRow), max: MAX_FILES, unit: '개' }) : ['  없음']))
   rows.push(...intentRows(intent))
+  rows.push(...ciRows(context.checks))
   if (history) rows.push(...historyRows(history))
   if (context.impact) rows.push(...impactRows(context.impact), ...contractRows(context.impact.contracts))
   rows.push(...(context.skipped.length > 0 ? context.skipped.map((skip) => `건너뜀  ${skip.context} — ${skip.reason}`) : ['건너뜀  없음']))

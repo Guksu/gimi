@@ -1,7 +1,8 @@
 /**
- * 맥락 묶음 만들기 — 범위·바뀐 파일·의도·이력·영향 범위를 모으고, 모으지 못한 것은 이유와 함께 skipped에 남긴다(설계 결정 19).
+ * 맥락 묶음 만들기 — 범위·바뀐 파일·의도·CI·이력·영향 범위를 모으고, 모으지 못한 것은 이유와 함께 skipped에 남긴다(설계 결정 19).
  * "없음"과 "건너뜀"을 섞지 않는다. 사용처를 찾지 못한 것과 찾기를 건너뛴 것은 다르다.
  */
+import { collectChecks } from './checks.mjs'
 import { collectContracts } from './contracts.mjs'
 import { parseDiff } from './diff.mjs'
 import { attempt } from './exec.mjs'
@@ -67,6 +68,9 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   // 사용자의 diff 설정(접두어 없애기 등)이 출력 모양을 바꾸지 않게 접두어를 정해 준다
   const files = parseDiff(exec.git(['diff', '--no-color', '--no-ext-diff', '--no-textconv', '--src-prefix=a/', '--dst-prefix=b/', '--unified=0', '-M', scope.mergeBase, 'HEAD']))
   const intent = collectIntent({ exec, gh, scope, prInfo, keyPatterns })
+  // PR의 CI 결과 — scope가 PR의 머리 커밋이 HEAD와 같은지 이미 확인했다
+  const ci = collectChecks({ gh, prInfo, pr })
+  skipped.push(...ci.skipped)
 
   const shallow = exec.git(['rev-parse', '--is-shallow-repository']).trim() === 'true'
   if (shallow) skipped.push({ context: '이력', reason: '얕은 복제라 이력을 볼 수 없다(git fetch --unshallow 뒤 다시 돌린다)' })
@@ -91,5 +95,5 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   if (scope.dirty) notes.push('작업 트리에 커밋하지 않은 변경이 있다 — 맥락에 넣지 않았다')
 
   const prRef = prInfo ? { number: prInfo.number, url: prInfo.url } : pr != null ? { number: pr, url: null } : null
-  return { version: 1, generatedAt: now.toISOString(), scope: { ...scope, pr: prRef }, files: files.map(slim), intent, history, impact, skipped, notes }
+  return { version: 1, generatedAt: now.toISOString(), scope: { ...scope, pr: prRef }, files: files.map(slim), intent, checks: ci.checks, history, impact, skipped, notes }
 }
