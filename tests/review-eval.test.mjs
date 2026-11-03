@@ -204,3 +204,44 @@ describe('hunksOf·locateFinding — 지적이 PR diff의 어디에 있나', () 
     assert.equal(scoreRuns({ runs: [{ ...runs[0], hunks: undefined }] }).reviewers[0].extraAt, null)
   })
 })
+
+describe('설정 조건 — 실행마다 평가용 저장소의 설정(.agents/gimi.json)과 규칙 목록 첫 줄', () => {
+  const header = '규칙      stacks frontend-ts·backend (설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다) · 프리셋 없음 · 회사 규칙 없음'
+  const base = { id: 'COM-024', defect: defect(), output: 'FINDING 없음' }
+
+  it('리뷰어마다 같은 조건끼리 묶는다 — 설정이 없으면 없음, 이 기록이 생기기 전의 결과는 기록 없음, 규칙 목록을 못 돌렸으면 읽지 못함', () => {
+    const runs = [
+      { ...base, reviewer: 'gimi', run: 1, config: null, rules: header },
+      { ...base, reviewer: 'gimi', run: 2, config: null, rules: header },
+      { ...base, reviewer: 'gimi', run: 3, config: { presets: ['commerce'] }, rules: null },
+      { ...base, reviewer: 'code-review', run: 1 },
+    ]
+    const { reviewers, mixed } = scoreRuns({ runs })
+    assert.deepEqual(
+      reviewers.map((r) => [r.name, r.conditions]),
+      [
+        ['gimi', [{ config: '없음', rules: header.replace(/^규칙\s+/, ''), runs: 2 }, { config: '{"presets":["commerce"]}', rules: '읽지 못함', runs: 1 }]],
+        ['code-review', [{ config: '기록 없음', rules: '기록 없음', runs: 1 }]],
+      ],
+    )
+    assert.equal(mixed, true)
+  })
+
+  it('formatScore — 채점표 위에 설정 조건 표를 두고, 조건이 다른 실행이 섞이면 알린다', () => {
+    const text = formatScore(scoreRuns({ runs: [{ ...base, reviewer: 'gimi', run: 1, config: { stacks: ['backend'] }, rules: header }, { ...base, reviewer: 'code-review', run: 1, config: null, rules: header }] }))
+    const lines = text.split('\n')
+    assert.equal(lines[0], '| 리뷰어 | 실행 | 설정(.agents/gimi.json) | 규칙 목록 첫 줄 |')
+    assert.ok(lines.includes('| gimi | 1 | `{"stacks":["backend"]}` | stacks frontend-ts·backend (설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다) · 프리셋 없음 · 회사 규칙 없음 |'), text)
+    assert.ok(lines.includes('| code-review | 1 | 없음 | stacks frontend-ts·backend (설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다) · 프리셋 없음 · 회사 규칙 없음 |'), text)
+    assert.ok(lines.includes('실행마다 설정 조건이 다르다 — 결과 문서에 어느 실행이 어떤 조건인지 적는다.'), text)
+    assert.ok(lines.indexOf('| 리뷰어 | 실행 | 찾음 | 수집 실패 | 판단 실패 | 정답 밖 지적 | 오탐(결함 없는 PR) | 형식 어김 |') > 0)
+  })
+
+  it('조건이 모두 같으면 알리지 않는다 — 표를 깨는 |는 이스케이프한다', () => {
+    const runs = ['gimi', 'code-review'].map((reviewer) => ({ ...base, reviewer, run: 1, config: { note: 'a|b' }, rules: header }))
+    const text = formatScore(scoreRuns({ runs }))
+    assert.equal(scoreRuns({ runs }).mixed, false)
+    assert.doesNotMatch(text, /설정 조건이 다르다/)
+    assert.ok(text.includes('| gimi | 1 | `{"note":"a\\|b"}` |'), text)
+  })
+})

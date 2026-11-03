@@ -130,6 +130,25 @@ describe('defects.mjs materialize·base', () => {
     assert.equal(git(dir, 'branch', '--format=%(refname:short)'), 'feature/stock-message\nmain')
   })
 
+  it('--config면 설정 파일을 정상 버전(main)에 .agents/gimi.json으로 넣는다 — 결함 PR diff에는 없다', () => {
+    const config = join(out, 'gimi.json')
+    writeFileSync(config, '{ "presets": ["commerce"] }\n')
+    const dir = join(out, 'config')
+    const result = run(['materialize', 'COM-007', dir, '--fixture', repo.dir, '--config', config])
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(git(dir, 'show', 'main:.agents/gimi.json'), '{ "presets": ["commerce"] }')
+    assert.equal(git(dir, 'diff', '--name-only', 'main'), 'app/src/stock.ts')
+    assert.equal(git(dir, 'status', '--porcelain'), '')
+  })
+
+  it('--config 파일이 없으면 만들지 않는다', () => {
+    const dir = join(out, 'config-missing')
+    const result = run(['materialize', 'COM-007', dir, '--fixture', repo.dir, '--config', join(out, 'missing.json')])
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /설정 파일이 없다/)
+    assert.equal(existsSync(dir), false)
+  })
+
   it('--link-deps면 예제 저장소의 node_modules를 링크한다 — 커밋에는 들어가지 않는다', () => {
     mkdirSync(join(repo.dir, 'node_modules/left-pad'), { recursive: true })
     writeFileSync(join(repo.dir, 'node_modules/left-pad/index.js'), 'module.exports = 1\n')
