@@ -2,6 +2,7 @@
  * 맥락 묶음 요약 — 에이전트가 먼저 읽는 짧은 글. 전체는 JSON 파일에 있고, 요약은 줄 수 상한을 지킨다(설계 결정 19).
  * 순서: 범위 → 바뀐 파일 → 의도 → CI → 이력 → 영향 범위 → 건너뜀 → 참고 → 전체 경로
  */
+import { oneLine, safeLine } from './text.mjs'
 
 const STATUS = { added: 'A', deleted: 'D', modified: 'M', renamed: 'R' }
 const TAG_LABEL = { fix: '수정', revert: '되돌리기', hotfix: '긴급', workaround: '우회' }
@@ -21,14 +22,28 @@ const fileRow = (file) => {
   return `  ${STATUS[file.status] ?? '?'} ${path}  ${counts}`
 }
 
-const intentRows = (intent) => {
+const MAX_INTENT_COMMITS = 5
+
+// PR이 없으면 커밋 메시지가 의도의 출처다 — 주장(리팩터링만·동작 그대로 등)을 맞춰 볼 수 있게 제목을 보인다. 본문은 JSON에 있다.
+// 의도가 담긴 첫 커밋이 리뷰 반영 커밋들 뒤에 숨지 않게 오래된 것부터 보인다(git log는 최근 것이 앞). prUnread면 PR을 읽지 못한 것이다
+const intentRows = (intent, { prUnread = false } = {}) => {
   const parts = []
-  if (intent.pr) parts.push(`PR #${intent.pr.number} "${intent.pr.title}"`)
-  for (const issue of intent.issues ?? []) parts.push(`이슈 #${issue.number} "${issue.title}"`)
+  const commits = [...(intent.commits ?? [])].reverse()
+  if (intent.pr) parts.push(`PR #${intent.pr.number} "${oneLine(intent.pr.title)}"`)
+  else if (commits.length > 0) parts.push(`커밋 메시지 ${commits.length}개(${prUnread ? 'PR을 읽지 못함' : 'PR 없음'}, 오래된 것부터)`)
+  for (const issue of intent.issues ?? []) parts.push(`이슈 #${issue.number} "${oneLine(issue.title)}"`)
   for (const number of intent.unreadIssues ?? []) parts.push(`이슈 #${number}(읽지 못함)`)
   for (const ticket of intent.tickets ?? []) parts.push(`${ticket.id}(${ticket.source === 'unknown' ? '출처 모름' : ticket.source} — 에이전트가 읽음)`)
   if ((intent.links ?? []).length > 0) parts.push(`링크 ${intent.links.length}개(${[...new Set(intent.links.map((link) => link.source))].join('·')} — 에이전트가 읽음)`)
-  return [`의도    ${parts.join(' / ') || '없음'}`, `        브랜치 ${intent.branch ?? '(분리된 HEAD)'}, 커밋 ${intent.commits.length}`]
+  const rows = [`의도    ${parts.join(' / ') || '없음'}`, `        브랜치 ${intent.branch ?? '(분리된 HEAD)'}, 커밋 ${commits.length}`]
+  if (intent.pr) {
+    rows.push(intent.pr.body?.trim() ? '        PR 본문은 JSON의 intent.pr.body에 있다' : '        PR 본문 없음')
+  } else if (commits.length > 0) {
+    const commitRows = commits.map((commit) => `        ${commit.sha.slice(0, 7)} ${oneLine(commit.subject) || '(제목 없음)'}${commit.body ? ' [본문 있음]' : ''}`)
+    rows.push(...(commitRows.length > MAX_INTENT_COMMITS ? [...commitRows.slice(0, MAX_INTENT_COMMITS), `        … 외 ${commitRows.length - MAX_INTENT_COMMITS}개`] : commitRows))
+    if (commits.some((commit) => commit.body)) rows.push('        커밋 본문은 JSON의 intent.commits에 있다')
+  }
+  return rows
 }
 
 // 결과마다 보통 상태 — 다르면(승인 대기·시간 초과 등) 함께 적는다
@@ -57,7 +72,7 @@ const ciRows = (checks) => {
 
 const commitRow = ({ commit, paths }) => {
   const tags = commit.tags.length > 0 ? ` [${commit.tags.map((tag) => TAG_LABEL[tag]).join('·')}]` : ''
-  return `    ${commit.short} ${commit.subject}${tags} — ${paths.join(', ')}`
+  return `    ${commit.short} ${oneLine(commit.subject)}${tags} — ${paths.join(', ')}`
 }
 
 const historyRows = (history) => {
@@ -185,7 +200,7 @@ export const renderSummary = ({ context, outPath, notWritten = false, maxLines =
   const { scope, files, intent, history } = context
   const rows = [`범위    ${scope.baseRef}...${scope.branch ?? scope.head.slice(0, 7)} (갈림점 ${scope.mergeBase.slice(0, 7)}, 커밋 ${scope.commitCount}, 파일 ${files.length})`]
   rows.push('바뀐 파일', ...(files.length > 0 ? capped({ rows: files.map(fileRow), max: MAX_FILES, unit: '개' }) : ['  없음']))
-  rows.push(...intentRows(intent))
+  rows.push(...intentRows(intent, { prUnread: context.skipped.some((skip) => skip.context === '의도') }))
   rows.push(...ciRows(context.checks))
   if (history) rows.push(...historyRows(history))
   if (context.impact) rows.push(...impactRows(context.impact), ...contractRows(context.impact.contracts))
@@ -195,5 +210,6 @@ export const renderSummary = ({ context, outPath, notWritten = false, maxLines =
 
   // 상한을 넘으면 중간을 줄인다 — 마지막 줄(전체 경로)은 남겨 JSON을 열 수 있게 한다
   const body = rows.length + 1 > maxLines ? [...rows.slice(0, maxLines - 2), `… 외 ${rows.length - (maxLines - 2)}줄 — 전체는 JSON에 있다`] : rows
-  return `${[...body, last].join('\n')}\n`
+  // PR·커밋·경로·티켓 번호처럼 PR이 정할 수 있는 글이 어느 줄에 들어가도 줄을 나누지 못하게, 줄마다 한 번 더 거른다
+  return `${[...body, last].map(safeLine).join('\n')}\n`
 }

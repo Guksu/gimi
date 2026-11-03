@@ -7,7 +7,10 @@ import { oldChangedRanges } from './diff.mjs'
 import { attempt, readRepoFile } from './exec.mjs'
 
 /** git log 형식 — 필드는 \x1f, 커밋은 \x1e로 나눈다(제목·본문에 거의 나오지 않는 문자) */
-export const LOG_FORMAT = '%H%x1f%s%x1f%b%x1f%cI%x1e'
+// git log·show에 -z와 함께 쓴다 — 칸(해시·제목·본문·시각)을 NUL로 나누고 커밋마다 끝에 NUL이 붙는다.
+// 커밋 메시지에는 NUL이 들어갈 수 없어, 메시지에 든 다른 구분 문자로 가짜 커밋을 만들지 못한다
+export const LOG_FORMAT = '%H%x00%s%x00%b%x00%cI'
+const LOG_FIELDS = 4
 
 const FIX = /^fix(\([^)]*\))?!?:|\bfix(e[sd])?\b|\bbug ?fix\b|버그 ?(수정|픽스)|(오류|문제|결함) ?수정/i
 const REVERT = /^revert\b|\brevert(s|ed)?\b|되돌/i
@@ -48,16 +51,16 @@ export const prRefsOf = ({ subject }) => {
   return [squash?.[1], merge?.[1]].filter(Boolean).map(Number)
 }
 
-/** @param {string} text LOG_FORMAT으로 받은 출력 */
-export const parseLog = (text) =>
-  text
-    .split('\x1e')
-    .map((record) => record.replace(/^\n+/, ''))
-    .filter(Boolean)
-    .map((record) => {
-      const [sha, subject = '', body = '', date = ''] = record.split('\x1f')
-      return { sha: sha.trim(), subject, body: body.trim(), date: date.trim() }
-    })
+/** @param {string} text LOG_FORMAT과 -z로 받은 출력 */
+export const parseLog = (text) => {
+  const fields = text.split('\0')
+  const commits = []
+  for (let at = 0; at + LOG_FIELDS <= fields.length; at += LOG_FIELDS) {
+    const [sha, subject, body, date] = fields.slice(at, at + LOG_FIELDS)
+    commits.push({ sha: sha.trim(), subject, body: body.trim(), date: date.trim() })
+  }
+  return commits
+}
 
 /**
  * `git blame --porcelain` 해석 — 줄마다 커밋, 커밋마다 요약
@@ -126,7 +129,7 @@ export const collectHistory = ({ exec, scope, files, recentCommits }) => {
       if (out == null) continue
       for (const { line, sha } of parseBlamePorcelain(out).lines) blamed.set(sha, [...(blamed.get(sha) ?? []), line])
     }
-    const recent = parseLog(exec.git(['log', '-n', String(recentCommits), `--format=${LOG_FORMAT}`, scope.mergeBase, '--', file.oldPath]))
+    const recent = parseLog(exec.git(['log', '-z', '-n', String(recentCommits), `--format=${LOG_FORMAT}`, scope.mergeBase, '--', file.oldPath]))
     for (const commit of recent) commits.set(commit.sha, describe(commit))
     result.push({
       path: file.oldPath,
@@ -140,7 +143,7 @@ export const collectHistory = ({ exec, scope, files, recentCommits }) => {
 
   // 최근 N개 밖의 오래된 커밋이 blame에 나오면 내용을 따로 읽는다
   const missing = [...new Set(result.flatMap((file) => file.blamed.map((b) => b.sha)))].filter((sha) => !commits.has(sha))
-  if (missing.length > 0) for (const commit of parseLog(exec.git(['show', '-s', `--format=${LOG_FORMAT}`, ...missing]))) commits.set(commit.sha, describe(commit))
+  if (missing.length > 0) for (const commit of parseLog(exec.git(['show', '-s', '-z', `--format=${LOG_FORMAT}`, ...missing]))) commits.set(commit.sha, describe(commit))
 
   return { recentCommits, ignoreRevs: ignoreArgs.length > 0, files: result, commits: Object.fromEntries(commits), notes }
 }

@@ -6,23 +6,14 @@
  * 번호는 PR과 같은 저장소의 Actions 링크에서만 읽는다 — 이름에 적은 가짜 링크나 외부 CI 링크로 엉뚱한 로그를 열지 않게.
  */
 import { attempt } from './exec.mjs'
+import { oneLine } from './text.mjs'
 
 const FIELDS = 'name,workflow,bucket,state,event,link'
 // 먼저 볼 것부터 — 실패·취소·진행 중·통과·생략
 export const BUCKETS = ['fail', 'cancel', 'pending', 'pass', 'skipping']
 // 모르는 결과는 진행 중 다음에 둔다 — 끝났다고 볼 수 없다
 const order = (bucket) => (bucket === 'unknown' ? BUCKETS.indexOf('pending') + 0.5 : BUCKETS.indexOf(bucket))
-const MAX_TEXT = 120
-// 제어 문자(C0·C1), 줄·문단 구분, 폭 없는 문자, 글 방향을 바꾸는 문자
-const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]+/g
 const ACTIONS_PATH = /^\/([^/]+)\/([^/]+)\/actions\/runs\/(\d+)(?:\/job\/(\d+))?\/?$/
-
-const clean = (text) => {
-  const one = String(text ?? '')
-    .replace(UNSAFE, ' ')
-    .trim()
-  return one.length > MAX_TEXT ? `${one.slice(0, MAX_TEXT)}…` : one
-}
 
 /** 링크는 URL로 읽어 https만 정규화해 남긴다. 실행·작업 번호는 PR과 같은 호스트·저장소의 Actions 링크일 때만 */
 const readLink = (link, prUrl) => {
@@ -70,11 +61,11 @@ export const collectChecks = ({ gh, prInfo, pr = null }) => {
   if (!Array.isArray(parsed)) return skip(unread)
   const checks = parsed
     .map((check) => ({
-      name: clean(check?.name),
-      workflow: clean(check?.workflow),
+      name: oneLine(check?.name),
+      workflow: oneLine(check?.workflow),
       bucket: BUCKETS.includes(check?.bucket) ? check.bucket : 'unknown',
-      state: clean(check?.state),
-      event: clean(check?.event),
+      state: oneLine(check?.state),
+      event: oneLine(check?.event),
       ...readLink(check?.link, prInfo.url),
     }))
     .sort((a, b) => order(a.bucket) - order(b.bucket))

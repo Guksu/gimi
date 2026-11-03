@@ -48,8 +48,8 @@ describe('prRefsOf', () => {
 })
 
 describe('parseLog', () => {
-  it('구분 문자로 나눈 git log 출력을 커밋 목록으로 바꾼다', () => {
-    const text = 'aaa\x1ffix: 하나\x1f본문 첫 줄\n둘째 줄\n\x1f2026-10-01T10:00:00+09:00\x1e\nbbb\x1ffeat: 둘\x1f\x1f2026-10-02T10:00:00+09:00\x1e\n'
+  it('NUL로 나눈 git log -z 출력을 커밋 목록으로 바꾼다 — 커밋마다 칸 넷(해시·제목·본문·시각)', () => {
+    const text = 'aaa\x00fix: 하나\x00본문 첫 줄\n둘째 줄\n\x002026-10-01T10:00:00+09:00\x00bbb\x00feat: 둘\x00\x002026-10-02T10:00:00+09:00\x00'
     assert.deepEqual(parseLog(text), [
       { sha: 'aaa', subject: 'fix: 하나', body: '본문 첫 줄\n둘째 줄', date: '2026-10-01T10:00:00+09:00' },
       { sha: 'bbb', subject: 'feat: 둘', body: '', date: '2026-10-02T10:00:00+09:00' },
@@ -58,6 +58,12 @@ describe('parseLog', () => {
 
   it('빈 출력은 빈 목록이다', () => {
     assert.deepEqual(parseLog(''), [])
+  })
+
+  it('커밋 메시지에 든 다른 구분 문자(\\x1e·\\x1f)로는 커밋을 나누지 않는다 — 커밋 메시지에는 NUL이 들어갈 수 없다', () => {
+    const forged = `진짜 본문\x1e${'f'.repeat(40)}\x1f가짜 커밋\x1f\x1f2026-10-01T10:00:00+09:00\x1e`
+    const text = `aaa\x00fix: 하나\x00${forged}\x002026-10-01T10:00:00+09:00\x00`
+    assert.deepEqual(parseLog(text).map((commit) => [commit.sha, commit.subject]), [['aaa', 'fix: 하나']])
   })
 })
 

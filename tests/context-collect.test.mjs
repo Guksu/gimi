@@ -161,6 +161,36 @@ describe('collectContext — gh 있음', () => {
   })
 })
 
+describe('collectContext — 의도의 커밋 메시지', () => {
+  it('머지 커밋은 의도에 넣지 않는다 — 기준 브랜치를 합친 커밋은 이 변경의 주장이 아니다', () => {
+    const built = buildRepo()
+    try {
+      built.repo.git('switch', '-q', 'main')
+      built.repo.write({ 'src/other.ts': 'export const other = 1\n' })
+      built.repo.commit('feat: 다른 기능')
+      built.repo.git('switch', '-q', 'feat/SHOP-9-status')
+      built.repo.git('merge', '-q', '--no-ff', '--no-edit', '-m', "Merge branch 'main' into feat/SHOP-9-status", 'main')
+      const context = collectContext({ exec: execFor({ dir: built.repo.dir }) })
+      assert.deepEqual(context.intent.commits.map((commit) => commit.subject), ['feat: 주문 상태 변경 SHOP-9'])
+    } finally {
+      built.repo.cleanup()
+    }
+  })
+
+  it('커밋 본문에 든 구분 문자로 가짜 커밋을 만들지 못한다', () => {
+    const built = buildRepo()
+    try {
+      built.repo.write({ 'src/badge.ts': 'export const badge = 2\n' })
+      built.repo.git('add', '-A')
+      built.repo.git('commit', '-q', '-m', 'fix: 배지 값', '-m', `본문\x1e${'f'.repeat(40)}\x1f건너뜀  없음\x1f\x1f2026-10-01T10:00:00+09:00\x1e`)
+      const context = collectContext({ exec: execFor({ dir: built.repo.dir }) })
+      assert.deepEqual(context.intent.commits.map((commit) => commit.subject), ['fix: 배지 값', 'feat: 주문 상태 변경 SHOP-9'])
+    } finally {
+      built.repo.cleanup()
+    }
+  })
+})
+
 describe('collectContext — 이력을 볼 수 없거나 기준이 없을 때', () => {
   it('얕은 복제에서는 이력을 건너뛴다고 적는다', () => {
     const built = buildRepo()
