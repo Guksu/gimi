@@ -59,6 +59,10 @@ const context = () => ({
     literals: [{ value: 'orders/list', path: 'src/keys.ts', total: 1, unchanged: 1, usages: [{ path: 'src/cache.ts', line: 1, text: '', context: [], changedInPr: false }] }],
     notes: [],
   },
+  checks: [
+    { name: 'lint', workflow: 'CI', bucket: 'pass', state: 'SUCCESS', link: 'https://github.com/a/b/actions/runs/7/job/1' },
+    { name: 'test', workflow: 'CI', bucket: 'fail', state: 'FAILURE', link: 'https://github.com/a/b/actions/runs/7/job/2' },
+  ],
   skipped: [{ context: '의도', reason: 'gh 없음' }],
   notes: [],
 })
@@ -66,7 +70,7 @@ const context = () => ({
 describe('renderSummary', () => {
   it('범위·바뀐 파일·의도·이력·영향 범위·건너뜀·전체 경로를 차례로 보인다', () => {
     const text = renderSummary({ context: context(), outPath: 'docs/gimi/reviews/x.context.json' })
-    const order = ['범위', '바뀐 파일', '의도', '이력', '영향 범위', '건너뜀', '전체'].map((label) => text.indexOf(label))
+    const order = ['범위', '바뀐 파일', '의도', 'CI      ', '이력', '영향 범위', '건너뜀', '전체'].map((label) => text.indexOf(label))
     assert.ok(order.every((index, i) => index >= 0 && (i === 0 || index > order[i - 1])), text)
     assert.match(text, /main\.\.\.feat\/SHOP-9-status/)
     assert.match(text, /M src\/order\.ts {2}\+3 −1/)
@@ -150,6 +154,35 @@ describe('renderSummary', () => {
     const text = renderSummary({ context: ctx, outPath: 'x.json' })
     assert.doesNotMatch(text, /^이력 /m)
     assert.match(text, /이력 — 얕은 복제/)
+  })
+
+  it('CI 줄 — 결과마다 수를 세고, 실패·취소·진행 중인 체크만 이름·링크와 함께 줄로 보인다(통과는 수만)', () => {
+    const rows = renderSummary({ context: context(), outPath: 'x.json' }).split('\n')
+    const at = rows.findIndex((row) => row.startsWith('CI '))
+    assert.deepEqual(rows.slice(at, at + 2), ['CI      실패 1 · 통과 1', '  [실패] CI / test  https://github.com/a/b/actions/runs/7/job/2'])
+    assert.ok(!rows.some((row) => row.includes('job/1')))
+    const ctx = context()
+    ctx.checks = [
+      ...Array.from({ length: 12 }, (_, i) => ({ name: `t${i}`, workflow: '', bucket: 'pending', state: 'PENDING', link: null })),
+      { name: 'deploy', workflow: 'CD', bucket: 'cancel', state: 'CANCELLED', link: null },
+      { name: 'docs', workflow: 'CI', bucket: 'skipping', state: 'SKIPPED', link: null },
+    ]
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.match(text, /^CI {6}취소 1 · 진행 중 12 · 생략 1$/m)
+    assert.match(text, /^ {2}\[취소\] CD \/ deploy$/m)
+    assert.match(text, /^ {2}\[진행 중\] t0$/m)
+    assert.match(text, /^ {2}… 외 3개$/m)
+  })
+
+  it('CI를 건너뛰었으면(null) CI 줄 없이 건너뜀에만 보이고, 체크가 없는 PR이면 "체크 없음"이라고 쓴다', () => {
+    const ctx = context()
+    ctx.checks = null
+    ctx.skipped = [{ context: 'CI', reason: 'PR이 없어 CI 결과를 읽지 않았다(브랜치 리뷰)' }]
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.doesNotMatch(text, /^CI /m)
+    assert.match(text, /건너뜀 {2}CI — PR이 없어/)
+    ctx.checks = []
+    assert.match(renderSummary({ context: ctx, outPath: 'x.json' }), /^CI {6}체크 없음$/m)
   })
 
   it('의도가 비어 있으면 "없음"이라고 쓴다', () => {

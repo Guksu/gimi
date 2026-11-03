@@ -30,6 +30,17 @@ const okGh = ({ head, pr = 42 }) => (args) => {
   if (args[0] === 'pr' && args[1] === 'view')
     return JSON.stringify({ number: pr, title: '주문 상태 표시', body: 'closes #38', url: `https://github.com/a/b/pull/${pr}`, baseRefName: 'main', headRefOid: head, closingIssuesReferences: [{ number: 38 }] })
   if (args[0] === 'issue' && args[1] === 'view') return JSON.stringify({ number: Number(args[2]), title: '배지 색', body: '빨강으로', url: '' })
+  // 실패한 체크가 있으면 gh pr checks는 종료 코드 1로 끝나지만 표준 출력에 결과를 낸다
+  if (args[0] === 'pr' && args[1] === 'checks') {
+    const stdout = JSON.stringify([{ name: 'test', workflow: 'CI', bucket: 'fail', state: 'FAILURE', link: `https://github.com/a/b/actions/runs/7/job/${args[2]}` }])
+    throw Object.assign(new Error('gh exited 1'), { status: 1, stdout, stderr: '' })
+  }
+  throw new Error(`예상하지 못한 gh 호출: ${args.join(' ')}`)
+}
+// gh는 있지만 이 브랜치에 PR이 없다
+const noPrGh = (args) => {
+  if (args[0] === 'auth') return ''
+  if (args[0] === 'pr' && args[1] === 'view') throw Object.assign(new Error('gh exited 1'), { status: 1, stdout: '', stderr: 'no pull requests found for branch' })
   throw new Error(`예상하지 못한 gh 호출: ${args.join(' ')}`)
 }
 
@@ -85,6 +96,9 @@ describe('collectContext — gh 없이', () => {
     assert.deepEqual(context.intent.tickets, [{ id: 'SHOP-9', source: 'unknown' }])
     assert.equal(context.intent.pr, null)
     assert.ok(context.skipped.some((s) => s.context === '의도' && /gh/.test(s.reason)))
+    // CI 결과도 gh로 읽으니 건너뛴다
+    assert.equal(context.checks, null)
+    assert.ok(context.skipped.some((s) => s.context === 'CI' && /gh/.test(s.reason)))
   })
 
   it('프로젝트에 typescript가 없으면 영향 범위를 문자열 검색으로 찾고 이유를 적는다', () => {
@@ -119,6 +133,22 @@ describe('collectContext — gh 있음', () => {
       assert.equal(context.scope.pr.number, 42)
       assert.deepEqual(context.intent.issues.map((i) => i.number), [38])
       assert.ok(!context.skipped.some((s) => s.context === '의도'))
+      // 그 PR의 CI 결과 — 실패한 체크가 있어도 읽는다
+      assert.deepEqual(context.checks, [{ name: 'test', workflow: 'CI', bucket: 'fail', state: 'FAILURE', link: 'https://github.com/a/b/actions/runs/7/job/42' }])
+      assert.ok(!context.skipped.some((s) => s.context === 'CI'))
+    } finally {
+      built.repo.cleanup()
+    }
+  })
+
+  it('이 브랜치에 PR이 없으면 CI 결과를 건너뛴다고 적는다(의도는 건너뜀이 아니라 없음)', () => {
+    const built = buildRepo()
+    try {
+      const context = collectContext({ exec: execFor({ dir: built.repo.dir, gh: noPrGh }) })
+      assert.equal(context.intent.pr, null)
+      assert.ok(!context.skipped.some((s) => s.context === '의도'))
+      assert.equal(context.checks, null)
+      assert.deepEqual(context.skipped.filter((s) => s.context === 'CI'), [{ context: 'CI', reason: 'PR이 없어 CI 결과를 읽지 않았다(브랜치 리뷰)' }])
     } finally {
       built.repo.cleanup()
     }
