@@ -12,7 +12,7 @@ gimi is a code review skill (**gimi-review**) for Claude Code and Codex. AI revi
 
 - **Impact** — finds places this change did not touch that use a changed function, type or class method (TypeScript and JavaScript). It also searches for changed strings such as query keys and paths, and for removed fields.
 - **Contracts** — a contract is the API agreement between front end and back end (an OpenAPI or GraphQL schema). When it changes, gimi lists the changed endpoints and fields and where they are used. If the front end and back end live in different repositories, it also searches the repositories listed in the settings.
-- **Intent** — reads the pull request and issue text and checks the diff against the requirements. Jira, Notion and Linear tickets are read through tools connected to your agent; if they cannot be read, the agent asks you to paste them.
+- **Intent** — reads the pull request and issue text and checks the diff against the requirements. It also checks claims in the pull request and commit messages ("refactor only", "adds tests" and so on) against the collected context. Without a pull request, the commit messages are the intent. Jira, Notion and Linear tickets are read through tools connected to your agent; if they cannot be read, the agent asks you to paste them.
 - **CI** — if there is a pull request, collects its check results (name, result and link). For a failed check, the agent opens the log and uses it as evidence when this change caused the failure. gimi does not run tests itself, because that would run the pull request's code.
 - **History** — finds the commits that added the changed or removed lines, to see whether the change undoes an earlier fix.
 - **Rules** — checks against three layers.
