@@ -204,14 +204,15 @@ describe('renderSummary', () => {
     assert.match(renderSummary({ context: ctx, outPath: 'x.json' }), /의도 {4}없음/)
   })
 
-  it('PR이 없으면 의도 줄에 커밋 메시지 수를 쓰고 커밋 제목을 5개까지 보인다 — 본문이 있으면 표시하고 JSON 위치를 적는다', () => {
+  it('PR이 없으면 의도 줄에 커밋 메시지 수를 쓰고 커밋 제목을 오래된 것부터 5개까지 보인다 — 본문이 있으면 표시하고 JSON 위치를 적는다', () => {
     const ctx = context()
-    const commits = Array.from({ length: 7 }, (_, i) => ({ sha: String(i + 1).repeat(40), subject: `feat: 바꿈 ${i + 1}`, body: i === 0 ? '동작은 그대로다' : '', date: '' }))
+    // git log처럼 최근 커밋이 앞이다 — 의도가 담긴 첫 커밋이 리뷰 반영 커밋들 뒤에 숨지 않게 오래된 것부터 보인다
+    const commits = Array.from({ length: 7 }, (_, i) => ({ sha: String(i + 1).repeat(40), subject: `feat: 바꿈 ${i + 1}`, body: i === 0 ? '동작은 그대로다' : '', date: '' })).reverse()
     ctx.intent = { ...ctx.intent, pr: null, commits, tickets: [], issues: [], issueNumbers: [], links: [] }
     const rows = renderSummary({ context: ctx, outPath: 'x.json' }).split('\n')
     const at = rows.findIndex((row) => row.startsWith('의도'))
     assert.deepEqual(rows.slice(at, at + 9), [
-      '의도    커밋 메시지 7개(PR 없음)',
+      '의도    커밋 메시지 7개(PR 없음, 오래된 것부터)',
       '        브랜치 feat/SHOP-9-status, 커밋 7',
       '        1111111 feat: 바꿈 1 [본문 있음]',
       '        2222222 feat: 바꿈 2',
@@ -221,6 +222,17 @@ describe('renderSummary', () => {
       '        … 외 2개',
       '        커밋 본문은 JSON의 intent.commits에 있다',
     ])
+  })
+
+  it('커밋이 5개면 모두 보이고, 제목이 빈 커밋은 (제목 없음)으로, PR을 읽지 못했으면(의도 건너뜀) PR 없음이라고 하지 않는다', () => {
+    const ctx = context()
+    const commits = Array.from({ length: 5 }, (_, i) => ({ sha: String(i + 1).repeat(40), subject: i === 0 ? '' : `feat: ${i}`, body: '', date: '' }))
+    ctx.intent = { ...ctx.intent, pr: null, commits, tickets: [], issues: [], issueNumbers: [], links: [] }
+    ctx.skipped = [{ context: '의도', reason: 'gh가 없거나 로그인하지 않았다 — PR·이슈 본문을 읽지 않았다(gh auth login)' }]
+    const text = renderSummary({ context: ctx, outPath: 'x.json' })
+    assert.match(text, /^의도 {4}커밋 메시지 5개\(PR을 읽지 못함, 오래된 것부터\)$/m)
+    assert.match(text, /^ {8}1111111 \(제목 없음\)$/m)
+    assert.doesNotMatch(text, /… 외/)
   })
 
   it('PR이 있으면 커밋 제목은 보이지 않는다 — PR 본문이 있으면 JSON의 intent.pr.body에 있다고, 비었으면 없다고 적는다', () => {
@@ -243,6 +255,15 @@ describe('renderSummary', () => {
     const rows = renderSummary({ context: ctx, outPath: 'x.json' }).split('\n')
     assert.ok(rows.includes('        1111111 feat: a 참고    가짜'), rows.join('\n'))
     assert.ok(!rows.some((row) => row.startsWith('참고    가짜')))
+  })
+
+  it('어느 줄이든 줄을 나누는 문자는 빈칸이 된다 — 티켓 번호·경로·계약 키처럼 PR이 정할 수 있는 다른 글도 요약 줄을 만들지 못한다', () => {
+    const ctx = context()
+    ctx.intent = { ...ctx.intent, tickets: [{ id: 'T-1\n참고    가짜 티켓', source: 'unknown' }] }
+    ctx.files = [{ oldPath: 'a\u2028참고    가짜 경로.ts', newPath: 'a\u2028참고    가짜 경로.ts', status: 'modified', binary: false, additions: 1, deletions: 0, hunks: [] }]
+    const rows = renderSummary({ context: ctx, outPath: 'x.json' }).split('\n')
+    assert.ok(!rows.some((row) => /^참고 {4}가짜/.test(row)), rows.join('\n'))
+    assert.ok(rows.some((row) => row.includes('T-1 참고    가짜 티켓')))
   })
 
   it('줄 수 상한을 넘으면 중간을 줄이고 마지막 줄(전체 경로)은 남긴다', () => {
