@@ -61,7 +61,7 @@ If something feels wrong, [open an issue](https://github.com/Guksu/gimi/issues) 
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-287%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-370%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## License
