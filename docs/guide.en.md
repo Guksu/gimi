@@ -19,7 +19,7 @@ gimi is a code review skill (**gimi-review**) for Claude Code and Codex. AI revi
   - Common guardrails: signs of AI-written code, tests and reviews (for example an empty catch, or a claim with no evidence)
   - Domain presets: 29 commerce rules and 14 Korean e-commerce law rules
   - Team rules: `docs/gimi/rules.md`
-- **Review record** — writes findings to `docs/gimi/reviews/`. When the same kind of finding appears three times in the records, the agent reads them and proposes a team rule. A person must approve it before it becomes a rule.
+- **Review record** — writes findings to `docs/gimi/reviews/`. When the same group of findings that no rule covers appears in three separate reviews (`promoteAfter`), a script (`scripts/promote.mjs`) counts them and the agent drafts a team rule candidate. Reviewing the same pull request again counts once. A person must approve it before it becomes a rule.
 
 ## Installation
 
