@@ -22,7 +22,7 @@ node scripts/buildSlopTable.mjs                 # 이 문서의 금지선 표를
 
 ## 금지선 표
 
-규칙 파일(`skills/gimi-review/shared/rules/{test,code,review}.md`)의 `근거`로 `buildSlopTable.mjs`가 다시 쓴다. 손으로 고치지 않는다. 테스트·코드 줄은 기능 구현·테스트 작성 요청 12개를, 리뷰 줄은 PR 12개를 gimi 없이·있이 2번씩 실행해 셌다.
+규칙 파일(`skills/gimi-review/shared/rules/{test,code,review}.md`)의 `근거`로 `buildSlopTable.mjs`가 다시 쓴다. 손으로 고치지 않는다. 테스트·코드 줄은 기능 구현·테스트 작성 요청 12개를, 리뷰 줄은 PR 12개를 gimi 없이·있이 2번씩 실행해 셌다. "gimi 있이"는 이 표가 SKILL.md에 있을 때(2026-11-04 전) 잰 것이다. 다시 재면 표가 SKILL.md에 없는 조건이라 같은 조건이 아니다.
 
 <!-- slop-table:start -->
 | 줄 | gimi 없이 | gimi 있이 |
