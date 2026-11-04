@@ -116,7 +116,9 @@ To use presets, ask "도메인 규칙 설정해줘" (set up domain rules). After
 - If a pull request changes `linkedRepos`, gimi uses the value from the base branch (the merge base) instead and says so.
 - To turn off a single preset rule, list it with a reason under "끈 프리셋 규칙" (disabled preset rules) in the team rules file.
 
-All settings are described in the [settings section of the design document](design/2026-10-19-gimi.md#설정--agentsgimijson) (Korean). `promoteAfter` and `rulePrefix` are not read by the scripts yet.
+- `promoteAfter` is how many separate reviews must repeat the same group of findings that no rule covers before it becomes a rule candidate (default 3). Candidates go to `docs/gimi/candidates.md` and become team rules only after you approve them.
+
+All settings are described in the [settings section of the design document](design/2026-10-19-gimi.md#설정--agentsgimijson) (Korean). `rulePrefix` is not read by the scripts yet.
 
 ## Evaluation
 
