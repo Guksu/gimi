@@ -61,6 +61,6 @@ node scripts/buildSlopTable.mjs          # 규칙 파일의 근거로 측정 문
 
 릴리스 때 버전은 매니페스트 4곳(`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`의 두 곳, `.codex-plugin/plugin.json`), `CHANGELOG.md`에서 함께 고친다. 두 README의 배지 숫자(프리셋 규칙 수·테스트 수)도 손으로 적은 값이라 함께 본다. 매니페스트끼리 맞는지는 구조 검사가 본다.
 
-릴리스 전에는 법령 프리셋(`skills/gimi-review/shared/domains/kr-commerce-law/rules.md`)의 기준 버전 표와 시행 예정 조문을 국가법령정보센터에서 다시 확인하고, 시행일이 바뀌었으면 규칙을 고친 뒤 표의 확인한 날을 고친다(설계 결정 55).
+릴리스 전에는 법령 프리셋(`skills/gimi-review/shared/domains/kr-commerce-law/rules.md`)의 기준 버전 표와 시행 예정 조문을 국가법령정보센터에서 다시 확인하고(본문의 `[시행일]` 표시뿐 아니라 부칙의 "다만 … 부터 시행" 단서도 읽는다 — 표시가 없는 별표가 있고, 고시는 부칙에만 있다), 시행일이 바뀌었으면 규칙을 고친 뒤 표의 확인한 날을 고친다(설계 결정 55).
 
 게이트가 실패하면 고친 뒤 그 게이트부터 다시 돌린다. 트리거 평가는 LLM을 부르지 않는다. description과 요청 문장의 단어 겹침(IDF 가중)으로 순위를 매기는 대리 지표라 실제 모델의 선택과 다를 수 있다. 잡아내는 것은 두 가지다. 트리거 표현이 description에 없는 경우와, 두 description이 구별되지 않는 경우다.
