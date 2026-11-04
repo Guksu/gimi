@@ -122,7 +122,7 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
     assert.ok(results.rules.length > 0 && results.rules.every((rule) => rule.id.startsWith('test/')))
   })
 
-  it('apply·buildSlopTable — 규칙 파일의 근거를 바꾸고, gimi-review SKILL.md의 표를 다시 쓴다', () => {
+  it('apply·buildSlopTable — 규칙 파일의 근거를 바꾸고, 측정 문서(evals/slop/README.md)의 표를 다시 쓴다 — SKILL.md에는 표가 없다', () => {
     const root = join(out, 'root')
     const rule = (id, title) => `## ${id} ${title}\n- 대상: 둘 다\n- 검사: 리뷰\n- 근거: 측정 전\n`
     const files = {
@@ -131,7 +131,9 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
       review: `# 리뷰\n\n${rule('review/filler', '칭찬과 요약을 쓰지 않는다')}`,
     }
     mkdirSync(join(root, 'skills/gimi-review/shared/rules'), { recursive: true })
-    writeFileSync(join(root, 'skills/gimi-review/SKILL.md'), '# gimi-review\n\n<!-- slop-table:start -->\n<!-- slop-table:end -->\n')
+    mkdirSync(join(root, 'evals/slop'), { recursive: true })
+    writeFileSync(join(root, 'evals/slop/README.md'), '# 슬롭 금지선 측정\n\n<!-- slop-table:start -->\n<!-- slop-table:end -->\n')
+    writeFileSync(join(root, 'skills/gimi-review/SKILL.md'), '# gimi-review\n')
     for (const [area, text] of Object.entries(files)) writeFileSync(join(root, 'skills/gimi-review/shared/rules', `${area}.md`), text)
     const applied = run(['apply', join(out, 'results.json'), '--root', root])
     assert.equal(applied.status, 0, applied.stdout + applied.stderr)
@@ -144,9 +146,10 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
     assert.equal(table(['--check', '--root', root]).status, 1)
     assert.equal(table(['--root', root]).status, 0)
     assert.equal(table(['--check', '--root', root]).status, 0)
-    const skill = readFileSync(join(root, 'skills/gimi-review/SKILL.md'), 'utf8')
-    assert.match(skill, /\| `test\/tautology` 늘 참인 단언을 쓰지 않는다 \| 1번 중 1번 \| 1번 중 1번 \|/)
-    assert.match(skill, /\| `code\/fire-and-forget` 비동기 작업을 기다리지 않는다 \| 1번 중 1번 \| 1번 중 0번 \|/)
+    const table = readFileSync(join(root, 'evals/slop/README.md'), 'utf8')
+    assert.match(table, /\| `test\/tautology` 늘 참인 단언을 쓰지 않는다 \| 1번 중 1번 \| 1번 중 1번 \|/)
+    assert.match(table, /\| `code\/fire-and-forget` 비동기 작업을 기다리지 않는다 \| 1번 중 1번 \| 1번 중 0번 \|/)
+    assert.equal(readFileSync(join(root, 'skills/gimi-review/SKILL.md'), 'utf8'), '# gimi-review\n')
   })
 
   it('apply — 결과 파일에 영역이 있으면 그 영역의 규칙 파일만 바꾼다', () => {
@@ -187,11 +190,11 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
     const results = JSON.parse(readFileSync(join(out, 'results-review.json'), 'utf8'))
     assert.deepEqual([results.areas, results.runs], [['review'], { without: 1, with: 1 }])
 
-    // 근거를 리뷰 규칙 파일에 쓰고, gimi-review SKILL.md 표에 리뷰 줄이 올라간다
+    // 근거를 리뷰 규칙 파일에 쓰고, 측정 문서의 표에 리뷰 줄이 올라간다
     const root = join(out, 'root')
     assert.equal(run(['apply', join(out, 'results-review.json'), '--root', root]).status, 0)
     assert.match(readFileSync(join(root, 'skills/gimi-review/shared/rules/review.md'), 'utf8'), /- 근거: 측정 2026-10-29 — gimi 없이 1번 중 1번 · gimi 있이 1번 중 1번/)
     assert.equal(spawnSync(process.execPath, [join(ROOT, 'scripts/buildSlopTable.mjs'), '--root', root], { encoding: 'utf8' }).status, 0)
-    assert.match(readFileSync(join(root, 'skills/gimi-review/SKILL.md'), 'utf8'), /\| `review\/filler` 칭찬과 요약을 쓰지 않는다 \| 1번 중 1번 \| 1번 중 1번 \|/)
+    assert.match(readFileSync(join(root, 'evals/slop/README.md'), 'utf8'), /\| `review\/filler` 칭찬과 요약을 쓰지 않는다 \| 1번 중 1번 \| 1번 중 1번 \|/)
   })
 })
