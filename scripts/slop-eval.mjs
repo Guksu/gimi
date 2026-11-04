@@ -12,7 +12,7 @@
  *        --results는 규칙 파일에 옮길 측정 결과 파일을 쓴다. --areas는 그 영역의 줄만 센다(결과 파일에 영역을 남긴다)
  *   node scripts/slop-eval.mjs apply <결과 파일> [--root <폴더>]
  *        규칙 파일(skills/gimi-review/shared/rules/)의 근거를 "N번 중 M번"으로 바꾼다. 결과 파일에 영역이 있으면 그 영역의 파일만 바꾼다.
- *        SKILL.md의 금지선 표는 scripts/buildSlopTable.mjs가 다시 쓴다
+ *        측정 문서(evals/slop/README.md)의 금지선 표는 scripts/buildSlopTable.mjs가 다시 쓴다
  *   공통: --fixture <폴더>(기본 evals/shop-fixture)
  *
  * 판정 모델은 사용자 설정·플러그인·MCP를 읽지 않는다(--setting-sources project, --strict-mcp-config). 판단은 scripts/lib/slop-eval.mjs가 맡는다.

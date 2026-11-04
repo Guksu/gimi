@@ -1,7 +1,7 @@
 /**
- * 슬롭 금지선 측정을 규칙 파일과 SKILL.md에 옮긴다(설계 결정 34).
+ * 슬롭 금지선 측정을 규칙 파일과 측정 문서(evals/slop/README.md)에 옮긴다(설계 결정 34·63).
  * 측정 결과(줄마다 gimi 없이·있이 몇 번의 실행에 나왔나)로 규칙 파일의 `근거`를 "N번 중 M번"으로 바꾸고,
- * 그 `근거`로 SKILL.md의 금지선 표(gimi 없이 한 번 이상 나온 줄)를 만든다. 표의 정본은 규칙 파일이다.
+ * 그 `근거`로 측정 문서의 금지선 표(gimi 없이 한 번 이상 나온 줄)를 만든다. 표의 정본은 규칙 파일이다.
  */
 import { parseRuleFile } from '../../skills/gimi-review/scripts/lib/rulefile.mjs'
 
@@ -41,7 +41,7 @@ export const applyEvidence = ({ text, results }) => {
 }
 
 /**
- * SKILL.md의 금지선 표 — gimi 없이 한 번 이상 나온 줄만, 많이 나온 순(같으면 ID 순)
+ * 측정 문서의 금지선 표 — gimi 없이 한 번 이상 나온 줄만, 많이 나온 순(같으면 ID 순)
  * @param {{ files: { area: string, text: string }[] }} args 표에 넣을 영역의 규칙 파일
  */
 export const renderSlopTable = ({ files }) => {

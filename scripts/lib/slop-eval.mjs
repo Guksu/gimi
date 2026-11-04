@@ -192,7 +192,7 @@ export const formatSlopScore = ({ arms, rules, unmeasured = [] }) => {
   ].join('\n')
 }
 
-/** SKILL.md 금지선 표(결정 34)에 올릴 줄 — gimi 없이에서 한 번 이상 나온 줄, 많이 나온 순 */
+/** 측정 문서의 금지선 표(결정 34·63)에 올릴 줄 — gimi 없이에서 한 번 이상 나온 줄, 많이 나온 순 */
 export const skillTableRows = ({ arms, rules }) =>
   rules
     .filter((rule) => rule.without > 0)

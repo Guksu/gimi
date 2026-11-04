@@ -36,10 +36,10 @@ for (const name of SKILLS) {
   errors.push(...checkSkillDoc({ name, md, exists: (ref) => existsSync(join(skillsDir, name, ref)) }))
 }
 
-// 금지선 표(결정 34) — SKILL.md의 표가 규칙 파일의 근거로 만든 것과 같은지
-for (const { skill, current, expected } of expectedSlopDocuments(root)) {
-  if (expected === null) errors.push(`skills/${skill}/SKILL.md: 금지선 표 표시(<!-- slop-table:start --> … <!-- slop-table:end -->)가 없다`)
-  else if (expected !== current) errors.push(`skills/${skill}/SKILL.md: 금지선 표가 규칙 파일의 근거와 어긋남 — node scripts/buildSlopTable.mjs로 다시 만든다`)
+// 금지선 표(결정 34·63) — 측정 문서의 표가 규칙 파일의 근거로 만든 것과 같은지
+for (const { document, current, expected } of expectedSlopDocuments(root)) {
+  if (expected === null) errors.push(`${document}: 금지선 표 표시(<!-- slop-table:start --> … <!-- slop-table:end -->)가 없다`)
+  else if (expected !== current) errors.push(`${document}: 금지선 표가 규칙 파일의 근거와 어긋남 — node scripts/buildSlopTable.mjs로 다시 만든다`)
 }
 
 // 규칙 파일 — 공통 금지선 세 영역과 분야 프리셋의 형식
