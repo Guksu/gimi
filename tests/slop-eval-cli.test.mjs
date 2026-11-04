@@ -146,9 +146,9 @@ describe('slop-eval.mjs — 걸러 세기와 결과 옮기기', () => {
     assert.equal(table(['--check', '--root', root]).status, 1)
     assert.equal(table(['--root', root]).status, 0)
     assert.equal(table(['--check', '--root', root]).status, 0)
-    const table = readFileSync(join(root, 'evals/slop/README.md'), 'utf8')
-    assert.match(table, /\| `test\/tautology` 늘 참인 단언을 쓰지 않는다 \| 1번 중 1번 \| 1번 중 1번 \|/)
-    assert.match(table, /\| `code\/fire-and-forget` 비동기 작업을 기다리지 않는다 \| 1번 중 1번 \| 1번 중 0번 \|/)
+    const measured = readFileSync(join(root, 'evals/slop/README.md'), 'utf8')
+    assert.match(measured, /\| `test\/tautology` 늘 참인 단언을 쓰지 않는다 \| 1번 중 1번 \| 1번 중 1번 \|/)
+    assert.match(measured, /\| `code\/fire-and-forget` 비동기 작업을 기다리지 않는다 \| 1번 중 1번 \| 1번 중 0번 \|/)
     assert.equal(readFileSync(join(root, 'skills/gimi-review/SKILL.md'), 'utf8'), '# gimi-review\n')
   })
 
