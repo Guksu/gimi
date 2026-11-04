@@ -45,7 +45,8 @@ describe('promote.mjs — 반복 지적을 규칙 후보로', () => {
       const result = run({ cwd: repo.dir })
       assert.match(result.stdout, /^묶음 {6}기준 리뷰 4건/)
       assert.match(result.stdout, /^후보로 올릴 것 {2}없음$/m)
-      assert.match(result.stdout, /^쌓이는 중\n {2}api-shape {2}리뷰 3건/m)
+      // 쌓이는 묶음은 이름과 건수만 — 기록이 많아져도 출력이 커지지 않게
+      assert.match(result.stdout, /^쌓이는 중\n {2}api-shape {2}리뷰 3건$/m)
     })
     for (const value of [0, 'x', 2.5]) {
       withRepo({ ...reviews, '.agents/gimi.json': JSON.stringify({ promoteAfter: value }) }, (repo) => {
@@ -79,7 +80,20 @@ describe('promote.mjs — 반복 지적을 규칙 후보로', () => {
       assert.equal(json.threshold, 3)
       assert.equal(json.records, 3)
       assert.deepEqual(json.bundles.map((b) => [b.name, b.status, b.reviews]), [['api-shape', 'reached', 3], ['order-transition', 'known', 3]])
-      assert.deepEqual(json.malformed, [{ path: 'docs/gimi/reviews/2026-11-03-feat-x.md', finding: 4, problem: '묶음 이름이 없거나 형식이 틀림' }])
+      assert.deepEqual(json.malformed, [{ path: 'docs/gimi/reviews/2026-11-03-feat-x.md', finding: 4, line: 15, problem: '묶음 이름이 없거나 형식이 틀림' }])
+    })
+  })
+
+  it('형식 어김은 10개까지 보이고 나머지는 수로 — 머리 형식 어김은 줄 번호로', () => {
+    const many = ['# 리뷰', '', ...Array.from({ length: 12 }, (_, i) => [`## ${i + 1}. [고쳐야 함] 영향 범위 — 지적`, '']).flat(), '### 13. [고쳐야 함] 셋째 단계 머리'].join('\n')
+    withRepo({ 'docs/gimi/reviews/2026-11-04-pr-9.md': many }, (repo) => {
+      const line = run({ cwd: repo.dir }).stdout.split('\n').find((row) => row.startsWith('형식 어김'))
+      assert.match(line, /^형식 어김 {2}지적 13개 — /)
+      assert.equal(line.match(/\(규칙 줄 없음\)/g).length, 10)
+      assert.match(line, /, … 외 3개$/)
+    })
+    withRepo({ 'docs/gimi/reviews/2026-11-04-pr-9.md': '# 리뷰\n\n### 1. [고쳐야 함] 셋째 단계 머리\n' }, (repo) => {
+      assert.match(run({ cwd: repo.dir }).stdout, /^형식 어김 {2}지적 1개 — docs\/gimi\/reviews\/2026-11-04-pr-9\.md 3줄\(지적 머리 형식 어김\)$/m)
     })
   })
 
