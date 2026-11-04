@@ -19,9 +19,16 @@ const USAGE = '사용: node promote.mjs [--json]'
 const REVIEWS = 'docs/gimi/reviews'
 const KNOWN_FILES = ['docs/gimi/candidates.md', 'docs/gimi/rules.md']
 const DEFAULT_THRESHOLD = 3
+// 리뷰마다 두 번 돌아 출력이 기록 수에 따라 커지지 않게 — 형식 어김은 이만큼만 보인다(전체는 --json)
+const MAX_MALFORMED = 10
 
 const sourceText = ({ path, findings }) => `${path}#${findings.join('·')}`
-const bundleRow = (bundle) => `  ${bundle.name}  리뷰 ${bundle.reviews}건 — ${bundle.status === 'known' ? bundle.where : bundle.sources.map(sourceText).join(', ')}`
+// 출처는 후보 초안에 쓰는 기준에 닿은 묶음만 다 보인다. 쌓이는 묶음은 이름과 건수만
+const bundleRow = (bundle) => {
+  const tail = bundle.status === 'known' ? ` — ${bundle.where}` : bundle.status === 'reached' ? ` — ${bundle.sources.map(sourceText).join(', ')}` : ''
+  return `  ${bundle.name}  리뷰 ${bundle.reviews}건${tail}`
+}
+const malformedText = (m) => `${m.path}${m.finding == null ? ` ${m.line}줄` : `#${m.finding}`}(${m.problem})`
 
 const main = () => {
   const args = process.argv.slice(2)
@@ -68,7 +75,11 @@ const main = () => {
   rows.push(...(of('reached').length > 0 ? ['후보로 올릴 것', ...of('reached').map(bundleRow)] : ['후보로 올릴 것  없음']))
   if (of('growing').length > 0) rows.push('쌓이는 중', ...of('growing').map(bundleRow))
   if (of('known').length > 0) rows.push('이미 후보·규칙', ...of('known').map(bundleRow))
-  if (malformed.length > 0) rows.push(`형식 어김  지적 ${malformed.length}개 — ${malformed.map((m) => `${m.path}#${m.finding}(${m.problem})`).join(', ')}`)
+  if (malformed.length > 0) {
+    const shown = malformed.slice(0, MAX_MALFORMED).map(malformedText)
+    if (malformed.length > MAX_MALFORMED) shown.push(`… 외 ${malformed.length - MAX_MALFORMED}개`)
+    rows.push(`형식 어김  지적 ${malformed.length}개 — ${shown.join(', ')}`)
+  }
   for (const note of notes) rows.push(`참고    ${note}`)
   // 파일 이름처럼 저장소가 정하는 글이 줄을 나누지 못하게 한다
   process.stdout.write(`${rows.map(safeLine).join('\n')}\n`)
