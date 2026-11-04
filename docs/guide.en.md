@@ -141,7 +141,7 @@ These results come from one model and one example app. The new defects were revi
 
 | What | Path |
 |---|---|
-| Skill | `skills/gimi-review/SKILL.md` |
+| Skill | `skills/gimi-review/SKILL.md`; first-time setup and rule candidates in `references/setup.md` |
 | Context script | `skills/gimi-review/scripts/context.mjs` + `lib/` |
 | Rules | `skills/gimi-review/shared/rules/` (common guardrails), `shared/domains/` (domain presets) |
 | Example app and defect pull requests | `evals/shop-fixture/` |

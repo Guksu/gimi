@@ -50,7 +50,7 @@ describe('셀 수 없던 줄(unmeasured)', () => {
   })
 })
 
-describe('renderSlopTable·replaceSlopBlock — SKILL.md의 금지선 표', () => {
+describe('renderSlopTable·replaceSlopBlock — 측정 문서의 금지선 표', () => {
   const results = { date: '2026-10-27', runs: { without: 24, with: 24 }, rules: [{ id: 'test/no-assertion', without: 5, with: 1 }, { id: 'test/mock-echo', without: 5, with: 0 }, { id: 'test/real-wait', without: 0, with: 2 }] }
   const ruleText = applyEvidence({ text: RULES, results })
 

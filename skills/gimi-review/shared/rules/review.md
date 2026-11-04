@@ -3,7 +3,7 @@
 AI 리뷰어가 흔히 하는 슬롭이다. gimi-review가 리뷰를 쓰기 전에 스스로 확인한다. 형식은 `code.md`와 같다.
 
 - `검사`의 "기록"은 리뷰 기록 파일(`docs/gimi/reviews/`)의 형식에서 잡는다는 뜻이다. 근거 위치가 diff 안인지, 건너뛴 맥락에 기댄 지적인지를 본다.
-- `근거`는 측정 결과다 — PR 12개(결함 7 + 결함 없음 5)를 내장 `/code-review`(gimi 없이)와 gimi-review(gimi 있이)로 2번씩 리뷰해 그 줄이 나온 리뷰 수("N번 중 M번"). gimi-review SKILL.md 표에는 gimi 없이 한 번 이상 나온 줄만 올라간다.
+- `근거`는 측정 결과다 — PR 12개(결함 7 + 결함 없음 5)를 내장 `/code-review`(gimi 없이)와 gimi-review(gimi 있이)로 2번씩 리뷰해 그 줄이 나온 리뷰 수("N번 중 M번").
 
 ## review/diff-only diff 안에서만 판단하지 않는다
 - 대상: 둘 다
