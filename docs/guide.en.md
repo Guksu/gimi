@@ -19,7 +19,7 @@ gimi is a code review skill (**gimi-review**) for Claude Code and Codex. AI revi
   - Common guardrails: signs of AI-written code, tests and reviews (for example an empty catch, or a claim with no evidence)
   - Domain presets: 29 commerce rules and 14 Korean e-commerce law rules
   - Team rules: `docs/gimi/rules.md`
-- **Review record** — writes findings to `docs/gimi/reviews/`. When the same kind of finding appears three times in the records, the agent reads them and proposes a team rule. A person must approve it before it becomes a rule.
+- **Review record** — writes findings to `docs/gimi/reviews/`. When the same group of findings that no rule covers appears in three separate reviews (`promoteAfter`), a script (`scripts/promote.mjs`) counts them and the agent drafts a team rule candidate. Reviewing the same pull request again counts once. A person must approve it before it becomes a rule.
 
 ## Installation
 
@@ -116,7 +116,9 @@ To use presets, ask "도메인 규칙 설정해줘" (set up domain rules). After
 - If a pull request changes `linkedRepos`, gimi uses the value from the base branch (the merge base) instead and says so.
 - To turn off a single preset rule, list it with a reason under "끈 프리셋 규칙" (disabled preset rules) in the team rules file.
 
-All settings are described in the [settings section of the design document](design/2026-10-19-gimi.md#설정--agentsgimijson) (Korean). `promoteAfter` and `rulePrefix` are not read by the scripts yet.
+- `promoteAfter` is how many separate reviews must repeat the same group of findings that no rule covers before it becomes a rule candidate (default 3). Candidates go to `docs/gimi/candidates.md` and become team rules only after you approve them.
+
+All settings are described in the [settings section of the design document](design/2026-10-19-gimi.md#설정--agentsgimijson) (Korean). `rulePrefix` is not read by the scripts yet.
 
 ## Evaluation
 
