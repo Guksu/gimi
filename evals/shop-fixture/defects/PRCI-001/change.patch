@@ -1,0 +1,17 @@
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..d0b4e30 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -79,9 +79,9 @@ export class PricingService {
+     const lines = items.map(({ productId, quantity }) => {
+       const product = rows.find((row) => Number(row.id) === productId)
+       if (!product) throw fail(400, 'PRODUCT_NOT_FOUND', `상품 ${productId}이 없다`)
+-      if (quantity > product.max_per_order) throw fail(400, 'INVALID_QUANTITY', `${product.name}은 한 번에 ${product.max_per_order}개까지 살 수 있다`)
+-      if (product.stock === 0) throw fail(409, 'SOLD_OUT', `${product.name}은 품절이다`)
+-      if (quantity > product.stock) throw fail(409, 'OUT_OF_STOCK', `${product.name}의 재고가 ${product.stock}개다`)
++      // 한 번에 살 수 있는 수량과 재고 가운데 작은 쪽까지만 받는다
++      const limit = Math.min(product.max_per_order, product.stock)
++      if (quantity > limit) throw fail(400, 'INVALID_QUANTITY', `${product.name}은 한 번에 ${limit}개까지 살 수 있다`)
+       return { productId, name: product.name, unitPrice: product.price, quantity, lineTotal: product.price * quantity, returnable: product.returnable }
+     })
+     const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0)
