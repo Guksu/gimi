@@ -69,7 +69,7 @@ A review runs in five steps.
 1. **Scope** — the pull request if you give a number, otherwise the current branch since it split from the default branch.
 2. **Gather context** — a script that ships with the skill (`scripts/context.mjs`) collects changed files, intent, CI results, history, impact and contracts, and prints a summary.
 3. **Check rules** — only the rules that fit the project are listed, and the ones the diff touches are read.
-4. **Write findings with evidence** — evidence must be outside the diff. Only findings about AI-code tells (slop) may cite lines inside the diff.
+4. **Write findings with evidence** — each finding states what goes wrong for which input or state (상황, what happens) and where the evidence is. Evidence may be inside or outside the diff: if the arithmetic or branches inside the changed function are enough to show the failure, that line is the evidence. The context outside the diff is checked whether or not there are findings. Each finding also says whether this change introduced the defect or it existed before (생긴 때). A defect that existed before is not raised as "must fix".
 5. **Report** — the chat shows the number of findings and the must-fix ones. The full review goes to the record file.
 
 The skill and its rules are written in Korean. A finding looks like this (example):
