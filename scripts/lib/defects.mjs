@@ -7,7 +7,7 @@
  * 파일 읽기·git·테스트 실행은 scripts/defects.mjs가 맡고, 여기에는 판단만 둔다.
  */
 
-export const CONTEXTS = ['영향 범위', '의도', '이력', '슬롭', '도메인 규칙']
+export const CONTEXTS = ['영향 범위', '의도', '이력', '바뀐 코드', '슬롭', '도메인 규칙']
 export const LAYERS = ['프론트', '백엔드', '둘 다']
 export const LEVELS = ['고쳐야 함', '고치면 좋음', '확인 질문']
 // 이 맥락의 결함은 어긴 규칙이 있다 — 영향 범위·의도·이력은 규칙 없이 맥락만으로도 결함이다
@@ -40,6 +40,40 @@ const commitEvidenceErrors = (label, commit, history) => {
 const issueEvidenceErrors = (label, number, issues) => {
   const numbers = Array.isArray(issues) ? issues.map((issue) => issue?.number) : []
   return Number.isInteger(number) && numbers.includes(number) ? [] : [`${label}: 이슈 #${number} — issues에 없다`]
+}
+
+const BUCKETS = ['fail', 'cancel', 'pending', 'pass', 'skipping']
+
+/**
+ * 가짜 GitHub(설계 결정 65) — 평가 도구의 가짜 gh가 돌려줄 PR·CI, 또는 gh를 쓸 수 없는 상태.
+ * pr: true면 pr.title·pr.body로 지금 브랜치의 PR을 만든다(closes — 그 PR이 닫는 이슈 번호). checks는 그 PR의 체크다.
+ * unavailable: true면 gh가 로그인하지 않은 것처럼 모든 명령이 실패한다(맥락 수집 실패 사례)
+ */
+const githubErrors = (github) => {
+  if (github === undefined) return []
+  if (!github || typeof github !== 'object' || Array.isArray(github)) return ['github는 객체다 — { pr, closes, checks, unavailable }']
+  const errors = []
+  if (github.pr !== undefined && typeof github.pr !== 'boolean') errors.push('github.pr는 true·false다')
+  if (github.unavailable !== undefined && typeof github.unavailable !== 'boolean') errors.push('github.unavailable는 true·false다')
+  if (github.unavailable === true && github.pr === true) errors.push('gh 없음(unavailable)과 PR(pr)을 함께 쓰지 않는다 — gh가 없으면 PR도 읽지 못한다')
+  if (github.closes !== undefined && !(Array.isArray(github.closes) && github.closes.every((n) => Number.isInteger(n) && n > 0))) errors.push('github.closes는 이슈 번호 목록이다')
+  if (github.checks !== undefined) {
+    if (!Array.isArray(github.checks)) errors.push('github.checks는 체크 목록이다')
+    else {
+      if (github.checks.length > 0 && github.pr !== true) errors.push('체크는 PR이 있을 때만 둔다(github.pr: true)')
+      github.checks.forEach((check, index) => {
+        const label = `체크 ${index + 1}`
+        if (!isText(check?.name)) errors.push(`${label}: 이름(name)이 없다`)
+        if (!isText(check?.workflow)) errors.push(`${label}: 워크플로(workflow)가 없다`)
+        if (!BUCKETS.includes(check?.bucket)) errors.push(`${label}: 결과(bucket)는 ${BUCKETS.join('·')} 중 하나다: ${check?.bucket}`)
+        if (!isText(check?.state) || !isText(check?.event)) errors.push(`${label}: state·event가 없다`)
+        if (!Number.isInteger(check?.runId) || check.runId < 1) errors.push(`${label}: 실행 번호(runId)는 1 이상의 정수다`)
+        if (!Number.isInteger(check?.jobId) || check.jobId < 1) errors.push(`${label}: 작업 번호(jobId)는 1 이상의 정수다`)
+        if ((check?.bucket === 'fail' || check?.bucket === 'cancel') && !isText(check?.log)) errors.push(`${label}: 실패한 체크에는 로그(log)를 적는다 — run view --job이 돌려준다`)
+      })
+    }
+  }
+  return errors
 }
 
 /**
@@ -107,6 +141,8 @@ export const validateDefect = ({ dir, json, ruleIds, patchedLines, baseLines, to
       })
     }
   }
+
+  errors.push(...githubErrors(json?.github))
 
   const catches = Array.isArray(json?.catches) ? json.catches : []
   if (json?.clean === true && catches.length > 0) errors.push('결함이 없는 PR에는 잡는 테스트를 두지 않는다')

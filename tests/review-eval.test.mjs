@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { coverageOf, formatScore, hunksOf, locateFinding, matchFindings, parseFindings, scoreRuns } from '../scripts/lib/review-eval.mjs'
+import { coverageOf, formatScore, hunksOf, judgmentItems, locateFinding, matchFindings, mergeJudgments, parseFindings, scoreRuns, tallyJudgments } from '../scripts/lib/review-eval.mjs'
 
 const ROOT = '/tmp/shop-a1b2'
 const defect = (overrides = {}) => ({
@@ -249,5 +249,103 @@ describe('설정 조건 — 실행마다 평가용 저장소의 설정(.agents/g
   it('설정에 백틱이 있으면 더 긴 백틱으로 감싼다 — 코드 표시가 깨지지 않게', () => {
     const text = formatScore(scoreRuns({ runs: [{ ...base, reviewer: 'gimi', run: 1, config: { note: 'a`b' }, rules: header }] }))
     assert.ok(text.includes('| gimi | 1 | `` {"note":"a`b"} `` |'), text)
+  })
+})
+
+describe('실행 조건 — 모델·gimi 판·도구(설계 결정 65)', () => {
+  const tools = { allowed: ['Read', 'Bash'], disallowed: ['Bash(npm *)'] }
+  const base = { id: 'COM-024', defect: defect(), output: 'FINDING 없음', config: null, rules: '규칙 x' }
+  const runs = [
+    { ...base, reviewer: 'gimi', run: 1, runs: 2, model: 'claude-opus-5-5', gimi: { version: '0.2.0', commit: 'abcdef1234567', dirty: false }, tools },
+    { ...base, reviewer: 'gimi', run: 2, runs: 2, model: 'claude-opus-5-5', gimi: { version: '0.2.0', commit: 'abcdef1234567', dirty: true }, tools },
+    { ...base, reviewer: 'code-review', run: 1, runs: 1, model: 'claude-opus-5-5', gimi: null, tools },
+    { ...base, reviewer: 'code-review', run: 2 },
+  ]
+
+  it('리뷰어마다 모델·gimi 판(커밋)·도구·반복 횟수가 같은 실행끼리 묶는다 — gimi를 쓰지 않은 리뷰어는 안 씀, 이 기록이 생기기 전의 결과는 기록 없음', () => {
+    const { reviewers } = scoreRuns({ runs })
+    assert.deepEqual(
+      reviewers.map((r) => [r.name, r.setups]),
+      [
+        [
+          'gimi',
+          [
+            { model: 'claude-opus-5-5', gimi: '0.2.0 (abcdef1)', tools: 'Read·Bash / 막음 Bash(npm *)', repeat: '2', runs: 1 },
+            { model: 'claude-opus-5-5', gimi: '0.2.0 (abcdef1, 커밋하지 않은 수정 있음)', tools: 'Read·Bash / 막음 Bash(npm *)', repeat: '2', runs: 1 },
+          ],
+        ],
+        [
+          'code-review',
+          [
+            { model: 'claude-opus-5-5', gimi: '안 씀', tools: 'Read·Bash / 막음 Bash(npm *)', repeat: '1', runs: 1 },
+            { model: '기록 없음', gimi: '기록 없음', tools: '기록 없음', repeat: '기록 없음', runs: 1 },
+          ],
+        ],
+      ],
+    )
+  })
+
+  it('formatScore — 설정 조건 표 다음에 실행 조건 표를 둔다', () => {
+    const text = formatScore(scoreRuns({ runs }))
+    const lines = text.split('\n')
+    const at = lines.indexOf('| 리뷰어 | 실행 | 모델 | gimi 판 | 도구(허용 / 막음) | 결함마다 반복 |')
+    assert.ok(at > lines.indexOf('| 리뷰어 | 실행 | 설정(.agents/gimi.json) | gimi의 규칙 목록 첫 줄 |'), text)
+    assert.ok(lines.includes('| gimi | 1 | claude-opus-5-5 | 0.2.0 (abcdef1) | Read·Bash / 막음 Bash(npm *) | 2 |'), text)
+    assert.ok(lines.includes('| code-review | 1 | 기록 없음 | 기록 없음 | 기록 없음 | 기록 없음 |'), text)
+  })
+})
+
+describe('수동 판정 — 위치 점수와 의미 판정을 나눈다(설계 결정 65)', () => {
+  const runs = [
+    { reviewer: 'gimi', id: 'COM-024', run: 1, defect: defect(), output: 'FINDING 고쳐야 함 web/src/pages/OrderPage.tsx:72 버튼이 사라진다\nFINDING 고치면 좋음 server/src/money.ts:3 이름\nFINDING 고치면 좋음 server/src/money.ts:3 이름 두 번째' },
+    { reviewer: 'gimi', id: 'COM-024', run: 2, defect: defect(), output: 'FINDING 없음' },
+    { reviewer: 'gimi', id: 'CLEAN-001', run: 1, defect: { id: 'CLEAN-001', clean: true, findings: [] }, output: 'FINDING 확인 질문 web/src/a.ts:1 x' },
+  ]
+  const items = () => judgmentItems(scoreRuns({ runs }).runs)
+
+  it('judgmentItems — 위치로 찾은 정답·놓친 정답·정답 밖 지적·결함 없는 PR의 지적마다 항목 하나, 처음은 모두 미검토', () => {
+    const list = items()
+    assert.deepEqual(
+      list.map((item) => [item.key, item.kind, item.judgment]),
+      [
+        ['gimi/COM-024#1/정답 1', 'found', '미검토'],
+        ['gimi/COM-024#1/지적 server/src/money.ts:3', 'extra', '미검토'],
+        ['gimi/COM-024#1/지적 server/src/money.ts:3 (2)', 'extra', '미검토'],
+        ['gimi/COM-024#2/정답 1', 'missed', '미검토'],
+        ['gimi/CLEAN-001#1/지적 web/src/a.ts:1', 'false', '미검토'],
+      ],
+    )
+    // 판정하는 사람이 견줄 것 — 정답의 설명과 리뷰어의 지적, 단계가 정답과 같은지
+    assert.equal(list[0].answer, 'canCancel이 빠진다')
+    assert.equal(list[0].finding, '고쳐야 함 web/src/pages/OrderPage.tsx:72 버튼이 사라진다')
+    assert.equal(list[0].sameLevel, true)
+    assert.equal(list[3].finding, null)
+  })
+
+  it('mergeJudgments — 저장된 판정과 메모는 지키고 새 항목은 미검토로 더한다. 종류에 없는 값은 미검토로 두고, 없는 항목의 판정은 알린다', () => {
+    const saved = {
+      items: [
+        { key: 'gimi/COM-024#1/정답 1', judgment: '일치', note: '원인·실패 조건이 같다' },
+        { key: 'gimi/COM-024#1/지적 server/src/money.ts:3', judgment: '맞음' },
+        { key: 'gimi/COM-024#2/정답 1', judgment: '못 찾음' },
+        { key: 'gimi/OLD-001#1/정답 1', judgment: '일치' },
+      ],
+    }
+    const { items: merged, problems } = mergeJudgments({ items: items(), saved })
+    assert.deepEqual([merged[0].judgment, merged[0].note], ['일치', '원인·실패 조건이 같다'])
+    assert.equal(merged[1].judgment, '미검토')
+    assert.equal(merged[3].judgment, '못 찾음')
+    assert.ok(problems.some((p) => /money\.ts:3.*맞음/.test(p)), problems.join(' / '))
+    assert.ok(problems.some((p) => /OLD-001#1.*채점 결과에 없다/.test(p)), problems.join(' / '))
+  })
+
+  it('tallyJudgments·formatScore — 의미 판정은 위치 점수와 따로 보이고, 사람이 보지 않은 것은 미검토로 센다', () => {
+    const saved = { items: [{ key: 'gimi/COM-024#1/정답 1', judgment: '일치' }, { key: 'gimi/COM-024#1/지적 server/src/money.ts:3', judgment: '잘못된 지적' }] }
+    const judged = tallyJudgments(mergeJudgments({ items: items(), saved }).items)
+    const text = formatScore({ ...scoreRuns({ runs }), judged })
+    assert.ok(text.includes('| 리뷰어 | 위치로 찾은 정답 — 원인·실패 조건 일치 · 불일치 · 미검토 | 위치로 놓친 정답 — 다른 위치에서 찾음 · 못 찾음 · 미검토 | 정답 밖 지적 — 실제 결함 · 잘못된 지적 · 판단 보류 · 미검토 | 결함 없는 PR의 지적 — 실제 결함 · 잘못된 지적 · 판단 보류 · 미검토 |'), text)
+    assert.ok(text.includes('| gimi | 1 — 1 · 0 · 0 | 1 — 0 · 0 · 1 | 2 — 0 · 1 · 0 · 1 | 1 — 0 · 0 · 0 · 1 |'), text)
+    assert.match(text, /사람이 판정한 것\(judgments\.json\)/)
+    assert.doesNotMatch(formatScore(scoreRuns({ runs })), /위치로 놓친 정답/)
   })
 })

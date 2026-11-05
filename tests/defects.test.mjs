@@ -112,6 +112,29 @@ describe('validateDefect — 이슈(가짜 GitHub 이슈)', () => {
   })
 })
 
+describe('validateDefect — 가짜 PR·CI와 gh 없음(github, 설계 결정 65)', () => {
+  const check = (over = {}) => ({ name: 'test', workflow: 'CI', bucket: 'fail', state: 'FAILURE', event: 'pull_request', runId: 900, jobId: 456, log: 'FAIL a.test.ts:3', ...over })
+
+  it('github.pr이 true면 PR 제목·본문으로 가짜 PR을 만든다 — 체크는 이름·워크플로·결과·실행·작업 번호, 실패한 체크는 로그가 있다', () => {
+    assert.deepEqual(validate({ ...good(), github: { pr: true, closes: [], checks: [check(), check({ name: 'lint', bucket: 'pass', state: 'SUCCESS', jobId: 457, log: undefined })] } }), [])
+    assert.deepEqual(validate({ ...good(), github: { unavailable: true } }), [])
+  })
+
+  it('체크는 PR이 있어야 하고, 결과·번호가 틀리거나 실패한 체크에 로그가 없거나, gh 없음과 PR을 함께 쓰면 오류다', () => {
+    const errors = [
+      ...validate({ ...good(), github: { checks: [check()] } }),
+      ...validate({ ...good(), github: { pr: true, checks: [check({ bucket: 'broken' }), check({ jobId: 'x' }), check({ log: '' })] } }),
+      ...validate({ ...good(), github: { pr: true, unavailable: true } }),
+      ...validate({ ...good(), github: { pr: 'yes' } }),
+    ]
+    for (const pattern of [/체크는 PR이 있을 때만/, /결과\(bucket\)/, /작업 번호/, /실패한 체크.*로그/, /gh 없음.*PR/, /github\.pr/]) assert.ok(errors.some((e) => pattern.test(e)), `${pattern} — ${errors.join(' / ')}`)
+  })
+
+  it('맥락 종류에 "바뀐 코드"가 있다 — 바뀐 함수 안의 계산·분기만으로 실패가 설명되는 결함(규칙 없이도 된다)', () => {
+    assert.deepEqual(validate({ ...good(), rules: [], context: '바뀐 코드' }), [])
+  })
+})
+
 describe('patchedPaths', () => {
   it('패치가 고치는 파일 — 새 파일·지운 파일·이름 바꿈을 담는다', () => {
     const patch = [

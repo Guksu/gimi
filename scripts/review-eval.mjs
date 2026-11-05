@@ -8,12 +8,14 @@
  *        결함 PR마다 평가용 저장소를 만들어 claude -p로 리뷰한다. 두 리뷰어에 같은 지시를 주고, gimi만 --plugin-dir로 이 저장소를 받는다
  *        실행마다 설정 조건(평가용 저장소의 .agents/gimi.json, 모델 없이 돌린 규칙 목록의 첫 줄)을 결과에 남긴다
  *   node scripts/review-eval.mjs score <폴더>
- *        run이 쓴 결과를 채점표로(<폴더>/score.md) — 맨 위에 설정 조건
+ *        run이 쓴 결과를 채점표로(<폴더>/score.md) — 맨 위에 설정·실행 조건. 판정 양식(<폴더>/judgments.json)을 만들거나 고친다 —
+ *        사람이 적은 판정은 지키고, 새 항목은 미검토로 더해 위치 점수와 따로 센다(설계 결정 65)
  *   공통: --fixture <폴더>(기본 evals/shop-fixture)
  *   --config <파일>: 그 JSON을 평가용 저장소의 정상 버전(main)에 .agents/gimi.json으로 넣는다(PR diff에는 없다). 없으면 설정 없이 돈다
  *
  * 공정하게 — 사용자 설정·플러그인·MCP는 읽지 않는다(--setting-sources project, --strict-mcp-config). 평가용 저장소의 폴더·브랜치
  * 이름에는 결함 ID를 넣지 않는다(feature/pr). 결함의 issues는 가짜 gh(scripts/fake-gh.mjs)로 두 리뷰어에게 똑같이 준다.
+ * 결함에 github.pr가 있으면 가짜 gh가 PR(본문·체크·실패 로그)도 돌려주고, github.unavailable이면 gh가 모든 명령에 실패한다.
  * 판단은 scripts/lib/review-eval.mjs가 맡는다.
  */
 import { execFileSync, spawn } from 'node:child_process'
@@ -22,7 +24,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseConfig } from './lib/defects.mjs'
-import { coverageOf, formatScore, hunksOf, scoreRuns } from './lib/review-eval.mjs'
+import { JUDGMENTS, coverageOf, formatScore, hunksOf, judgmentItems, mergeJudgments, scoreRuns, tallyJudgments } from './lib/review-eval.mjs'
 import { parseStream } from './lib/stream.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, '')
@@ -32,6 +34,8 @@ const RULES = join(ROOT, 'skills/gimi-review/scripts/rules.mjs')
 const FAKE_GH = join(ROOT, 'scripts/fake-gh.mjs')
 const ISSUE_REPO = 'guksu-shop/shop'
 const BRANCH = 'feature/pr'
+// 가짜 PR의 번호 — github.pr가 있는 결함만 쓴다
+const PR_NUMBER = 7
 const RUN_TIMEOUT_MS = 20 * 60 * 1000
 // 리뷰어마다 부르는 말 — gimi는 범위를 스스로 정한다(지금 브랜치와 기본 브랜치의 갈림점부터), code-review에는 같은 범위를 브랜치로 준다
 const REVIEWERS = {
@@ -40,14 +44,18 @@ const REVIEWERS = {
 }
 // 리뷰가 남긴 기록 — 결과 옆에 복사해 둔다(수집 실패·판단 실패를 나눌 때 본다)
 const KEEP = ['docs/gimi/reviews']
-// 두 리뷰어에 똑같이 덧붙이는 지시 — 범위와 PR 설명이 있는 곳, 채점할 수 있게 지적을 한 줄씩 다시 적게 한다
-const FINDING_INSTRUCTION = [
-  '이 세션은 코드 리뷰 평가다. 코드는 고치지 않고 커밋하지 않는다. 리뷰 절차가 리뷰 기록 파일을 남기라고 하면 그대로 남긴다.',
-  `리뷰할 PR은 main...${BRANCH}(지금 브랜치)다. PR 제목과 본문은 ${BRANCH}의 마지막 커밋 메시지다.`,
-  '리뷰를 마치면 마지막에 지적마다 한 줄씩 다음 형식으로 다시 적는다(저장소 루트 기준 경로, 줄 번호는 지금 브랜치의 파일 기준).',
-  'FINDING <고쳐야 함|고치면 좋음|확인 질문> <파일 경로>:<줄> <한 줄 요약>',
-  '지적이 없으면 FINDING 없음 한 줄만 적는다.',
-].join('\n')
+// 두 리뷰어에 똑같이 덧붙이는 지시 — 범위와 PR 설명이 있는 곳, 채점할 수 있게 지적을 한 줄씩 다시 적게 한다.
+// 가짜 PR이 있는 결함만 둘째 줄이 다르다(PR이 없는 결함은 지난 평가와 같은 지시)
+const findingInstruction = (defect) =>
+  [
+    '이 세션은 코드 리뷰 평가다. 코드는 고치지 않고 커밋하지 않는다. 리뷰 절차가 리뷰 기록 파일을 남기라고 하면 그대로 남긴다.',
+    defect?.github?.pr === true
+      ? `리뷰할 PR은 main...${BRANCH}(지금 브랜치)이고 GitHub PR #${PR_NUMBER}이다. PR 제목·본문과 체크 결과는 gh로 읽는다.`
+      : `리뷰할 PR은 main...${BRANCH}(지금 브랜치)다. PR 제목과 본문은 ${BRANCH}의 마지막 커밋 메시지다.`,
+    '리뷰를 마치면 마지막에 지적마다 한 줄씩 다음 형식으로 다시 적는다(저장소 루트 기준 경로, 줄 번호는 지금 브랜치의 파일 기준).',
+    'FINDING <고쳐야 함|고치면 좋음|확인 질문> <파일 경로>:<줄> <한 줄 요약>',
+    '지적이 없으면 FINDING 없음 한 줄만 적는다.',
+  ].join('\n')
 // 리뷰에 쓰는 도구 — 읽기·검색·기록 쓰기와 Bash. 테스트 실행만 막는다(dontAsk라 묻지 않고 막는다).
 // 이어 붙인 명령은 하나라도 허용 밖이면 통째로 막힌다. code-review는 git diff에 따옴표 없는 find 패턴·~/.claude 읽기를 이어 붙여서,
 // 명령 이름 규칙(Bash(git *) 등)으로는 diff를 못 본다
@@ -119,7 +127,8 @@ const configIn = (repo) => {
 /**
  * 평가용 저장소 — 이름이 중립인 임시 폴더에, 결함 브랜치는 feature/pr, 예제 저장소의 의존성을 링크한다.
  * 설정 파일을 주면 정상 버전(main)에 .agents/gimi.json으로 넣는다 — 두 리뷰어가 같은 설정을 보고, PR diff에는 없다.
- * 저장소 밖(holder/bin)에 가짜 gh를 두고 그 폴더를 PATH 앞에 넣는다 — 결함의 issues를 이슈로 돌려준다(없으면 빈 목록)
+ * 저장소 밖(holder/bin)에 가짜 gh를 두고 그 폴더를 PATH 앞에 넣는다 — 결함의 issues를 이슈로 돌려준다(없으면 빈 목록).
+ * github.pr면 PR·체크도, github.unavailable면 gh가 로그인하지 않은 것처럼 실패한다
  */
 const prepare = (fixture, id, config) => {
   const holder = mkdtempSync(join(tmpdir(), 'shop-'))
@@ -127,10 +136,30 @@ const prepare = (fixture, id, config) => {
   execFileSync(process.execPath, [DEFECTS, 'materialize', id, repo, '--fixture', fixture, '--branch', BRANCH, '--link-deps', ...(config ? ['--config', config] : [])], { stdio: ['ignore', 'pipe', 'pipe'] })
   const bin = join(holder, 'bin')
   mkdirSync(bin)
-  writeFileSync(join(bin, 'issues.json'), `${JSON.stringify({ repo: ISSUE_REPO, issues: readDefect(fixture, id).issues ?? [] })}\n`)
+  const defect = readDefect(fixture, id)
+  const github = defect.github ?? {}
+  const data = {
+    repo: ISSUE_REPO,
+    issues: defect.issues ?? [],
+    ...(github.pr === true ? { pr: { number: PR_NUMBER, title: defect.pr.title, body: defect.pr.body, closes: github.closes ?? [] }, checks: github.checks ?? [] } : {}),
+    ...(github.unavailable === true ? { unavailable: true } : {}),
+  }
+  writeFileSync(join(bin, 'issues.json'), `${JSON.stringify(data)}\n`)
   writeFileSync(join(bin, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${FAKE_GH}" --data "${join(bin, 'issues.json')}" "$@"\n`)
   chmodSync(join(bin, 'gh'), 0o755)
   return { holder, repo, env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` } }
+}
+
+/** 이 평가가 쓴 gimi — 플러그인 버전과 gimi 저장소의 커밋, 커밋하지 않은 수정이 있는지(읽지 못하면 null) */
+const gimiVersion = () => {
+  try {
+    const version = JSON.parse(readFileSync(join(ROOT, '.claude-plugin/plugin.json'), 'utf8')).version
+    const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() !== ''
+    return { version, commit, dirty }
+  } catch {
+    return null
+  }
 }
 
 // gimi가 볼 규칙 목록의 첫 줄 — 모델 없이 평가용 저장소에서 돌려 설정 조건으로 남긴다(돌리지 못하면 null).
@@ -200,6 +229,8 @@ const runReviews = async ({ fixture, ids, options }) => {
   const out = options.out ?? join(ROOT, 'evals/review/runs', new Date().toISOString().slice(0, 10))
   const folder = join(out, options.reviewer)
   mkdirSync(folder, { recursive: true })
+  // gimi 판은 시작할 때 한 번 읽는다 — gimi를 플러그인으로 받지 않는 리뷰어는 null
+  const gimi = reviewer.plugin ? gimiVersion() : null
   for (const id of pick(fixture, ids)) {
     for (let n = 1; n <= options.runs; n++) {
       const { holder, repo, env } = prepare(fixture, id, options.config)
@@ -224,7 +255,7 @@ const runReviews = async ({ fixture, ids, options }) => {
         '--disallowedTools',
         DISALLOWED_TOOLS.join(' '),
         '--append-system-prompt',
-        FINDING_INSTRUCTION,
+        findingInstruction(readDefect(fixture, id)),
         ...(options.model ? ['--model', options.model] : []),
         ...(reviewer.plugin ? ['--plugin-dir', ROOT] : []),
       ]
@@ -238,6 +269,9 @@ const runReviews = async ({ fixture, ids, options }) => {
           root: repo,
           branch: BRANCH,
           model: options.model ?? '(기본)',
+          // 실행 조건 — 어떤 gimi(버전·커밋)로, 결함마다 몇 번 돌렸나
+          gimi,
+          runs: options.runs,
           prompt,
           tools: { allowed: ALLOWED_TOOLS, disallowed: DISALLOWED_TOOLS },
           // 설정 조건 — 평가용 저장소의 설정과 규칙 목록 첫 줄. 조건이 다른 실행을 한 표에 섞지 않으려고
@@ -278,9 +312,20 @@ const score = ({ fixture, dir }) => {
     .map((record) => ({ ...record, defect: readDefect(fixture, record.id), hunks: readHunks(fixture, record.id) }))
   const coverageFile = join(dir, 'coverage.json')
   const result = scoreRuns({ runs, coverage: existsSync(coverageFile) ? JSON.parse(readFileSync(coverageFile, 'utf8')) : {} })
-  const text = `${formatScore(result)}\n`
+  // 판정 양식 — 사람이 적은 판정은 지키고 새 항목은 미검토로 더한다. 판정이 하나도 없으면 의미 판정 표도 미검토로 보인다
+  const judgmentsFile = join(dir, 'judgments.json')
+  const saved = existsSync(judgmentsFile) ? JSON.parse(readFileSync(judgmentsFile, 'utf8')) : null
+  const { items, problems } = mergeJudgments({ items: judgmentItems(result.runs), saved })
+  const form = {
+    about: '사람이 리뷰 지적의 내용을 읽고 판정한다. judgment를 values의 값으로 바꾸고 note에 근거를 적는다. 미검토는 아직 아무도 보지 않았다는 뜻이다.',
+    values: JUDGMENTS,
+    items,
+  }
+  writeFileSync(judgmentsFile, `${JSON.stringify(form, null, 2)}\n`)
+  const text = `${formatScore({ ...result, judged: tallyJudgments(items) })}\n`
   writeFileSync(join(dir, 'score.md'), text)
   console.log(text.trimEnd())
+  for (const problem of problems) console.error(`판정 양식: ${problem}`)
   return 0
 }
 
