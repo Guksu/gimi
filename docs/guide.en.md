@@ -6,7 +6,7 @@
 
 The name comes from the royal food taster (gimi sanggung) who tasted the king's meal first: gimi tastes code before it goes up.
 
-gimi is a code review skill (**gimi-review**) for Claude Code and Codex. AI reviewers usually judge only what is inside the diff. Most defects people catch in review are outside it: another screen that uses the changed function, a requirement written in the ticket, the reason a line was written that way. gimi-review gathers that context before reviewing. It then leaves only findings it can back with a location.
+gimi is a code review skill (**gimi-review**) for Claude Code and Codex. Before reviewing, it gathers the context outside the diff (the lines a change touches): whether code this change did not touch uses the changed code, the requirements written in the pull request and issue, the reason in the commits that added the changed lines, and the pull request's CI results. It then leaves only findings that name a failure condition and point to the evidence. Comparisons with other review tools are limited to what [Evaluation](#evaluation) measured.
 
 ## What it checks
 

@@ -1,8 +1,11 @@
 # gimi
 
-A code review skill for Claude Code and Codex. It first gathers the context outside the diff (the lines a change touches): where the changed code is used, what the ticket asked for, why a line was written that way. It then leaves only findings it can back with evidence.
+A code review skill for Claude Code and Codex. Before reviewing, it gathers the context outside the diff (the lines a change touches). A review goes in this order:
 
-AI review skills today usually judge only what is inside the diff. So they kept missing defects people catch in review, such as another screen that uses the changed function, or a requirement written only in the ticket. I built gimi to review with that context gathered first.
+1. Find whether code this change did not touch uses a changed function, type or string.
+2. Check the requirements in the pull request and issue text, and the claims in the pull request description, against the diff.
+3. Find the commits that added the changed lines, and see whether the change undoes an earlier fix. With a pull request, also read its CI results.
+4. Leave only findings that name what goes wrong for which input (the failure condition) and point to the evidence.
 
 [한국어](README.ko.md) · [Good fit](#good-fit) · [Install](#installation) · [Full guide](docs/guide.en.md) · [Evaluation (Korean)](evals/review/README.md)
 
