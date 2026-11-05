@@ -7,9 +7,9 @@ Claude Code나 Codex가 코드를 리뷰할 때 쓰는 스킬입니다. 리뷰 �
 3. 바뀐 줄을 넣은 커밋을 찾아, 예전 수정을 되돌리는지 봅니다. PR이 있으면 CI 결과도 읽습니다.
 4. 어떤 입력에서 무엇이 잘못되는지(실패 조건)와 근거 위치를 댈 수 있는 지적만 남깁니다.
 
-[English](README.md) · [맞는 경우](#맞는-경우) · [설치](#설치) · [상세 안내](docs/guide.md) · [측정 결과](evals/review/README.md)
+[English](README.md) · [맞는 경우](#맞는-경우) · [설치](#설치) · [결과 읽기](#결과-읽기) · [사례](docs/cases.md) · [상세 안내](docs/guide.md) · [측정 결과](evals/review/README.md)
 
-지적은 이런 모양입니다(예시).
+지적은 이런 모양입니다(설명용 예시 — 실제 실행 결과는 [사례](docs/cases.md)에 있습니다).
 
 ```text
 [고쳐야 함] 영향 범위
@@ -20,11 +20,12 @@ Claude Code나 Codex가 코드를 리뷰할 때 쓰는 스킬입니다. 리뷰 �
 근거    src/components/OrderBadge.tsx:12
          status === 'PAID'  (이 PR에서 안 바뀜)
 상황    결제 완료 주문 → 배지가 항상 '알 수 없음'
+생긴 때  이번 변경
 ```
 
-예제 앱에 결함을 심은 PR 32개를 gimi와 Claude Code 내장 `/code-review`로 리뷰했습니다. 두 리뷰어는 같은 모델·같은 지시로 돌렸습니다. 결함은 둘 다 거의 다 찾았습니다(지적 위치로 센 것). 심은 결함이 아닌 곳을 짚은 지적은 `/code-review` 55개, gimi 19개였습니다. 그 지적이 틀렸다는 뜻은 아닙니다. PR마다 한 번씩 돌렸고, gimi는 설정 파일 없이(분야 프리셋을 끄고) 돌렸습니다. 리뷰 한 번의 평균은 gimi 57초·$0.41, `/code-review` 45초·$0.31이었습니다.
+예제 앱에 결함을 심은 PR 32개를 gimi와 Claude Code 내장 `/code-review`로 리뷰했습니다. 두 리뷰어는 같은 모델·같은 지시로 돌렸습니다. 결함은 둘 다 거의 다 찾았습니다(지적 위치로 센 것). 심은 결함이 아닌 곳을 짚은 지적은 `/code-review` 55개, gimi 19개였습니다. 그 지적이 틀렸다는 뜻은 아닙니다. 내용이 맞는지는 아직 판정하지 않았습니다. PR마다 한 번씩 돌렸고, gimi는 설정 파일 없이(분야 프리셋을 끄고) 돌렸습니다. 리뷰 한 번의 평균은 gimi 57초·$0.41, `/code-review` 45초·$0.31이었습니다.
 
-요구사항이 이슈에만 적힌 결함 4개로 따로 잰 평가도 있습니다. 리뷰어마다 2번씩 돌렸습니다. 요구사항과 어긋난다고 짚은 리뷰는 gimi 8번 중 8번, `/code-review` 8번 중 5번이었습니다. 이 숫자는 지적 위치가 아니라 제가 지적 내용을 읽고 센 것입니다. [측정 방법과 전체 결과](evals/review/README.md) · [측정의 단서](docs/guide.md#측정)
+요구사항이 이슈에만 적힌 결함 4개로 따로 잰 평가도 있습니다. 리뷰어마다 2번씩 돌렸습니다. 요구사항과 어긋난다고 짚은 리뷰는 gimi 8번 중 8번, `/code-review` 8번 중 5번이었습니다. 이 숫자는 지적 위치가 아니라 제가 지적 내용을 읽고 센 것입니다. [측정 방법과 전체 결과](evals/review/README.md) · [측정의 단서](docs/guide.md#측정) · [대표 사례 3개](docs/cases.md)
 
 ## 맞는 경우
 
@@ -87,6 +88,21 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 
 커머스·국내 전자상거래 법령 규칙으로도 보려면 "도메인 규칙 설정해줘"라고 요청합니다. [설정](docs/guide.md#설정)
 
+## 결과 읽기
+
+- **채팅** — 지적 수와 "고쳐야 함"만 짧게 보입니다.
+- **파일** — 리뷰한 저장소에 두 파일이 생깁니다. PR에 코멘트를 달거나 GitHub에 무엇을 올리지는 않습니다.
+  - `docs/gimi/reviews/{날짜}-pr-{번호}.md`(PR이 없으면 `{날짜}-{브랜치}.md`) — 리뷰 기록. 지적마다 단계·근거·상황·생긴 때·규칙·판정을 적습니다.
+  - 같은 이름의 `.context.json` — 모은 맥락 전체. 크고 다시 만들 수 있어 커밋하지 않습니다. `.gitignore`에 `docs/gimi/reviews/*.context.json`을 더합니다.
+- **건너뛴 맥락** — 맥락 수집 요약과 리뷰 기록에 모으지 못한 맥락과 이유가 "건너뜀"으로 나옵니다. 그 부분은 리뷰가 보지 못한 것입니다. "지적 없음"이어도 건너뛴 맥락이 있으면 그 부분은 확인되지 않았다고 읽어 주세요. "사용처 없음"(찾았는데 없음)과 "건너뜀"(찾지 못함)은 다릅니다.
+
+| 없을 때 | 달라지는 것 |
+|---|---|
+| `gh` 로그인 | PR·이슈 본문과 CI 결과를 읽지 않고 건너뜀으로 적습니다. 의도는 커밋 메시지로만 봅니다 |
+| 리뷰할 프로젝트의 `typescript` | 바뀐 이름의 사용처를 문자열 검색으로 찾고 "정확도 낮음"으로 표시합니다. 이름만 같은 다른 코드가 섞일 수 있습니다. `node_modules`에 git이 추적하는 파일이 있으면 보안 때문에 typescript를 불러오지 않아 같습니다 |
+| 전체 이력(얕은 복제) | 변경 이력을 건너뜁니다. `git fetch --unshallow` 뒤 다시 돌립니다 |
+| Jira·Notion·Linear 연결 | 그 티켓을 읽지 못하면 본문을 붙여 넣어 달라고 묻습니다 |
+
 ## 앞으로
 
 사용해 보시고 불편한 점은 [이슈](https://github.com/Guksu/gimi/issues)로 알려주세요. 요청한 것과 실제로 일어난 일을 함께 적어 주시면 됩니다.
@@ -95,7 +111,7 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-370%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-386%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## 라이선스

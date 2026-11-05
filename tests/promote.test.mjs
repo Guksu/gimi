@@ -29,6 +29,35 @@ describe('parseReviewRecord — 리뷰 기록의 지적마다 규칙·묶음·�
   })
 })
 
+describe('parseReviewRecord — 결정 64의 지적 형식(바뀐 코드·생긴 때)', () => {
+  it('맥락 종류 "바뀐 코드"와 "- 생긴 때:" 줄이 든 지적도 규칙·묶음·판정을 그대로 읽는다', () => {
+    const text = [
+      '# 리뷰 — feature-pr',
+      '',
+      '## 1. [고쳐야 함] 바뀐 코드 — 다시 담으면 수량이 1로 돌아간다',
+      '- 바뀐 곳: `web/src/cart/cart.tsx:51`',
+      '- 근거: `web/src/cart/cart.tsx:51` — quantity: 1',
+      '- 상황: 2개 담긴 상품을 다시 담으면 1개',
+      '- 생긴 때: 이번 변경',
+      '- 규칙: 없음 — 묶음 cart-quantity-reset',
+      '- 판정: 미정',
+      '',
+      '## 2. [고치면 좋음] 영향 범위 — 변경 전부터 빈 목록 안내가 없다',
+      '- 생긴 때: 변경 전부터',
+      '- 규칙: 없음 — 묶음 empty-state',
+      '- 판정: 맞음',
+      '',
+    ].join('\n')
+    assert.deepEqual(
+      parseReviewRecord(text).map(({ index, level, bundle, verdict, problem }) => ({ index, level, bundle, verdict, problem })),
+      [
+        { index: 1, level: '고쳐야 함', bundle: 'cart-quantity-reset', verdict: '미정', problem: null },
+        { index: 2, level: '고치면 좋음', bundle: 'empty-state', verdict: '맞음', problem: null },
+      ],
+    )
+  })
+})
+
 describe('parseReviewRecord — 에이전트가 형식을 조금 다르게 쓴 기록', () => {
   it('단계 표시([고쳐야 함] 등)가 있는데 "## N. [단계]" 꼴이 아닌 머리는 조용히 빼지 않고 형식 어김으로 남긴다', () => {
     const text = ['## 1. [고쳐야 함] 영향 범위 — 맞는 꼴', '- 규칙: 없음 — 묶음 a', '### 2. [고쳐야 함] 영향 범위 — 셋째 단계 머리', '- 판정: 틀림', '## [고치면 좋음] 번호 없음', '**[확인 질문]** 굵은 글', '1) [고쳐야 함] 괄호 번호', '## 확인한 것'].join('\n')

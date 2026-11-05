@@ -7,9 +7,9 @@ A code review skill for Claude Code and Codex. Before reviewing, it gathers the 
 3. Find the commits that added the changed lines, and see whether the change undoes an earlier fix. With a pull request, also read its CI results.
 4. Leave only findings that name what goes wrong for which input (the failure condition) and point to the evidence.
 
-[한국어](README.ko.md) · [Good fit](#good-fit) · [Install](#installation) · [Full guide](docs/guide.en.md) · [Evaluation (Korean)](evals/review/README.md)
+[한국어](README.ko.md) · [Good fit](#good-fit) · [Install](#installation) · [Reading the results](#reading-the-results) · [Cases](docs/cases.en.md) · [Full guide](docs/guide.en.md) · [Evaluation (Korean)](evals/review/README.md)
 
-A finding looks like this (example):
+A finding looks like this (an illustration, not real output — real run results are in [Cases](docs/cases.en.md)). gimi writes findings in Korean:
 
 ```text
 [고쳐야 함] 영향 범위
@@ -20,13 +20,28 @@ A finding looks like this (example):
 근거    src/components/OrderBadge.tsx:12
          status === 'PAID'  (이 PR에서 안 바뀜)
 상황    결제 완료 주문 → 배지가 항상 '알 수 없음'
+생긴 때  이번 변경
 ```
 
-In English: the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
+The same finding, translated (gimi does not write English; this is a translation for reading):
 
-I reviewed 32 pull requests with defects planted in an example app, with gimi and with Claude Code's built-in `/code-review`. Both reviewers used the same model and instructions. Both found almost every defect (counted by where a finding points). Findings on something other than the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean they were wrong. Each pull request was reviewed once, and gimi ran without a settings file (domain presets off). One review averaged 57 seconds and $0.41 with gimi, and 45 seconds and $0.31 with `/code-review`.
+```text
+[must fix] impact
+The order status changed shape, but the badge still reads the old shape
 
-A separate evaluation used four defects whose requirements were written only in an issue, reviewed twice per reviewer. Reviews that said the change contradicts the requirement: gimi 8 of 8, `/code-review` 5 of 8. I counted these by reading the findings, not by where they point. [Method and all results (Korean)](evals/review/README.md) · [Caveats](docs/guide.en.md#evaluation)
+Changed       src/api/order.ts:42
+              status: string → { code, label }
+Evidence      src/components/OrderBadge.tsx:12
+              status === 'PAID'  (not changed in this PR)
+What happens  a paid order → the badge always shows "unknown"
+Introduced    by this change
+```
+
+Labels: 고쳐야 함 = must fix, 고치면 좋음 = nice to fix, 확인 질문 = question. 바뀐 곳 = changed, 근거 = evidence, 상황 = what happens, 생긴 때 = introduced (이번 변경 = by this change, 변경 전부터 = before this change).
+
+I reviewed 32 pull requests with defects planted in an example app, with gimi and with Claude Code's built-in `/code-review`. Both reviewers used the same model and instructions. Both found almost every defect (counted by where a finding points). Findings on something other than the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean they were wrong, and nobody has judged their content yet. Each pull request was reviewed once, and gimi ran without a settings file (domain presets off). One review averaged 57 seconds and $0.41 with gimi, and 45 seconds and $0.31 with `/code-review`.
+
+A separate evaluation used four defects whose requirements were written only in an issue, reviewed twice per reviewer. Reviews that said the change contradicts the requirement: gimi 8 of 8, `/code-review` 5 of 8. I counted these by reading the findings, not by where they point. [Method and all results (Korean)](evals/review/README.md) · [Caveats](docs/guide.en.md#evaluation) · [Three cases](docs/cases.en.md)
 
 ## Good fit
 
@@ -89,6 +104,21 @@ Before reviewing, the agent collects where the changed code is used, the pull re
 
 To also review against the commerce and Korean e-commerce law rules, ask "도메인 규칙 설정해줘" (set up domain rules). [Settings](docs/guide.en.md#settings)
 
+## Reading the results
+
+- **Chat**: only the number of findings and the "must fix" ones.
+- **Files**: two files appear in the reviewed repository. gimi does not comment on the pull request or post anything to GitHub.
+  - `docs/gimi/reviews/{date}-pr-{number}.md` (`{date}-{branch}.md` without a pull request): the review record. Each finding has its level, evidence, what happens, when it was introduced, the rule and a verdict.
+  - A `.context.json` with the same name: all the gathered context. It is large and can be regenerated, so don't commit it. Add `docs/gimi/reviews/*.context.json` to `.gitignore`.
+- **Skipped context**: the context summary and the review record list what could not be gathered, and why, under "건너뜀" (skipped). The review did not see that part. Even with no findings, read skipped parts as unchecked. "사용처 없음" (searched, no usages) is different from "건너뜀" (could not search).
+
+| Without | What changes |
+|---|---|
+| `gh` signed in | Pull request and issue text and CI results are not read and are listed as skipped. Intent comes only from commit messages |
+| `typescript` in the reviewed project | Usages of changed names are found by text search, marked "정확도 낮음" (low accuracy). Unrelated code with the same name may show up. If git tracks any file under `node_modules`, `typescript` is not loaded for security, with the same effect |
+| Full history (shallow clone) | Change history is skipped. Run `git fetch --unshallow` and review again |
+| Jira, Notion or Linear connection | If the agent cannot read the ticket, it asks you to paste it |
+
 ## Feedback
 
 If something feels wrong, [open an issue](https://github.com/Guksu/gimi/issues) with your request and what happened.
@@ -97,7 +127,7 @@ If something feels wrong, [open an issue](https://github.com/Guksu/gimi/issues) 
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-370%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-386%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## License

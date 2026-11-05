@@ -83,6 +83,7 @@ claude plugin update gimi@gimi
 근거    src/components/OrderBadge.tsx:12
          status === 'PAID'  (이 PR에서 안 바뀜)
 상황    결제 완료 주문 → 배지가 항상 '알 수 없음'
+생긴 때  이번 변경
 ```
 
 리뷰하면 저장소에 두 가지 파일이 생깁니다.

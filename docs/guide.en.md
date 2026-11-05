@@ -83,9 +83,10 @@ The skill and its rules are written in Korean. A finding looks like this (exampl
 근거    src/components/OrderBadge.tsx:12
          status === 'PAID'  (이 PR에서 안 바뀜)
 상황    결제 완료 주문 → 배지가 항상 '알 수 없음'
+생긴 때  이번 변경
 ```
 
-The heading reads "[must fix] impact". The labels are the changed line (바뀐 곳), the evidence (근거) and what happens (상황). This one says the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
+The heading reads "[must fix] impact". The labels are the changed line (바뀐 곳), the evidence (근거), what happens (상황) and whether this change introduced it (생긴 때 — 이번 변경 means this change, 변경 전부터 means it existed before). This one says the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
 
 A review adds two files to your repository:
 
