@@ -349,3 +349,16 @@ describe('수동 판정 — 위치 점수와 의미 판정을 나눈다(설계 �
     assert.doesNotMatch(formatScore(scoreRuns({ runs })), /위치로 놓친 정답/)
   })
 })
+
+describe('정답의 출처 — 실행 때 남긴 정답과 지금 결함 정의', () => {
+  it('실행 기록에 정답이 없으면(answersFrom 지금) 그 수를 세고, 채점표에 줄이 어긋날 수 있다고 알린다', () => {
+    const runs = [
+      { reviewer: 'gimi', id: 'COM-024', run: 1, defect: defect(), answersFrom: '실행 때', output: 'FINDING 없음' },
+      { reviewer: 'gimi', id: 'COM-024', run: 2, defect: defect(), answersFrom: '지금', output: 'FINDING 없음' },
+    ]
+    const result = scoreRuns({ runs })
+    assert.equal(result.currentAnswers, 1)
+    assert.match(formatScore(result), /실행 때의 정답이 기록에 없는 실행 1개는 지금 결함 정의로 맞췄다/)
+    assert.doesNotMatch(formatScore(scoreRuns({ runs: [runs[0]] })), /지금 결함 정의로 맞췄다/)
+  })
+})

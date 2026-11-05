@@ -174,6 +174,9 @@ describe('review-eval.mjs', () => {
     assert.equal(typeof gimi.gimi.dirty, 'boolean')
     assert.equal(gimi.runs, 1)
     assert.equal(JSON.parse(readFileSync(join(out, 'runs/code-review/COM-007-1.json'), 'utf8')).gimi, null)
+    // 실행 때의 정답과 diff 조각 — 예제 앱이 나중에 바뀌어도 다시 채점하면 같은 정답으로 맞춘다
+    assert.equal(gimi.defect.findings[0].line, 3)
+    assert.deepEqual(gimi.hunks, [{ path: 'app/src/stock.ts', from: 1, to: 4 }])
   })
 
   it('run — github.pr가 있는 결함은 가짜 gh가 PR 본문과 체크·실패 로그를 돌려주고, 두 리뷰어에게 같은 PR 번호를 알린다', () => {

@@ -272,6 +272,9 @@ const runReviews = async ({ fixture, ids, options }) => {
           // 실행 조건 — 어떤 gimi(버전·커밋)로, 결함마다 몇 번 돌렸나
           gimi,
           runs: options.runs,
+          // 실행 때의 정답과 PR diff 조각 — 나중에 예제 앱이 바뀌어도 다시 채점하면 같은 정답으로 맞춘다
+          defect: readDefect(fixture, id),
+          hunks: readHunks(fixture, id),
           prompt,
           tools: { allowed: ALLOWED_TOOLS, disallowed: DISALLOWED_TOOLS },
           // 설정 조건 — 평가용 저장소의 설정과 규칙 목록 첫 줄. 조건이 다른 실행을 한 표에 섞지 않으려고
@@ -309,7 +312,8 @@ const score = ({ fixture, dir }) => {
         .map((name) => JSON.parse(readFileSync(join(dir, entry.name, name), 'utf8'))),
     )
     .sort((a, b) => a.id.localeCompare(b.id) || a.reviewer.localeCompare(b.reviewer) || a.run - b.run)
-    .map((record) => ({ ...record, defect: readDefect(fixture, record.id), hunks: readHunks(fixture, record.id) }))
+    // 실행 때 남긴 정답·조각을 쓰고, 없으면(2026-11-05 전의 실행) 지금 결함 정의로 맞춘다
+    .map((record) => ({ ...record, defect: record.defect ?? readDefect(fixture, record.id), hunks: record.hunks ?? readHunks(fixture, record.id), answersFrom: record.defect ? '실행 때' : '지금' }))
   const coverageFile = join(dir, 'coverage.json')
   const result = scoreRuns({ runs, coverage: existsSync(coverageFile) ? JSON.parse(readFileSync(coverageFile, 'utf8')) : {} })
   // 판정 양식 — 사람이 적은 판정은 지키고 새 항목은 미검토로 더한다. 판정이 하나도 없으면 의미 판정 표도 미검토로 보인다

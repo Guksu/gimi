@@ -286,7 +286,9 @@ export const scoreRuns = ({ runs, coverage = {} }) => {
       .filter(Boolean)
     return { id, context: sample.clean ? '결함 없음' : sample.defect.context ?? '', text: byReviewer.map((entry) => entry.text).join(' · ') }
   })
-  return { reviewers, perDefect, runs: perRun, mixed: groupConditions(runs).length > 1 }
+  // 실행 때의 정답이 기록에 없어 지금 결함 정의로 맞춘 실행 — 그 뒤 예제 앱이 바뀌었으면 정답 줄이 어긋날 수 있다
+  const currentAnswers = runs.filter((run) => run.answersFrom === '지금').length
+  return { reviewers, perDefect, runs: perRun, mixed: groupConditions(runs).length > 1, currentAnswers }
 }
 
 const percent = (rate) => (rate === null ? '-' : `${Math.round(rate * 100)}%`)
@@ -305,8 +307,9 @@ const code = (text) => {
 const tallyText = (counts, values) => `${values.reduce((sum, value) => sum + counts[value], 0)} — ${values.map((value) => counts[value]).join(' · ')}`
 
 /** 채점표 — 설정 조건·실행 조건(리뷰어·조건마다 한 줄), 리뷰어마다 한 줄, (diff 조각이 있으면) 지적의 위치, (판정이 있으면) 의미 판정, 결함마다 한 줄 */
-export const formatScore = ({ reviewers, perDefect, mixed = false, judged = null }) =>
+export const formatScore = ({ reviewers, perDefect, mixed = false, judged = null, currentAnswers = 0 }) =>
   [
+    ...(currentAnswers > 0 ? [`실행 때의 정답이 기록에 없는 실행 ${currentAnswers}개는 지금 결함 정의로 맞췄다 — 그 뒤 예제 앱이 바뀌었으면 정답 줄이 어긋나 찾음·놓침이 틀릴 수 있다.`, ''] : []),
     '| 리뷰어 | 실행 | 설정(.agents/gimi.json) | gimi의 규칙 목록 첫 줄 |',
     '|---|---|---|---|',
     ...reviewers.flatMap((r) => r.conditions.map((c) => `| ${r.name} | ${c.runs} | ${cell(c.config.startsWith('{') ? code(c.config) : c.config)} | ${cell(c.rules)} |`)),
