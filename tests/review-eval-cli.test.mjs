@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -36,6 +36,9 @@ before(() => {
     'defects/COM-007/change.patch': patch,
     // 요구사항은 이슈 #41에만 있다 — 평가 도구의 가짜 gh가 두 리뷰어에게 같은 이슈를 준다
     'defects/COM-007/defect.json': JSON.stringify({ id: 'COM-007', rules: ['COM-007'], context: '도메인 규칙', layer: '백엔드', pr, issues: [{ number: 41, title: '재고 부족 알림', body: '남은 수량을 알리되 재고 확인과 차감은 한 번에 한다' }], findings: [{ level: '고쳐야 함', summary: '재고를 읽고 앱에서 비교해 저장한다', path: 'app/src/stock.ts', line: 3, evidence: [{ issue: 41 }] }] }),
+    // 가짜 PR과 실패한 체크(설계 결정 65) — PR 본문은 gh로 읽고, 실패 로그는 작업 번호로 연다
+    'defects/PRCI-001/change.patch': patch,
+    'defects/PRCI-001/defect.json': JSON.stringify({ id: 'PRCI-001', rules: [], context: '바뀐 코드', layer: '백엔드', pr: { title: 'refactor: 재고 차감 정리', body: '동작은 그대로다' }, github: { pr: true, checks: [{ name: 'test', workflow: 'CI', bucket: 'fail', state: 'FAILURE', event: 'pull_request', runId: 900, jobId: 456, log: 'FAIL stock.test.ts:9 동시 주문에서 재고가 음수' }] }, findings: [{ level: '고쳐야 함', summary: '재고를 읽고 앱에서 비교해 덮어쓴다', path: 'app/src/stock.ts', line: 3 }] }),
     'defects/CLEAN-001/change.patch': cleanPatch,
     'defects/CLEAN-001/defect.json': JSON.stringify({ id: 'CLEAN-001', rules: [], context: '영향 범위', layer: '프론트', clean: true, pr: { title: 'chore: 담기 문구', body: '문구만 바꾼다' }, findings: [] }),
   })
@@ -56,7 +59,13 @@ let ghBody = null
 try {
   ghBody = execFileSync('gh', ['issue', 'view', '41', '--json', 'body', '--jq', '.body'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
 } catch {}
-appendFileSync(${JSON.stringify(join(out, 'calls.jsonl'))}, JSON.stringify({ args, cwd: process.cwd(), branch, ghBody, config, changed }) + '\\n')
+let ghPr = null
+let ghLog = null
+try {
+  ghPr = execFileSync('gh', ['pr', 'view', '--json', 'number,body'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  ghLog = execFileSync('gh', ['run', 'view', '--job', '456', '--log-failed'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+} catch {}
+appendFileSync(${JSON.stringify(join(out, 'calls.jsonl'))}, JSON.stringify({ args, cwd: process.cwd(), branch, ghBody, ghPr, ghLog, config, changed }) + '\\n')
 // 실행 도중 설정 파일이 바뀌는 경우를 흉내 낸다
 if (process.env.REWRITE_CONFIG) writeFileSync(process.env.REWRITE_CONFIG, '{ "presets": [] }\\n')
 const gimi = args.includes('--plugin-dir')
@@ -155,6 +164,93 @@ describe('review-eval.mjs', () => {
     assert.ok(result.stdout.startsWith('| 리뷰어 | 실행 | 설정(.agents/gimi.json) | gimi의 규칙 목록 첫 줄 |'), result.stdout)
     assert.ok(result.stdout.includes('| gimi | 2 | 없음 | stacks frontend-ts·backend (설정 없음 — 프론트·백엔드 신호를 못 찾아 둘 다) · 프리셋 없음 · 회사 규칙 없음 |'), result.stdout)
     assert.doesNotMatch(result.stdout, /설정 조건이 다르다/)
+  })
+
+  it('run — 실행마다 gimi 판(플러그인 버전·커밋)과 반복 횟수를 남긴다. gimi를 받지 않은 리뷰어는 null이다', () => {
+    const version = JSON.parse(readFileSync(join(ROOT, '.claude-plugin/plugin.json'), 'utf8')).version
+    const gimi = JSON.parse(readFileSync(join(out, 'runs/gimi/COM-007-1.json'), 'utf8'))
+    assert.equal(gimi.gimi.version, version)
+    assert.match(gimi.gimi.commit, /^[0-9a-f]{40}$/)
+    assert.equal(typeof gimi.gimi.dirty, 'boolean')
+    assert.equal(gimi.runs, 1)
+    assert.equal(JSON.parse(readFileSync(join(out, 'runs/code-review/COM-007-1.json'), 'utf8')).gimi, null)
+    // 실행 때의 정답과 diff 조각 — 예제 앱이 나중에 바뀌어도 다시 채점하면 같은 정답으로 맞춘다
+    assert.equal(gimi.defect.findings[0].line, 3)
+    assert.deepEqual(gimi.hunks, [{ path: 'app/src/stock.ts', from: 1, to: 4 }])
+  })
+
+  it('run — github.pr가 있는 결함은 가짜 gh가 PR 본문과 체크·실패 로그를 돌려주고, 두 리뷰어에게 같은 PR 번호를 알린다', () => {
+    const before = readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n').length
+    for (const reviewer of ['gimi', 'code-review']) {
+      const result = run(['run', 'PRCI-001', '--reviewer', reviewer, '--fixture', repo.dir, '--out', join(out, 'runs-pr'), '--claude', fake])
+      assert.equal(result.status, 0, result.stdout + result.stderr)
+    }
+    const calls = readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n').slice(before).map((line) => JSON.parse(line))
+    for (const call of calls) {
+      assert.deepEqual(JSON.parse(call.ghPr), { number: 7, body: '동작은 그대로다' })
+      assert.equal(call.ghLog, 'FAIL stock.test.ts:9 동시 주문에서 재고가 음수')
+    }
+    const appended = new Set(calls.map((call) => call.args[call.args.indexOf('--append-system-prompt') + 1]))
+    assert.equal(appended.size, 1)
+    assert.match([...appended][0], /GitHub PR #7/)
+    // PR이 없는 결함의 지시는 그대로다 — 지난 평가와 조건이 같다
+    const first = JSON.parse(readFileSync(join(out, 'calls.jsonl'), 'utf8').trim().split('\n')[0])
+    assert.doesNotMatch(first.args[first.args.indexOf('--append-system-prompt') + 1], /GitHub PR #/)
+  })
+
+  it('score — 판정 양식(judgments.json)을 미검토로 만들고, 사람이 적은 판정은 다시 채점해도 지킨다', () => {
+    const dir = join(out, 'runs')
+    assert.equal(run(['score', dir, '--fixture', repo.dir]).status, 0)
+    const form = JSON.parse(readFileSync(join(dir, 'judgments.json'), 'utf8'))
+    const found = form.items.find((item) => item.key === 'gimi/COM-007#1/정답 1')
+    assert.deepEqual([found.kind, found.judgment], ['found', '미검토'])
+    assert.ok(form.values.found.includes('일치'))
+    found.judgment = '일치'
+    found.note = '원인과 실패 조건이 정답과 같다'
+    writeFileSync(join(dir, 'judgments.json'), JSON.stringify(form))
+    const again = run(['score', dir, '--fixture', repo.dir])
+    assert.equal(again.status, 0, again.stderr)
+    assert.match(again.stdout, /\| gimi \| 1 — 1 · 0 · 0 \|/)
+    const kept = JSON.parse(readFileSync(join(dir, 'judgments.json'), 'utf8')).items.find((item) => item.key === 'gimi/COM-007#1/정답 1')
+    assert.deepEqual([kept.judgment, kept.note], ['일치', '원인과 실패 조건이 정답과 같다'])
+  })
+
+  it('score — 실행 때 남긴 정답으로 맞춘다. 결함 정의가 나중에 바뀌어도 같고, 정답이 없는 지난 기록에는 알린다', () => {
+    const file = join(repo.dir, 'defects/COM-007/defect.json')
+    const original = readFileSync(file, 'utf8')
+    try {
+      // 실행 뒤 예제 앱이 바뀌어 정답 줄이 옮겨졌다
+      writeFileSync(file, original.replace('"line":3', '"line":40'))
+      const now = run(['score', join(out, 'runs'), '--fixture', repo.dir])
+      assert.equal(now.status, 0, now.stderr)
+      assert.match(now.stdout, /\| gimi \| 2 \| 1\/1 \(100%\) \|/)
+      assert.doesNotMatch(now.stdout, /지금 결함 정의로 맞췄다/)
+      // 정답을 남기지 않은 지난 기록 — 지금 정의(40행)로 맞춰 놓치고, 그렇다고 알린다
+      const old = join(out, 'runs-old')
+      cpSync(join(out, 'runs'), old, { recursive: true })
+      rmSync(join(old, 'judgments.json'), { force: true })
+      const record = join(old, 'gimi/COM-007-1.json')
+      const { defect, hunks, ...rest } = JSON.parse(readFileSync(record, 'utf8'))
+      writeFileSync(record, JSON.stringify(rest))
+      const past = run(['score', old, '--fixture', repo.dir])
+      assert.equal(past.status, 0, past.stderr)
+      assert.match(past.stdout, /실행 때의 정답이 기록에 없는 실행 1개는 지금 결함 정의로 맞췄다/)
+      assert.match(past.stdout, /\| gimi \| 2 \| 0\/1 \(0%\) \|/)
+    } finally {
+      writeFileSync(file, original)
+    }
+  })
+
+  it('score — 모양을 모르는 판정 양식은 덮어쓰지 않고 실패한다', () => {
+    const dir = join(out, 'runs-bad-form')
+    cpSync(join(out, 'runs'), dir, { recursive: true })
+    const form = join(dir, 'judgments.json')
+    const text = JSON.stringify([{ key: 'gimi/COM-007#1/정답 1', judgment: '일치' }])
+    writeFileSync(form, text)
+    const result = run(['score', dir, '--fixture', repo.dir])
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /판정 양식.*모양/)
+    assert.equal(readFileSync(form, 'utf8'), text)
   })
 
   it('run --config — 설정을 정상 버전(main)에 넣어 두 리뷰어가 같은 설정을 본다. PR diff에는 없다', () => {

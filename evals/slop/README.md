@@ -39,6 +39,8 @@ node scripts/buildSlopTable.mjs                 # 이 문서의 금지선 표를
 | `test/sequential-only` 동시성 규칙을 순차 호출로만 테스트하지 않는다 | 24번 중 1번 | 24번 중 0번 |
 <!-- slop-table:end -->
 
+`review/diff-only`의 측정(2026-10-29)은 옛 확인 기준으로 셌다. 옛 기준은 "슬롭이 아닌 지적의 근거 위치가 모두 diff 안"이다. 2026-11-05 설계 결정 64로 확인 기준이 "모은 diff 밖 맥락을 보지 않고 결론을 낸다"로 바뀌었고, 새 기준으로는 다시 재지 않았다.
+
 ## 세는 법
 
 1. 리뷰는 리뷰 평가와 같은 조건으로 돌린다(같은 모델, Bash 허용·npm·npx 막음, 사용자 설정·플러그인·MCP를 읽지 않음). 실행 기록(`--output-format stream-json --verbose`)에서 리뷰어가 돌린 명령을 결과 파일의 `commands`에 남긴다.

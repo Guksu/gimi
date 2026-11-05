@@ -1,0 +1,61 @@
+{
+  "id": "PRCI-001",
+  "rules": [],
+  "context": "바뀐 코드",
+  "layer": "백엔드",
+  "pr": {
+    "title": "refactor: 수량 검사를 한 줄로 합친다",
+    "body": "## 변경\n- 최대 수량 검사와 재고 검사를 한 줄로 합친다\n- 동작은 그대로다(리팩터링만)"
+  },
+  "github": {
+    "pr": true,
+    "checks": [
+      {
+        "name": "server",
+        "workflow": "CI",
+        "bucket": "fail",
+        "state": "FAILURE",
+        "event": "pull_request",
+        "runId": 4242,
+        "jobId": 9001,
+        "log": " FAIL  test/orders.test.ts > POST /orders > 실패한 주문은 재고·쿠폰·포인트를 하나도 차감하지 않는다(같은 트랜잭션)\nAssertionError: expected [ 400, 'INVALID_QUANTITY' ] to deeply equal [ 409, 'SOLD_OUT' ]\n ❯ test/orders.test.ts:59:41\n     57|     await t.db.query('UPDATE products SET stock = 0 WHERE id = 2')\n     59|     expect([res.status, res.body.code]).toEqual([409, 'SOLD_OUT'])\n FAIL  test/pricing.test.ts > POST /orders/quote — 금액은 서버가 원 단위 정수로 계산한다 > 상품마다 정한 최대 수량과 재고를 넘으면 거절하고, 품절 상품은 담을 수 없다\nAssertionError: expected 'INVALID_QUANTITY' to be 'OUT_OF_STOCK' // Object.is equality\n ❯ test/pricing.test.ts:52:81\n Test Files  2 failed"
+      },
+      {
+        "name": "web",
+        "workflow": "CI",
+        "bucket": "pass",
+        "state": "SUCCESS",
+        "event": "pull_request",
+        "runId": 4242,
+        "jobId": 9002
+      }
+    ]
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "PR 본문은 '동작은 그대로'라고 하지만, 재고가 0이거나 모자란 상품이 409 SOLD_OUT·OUT_OF_STOCK이 아니라 400 INVALID_QUANTITY('한 번에 0개까지 살 수 있다')로 거절된다. 화면은 '품절된 상품이 있어요' 대신 '수량을 다시 확인해 주세요'를 보인다. CI server 작업이 이 두 경우로 실패했다",
+      "path": "server/src/pricing/pricing.service.ts",
+      "line": 83,
+      "endLine": 84,
+      "evidence": [
+        {
+          "path": "server/test/orders.test.ts",
+          "line": 59
+        },
+        {
+          "path": "server/test/pricing.test.ts",
+          "line": 52
+        },
+        {
+          "path": "web/src/api/messages.ts",
+          "line": 11
+        }
+      ]
+    }
+  ],
+  "catches": [
+    "server/test/orders.test.ts",
+    "server/test/pricing.test.ts"
+  ]
+}

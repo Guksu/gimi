@@ -6,7 +6,7 @@
 
 The name comes from the royal food taster (gimi sanggung) who tasted the king's meal first: gimi tastes code before it goes up.
 
-gimi is a code review skill (**gimi-review**) for Claude Code and Codex. AI reviewers usually judge only what is inside the diff. Most defects people catch in review are outside it: another screen that uses the changed function, a requirement written in the ticket, the reason a line was written that way. gimi-review gathers that context before reviewing. It then leaves only findings it can back with a location.
+gimi is a code review skill (**gimi-review**) for Claude Code and Codex. Before reviewing, it gathers the context outside the diff (the lines a change touches): whether code this change did not touch uses the changed code, the requirements written in the pull request and issue, the reason in the commits that added the changed lines, and the pull request's CI results. It then leaves only findings that name a failure condition and point to the evidence. Comparisons with other review tools are limited to what [Evaluation](#evaluation) measured.
 
 ## What it checks
 
@@ -69,7 +69,7 @@ A review runs in five steps.
 1. **Scope** — the pull request if you give a number, otherwise the current branch since it split from the default branch.
 2. **Gather context** — a script that ships with the skill (`scripts/context.mjs`) collects changed files, intent, CI results, history, impact and contracts, and prints a summary.
 3. **Check rules** — only the rules that fit the project are listed, and the ones the diff touches are read.
-4. **Write findings with evidence** — evidence must be outside the diff. Only findings about AI-code tells (slop) may cite lines inside the diff.
+4. **Write findings with evidence** — each finding states what goes wrong for which input or state (상황, what happens) and where the evidence is. Evidence may be inside or outside the diff: if the arithmetic or branches inside the changed function are enough to show the failure, that line is the evidence. The context outside the diff is checked whether or not there are findings. Each finding also says whether this change introduced the defect or it existed before (생긴 때). A defect that existed before is not raised as "must fix".
 5. **Report** — the chat shows the number of findings and the must-fix ones. The full review goes to the record file.
 
 The skill and its rules are written in Korean. A finding looks like this (example):
@@ -83,9 +83,10 @@ The skill and its rules are written in Korean. A finding looks like this (exampl
 근거    src/components/OrderBadge.tsx:12
          status === 'PAID'  (이 PR에서 안 바뀜)
 상황    결제 완료 주문 → 배지가 항상 '알 수 없음'
+생긴 때  이번 변경
 ```
 
-The heading reads "[must fix] impact". The labels are the changed line (바뀐 곳), the evidence (근거) and what happens (상황). This one says the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
+The heading reads "[must fix] impact". The labels are the changed line (바뀐 곳), the evidence (근거), what happens (상황) and whether this change introduced it (생긴 때 — 이번 변경 means this change, 변경 전부터 means it existed before). This one says the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
 
 A review adds two files to your repository:
 
@@ -129,7 +130,7 @@ gimi-review and Claude Code's built-in `/code-review` reviewed pull requests wit
 - **Requirements only in issues** — four defects whose requirements were written only in an issue, reviewed twice per reviewer. Reviews that said the change contradicts the requirement: gimi 8 of 8, `/code-review` 5 of 8 (counted by me from the findings' content, not by where they point).
 - **Cost and time** — gimi costs more. On the 32 new defects, one review averaged $0.41 and 57 seconds with gimi, $0.31 and 45 seconds with `/code-review`.
 
-These results come from one model and one example app. The new defects were reviewed once each. gimi ran without a settings file. The domain presets (commerce and Korean e-commerce law) are on only when set, so they were off. At the time (before 2026-11-03), no settings also meant a frontend-only target, so the backend-only common guardrails were not in the rule list. The effect of the preset rules has not been measured yet. This evaluation ran before 0.1.0, so what was added or changed after that has not been measured either: pull request CI results, checking the pull request's claims, counting repeated findings, guessing the target when there are no settings, contract usages in other repositories (`linkedRepos`), and the shortened review procedure (SKILL.md), among others. The fake `gh` used in evaluation reports no pull request, so the current evaluation tool does not exercise the CI results or the reading of the pull request body. With only one evaluation repository, it cannot measure `linkedRepos` either. There are no results yet from real repositories outside the example app. Results and conditions are in the [evaluation notes](../evals/review/README.md) and [result files](../evals/review/results/) (Korean).
+These results come from one model and one example app. The new defects were reviewed once each. gimi ran without a settings file. The domain presets (commerce and Korean e-commerce law) are on only when set, so they were off. At the time (before 2026-11-03), no settings also meant a frontend-only target, so the backend-only common guardrails were not in the rule list. The effect of the preset rules has not been measured yet. This evaluation ran before 0.1.0, so what was added or changed after that has not been measured either: pull request CI results, checking the pull request's claims, counting repeated findings, guessing the target when there are no settings, contract usages in other repositories (`linkedRepos`), and the shortened review procedure (SKILL.md), among others. In that evaluation the fake `gh` reported no pull request, so the CI results and the reading of the pull request body did not run. The evaluation tool now serves a fake pull request and CI for defects that define `github`, but those cases have not been run with a model yet. With only one evaluation repository, `linkedRepos` cannot be measured. There are no results yet from real repositories outside the example app. Results and conditions are in the [evaluation notes](../evals/review/README.md) and [result files](../evals/review/results/) (Korean).
 
 ## Limitations
 

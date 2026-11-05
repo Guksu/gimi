@@ -1,0 +1,100 @@
+diff --git a/server/src/money.ts b/server/src/money.ts
+index 3eaa6e8..8076b5a 100644
+--- a/server/src/money.ts
++++ b/server/src/money.ts
+@@ -8,7 +8,7 @@ export const METHODS: readonly Method[] = ['card', 'transfer', 'virtual_account'
+ export const MINIMUM_PAYMENT: Record<Method, number> = { card: 100, transfer: 200, virtual_account: 1000 }
+ export const SHIPPING_FEE = 3000
+ // 쿠폰 할인 뒤 금액이 이 금액 "이상"이면 배송비가 없다
+-export const FREE_SHIPPING_THRESHOLD = 30000
++export const FREE_SHIPPING_THRESHOLD = 40000
+ export const POINT_UNIT = 10
+ 
+ /** 정률 할인 — 원 미만 버림 */
+diff --git a/server/test/pricing.test.ts b/server/test/pricing.test.ts
+index 10925c0..b7895b2 100644
+--- a/server/test/pricing.test.ts
++++ b/server/test/pricing.test.ts
+@@ -21,7 +21,7 @@ describe('GET /products', () => {
+ 
+   it('메뉴가 첫 화면에 안내할 기본 배송비와 무료 배송 기준을 준다', async () => {
+     const res = await t.as(1).get('/products')
+-    expect(res.body.shipping).toEqual({ fee: 3000, freeThreshold: 30000 })
++    expect(res.body.shipping).toEqual({ fee: 3000, freeThreshold: 40000 })
+   })
+ })
+ 
+@@ -29,7 +29,7 @@ describe('POST /orders/quote — 금액은 서버가 원 단위 정수로 계산
+   it('줄마다 단가 × 수량, 합계·배송비·결제 금액을 낸다', async () => {
+     const res = await quote({ items: [{ productId: 1, quantity: 2 }, { productId: 2, quantity: 1 }] })
+     expect(res.status).toBe(200)
+-    expect(res.body).toMatchObject({ subtotal: 19000, couponDiscount: 0, pointsUsed: 0, shippingFee: 3000, total: 22000, freeShippingThreshold: 30000 })
++    expect(res.body).toMatchObject({ subtotal: 19000, couponDiscount: 0, pointsUsed: 0, shippingFee: 3000, total: 22000, freeShippingThreshold: 40000 })
+     expect(res.body.lines).toEqual([
+       { productId: 1, name: '잔치국수', unitPrice: 6000, quantity: 2, lineTotal: 12000 },
+       { productId: 2, name: '비빔국수', unitPrice: 7000, quantity: 1, lineTotal: 7000 },
+@@ -84,13 +84,13 @@ describe('POST /orders/quote — 금액은 서버가 원 단위 정수로 계산
+     expect((await quote({ items: [{ productId: 1, quantity: 1 }], couponCode: 'LAST1' })).body.code).toBe('COUPON_EXHAUSTED')
+   })
+ 
+-  it('무료 배송은 쿠폰 할인 뒤 금액이 3만 원 "이상"일 때다 — 29,999·30,000·30,001원', async () => {
++  it('무료 배송은 쿠폰 할인 뒤 금액이 4만 원 "이상"일 때다 — 39,999·40,000·40,001원', async () => {
+     const at = async (subtotal: number) => {
+       await t.db.query('UPDATE products SET price = $1 WHERE id = 1', [subtotal])
+       return (await quote({ items: [{ productId: 1, quantity: 1 }] })).body.shippingFee
+     }
+-    expect([await at(29999), await at(30000), await at(30001)]).toEqual([3000, 0, 0])
+-    await t.db.query('UPDATE products SET price = 32000 WHERE id = 1')
++    expect([await at(39999), await at(40000), await at(40001)]).toEqual([3000, 0, 0])
++    await t.db.query('UPDATE products SET price = 42000 WHERE id = 1')
+     expect((await quote({ items: [{ productId: 1, quantity: 1 }], couponCode: 'WELCOME3000' })).body).toMatchObject({ couponDiscount: 3000, shippingFee: 3000 })
+   })
+ 
+diff --git a/web/src/pages/cart.test.tsx b/web/src/pages/cart.test.tsx
+index 6539d51..ba7dbea 100644
+--- a/web/src/pages/cart.test.tsx
++++ b/web/src/pages/cart.test.tsx
+@@ -9,7 +9,7 @@ describe('장바구니', () => {
+     openAt('/cart', [{ productId: 1, quantity: 2 }])
+     expect(await screen.findByText('15,000원')).toBeInTheDocument()
+     expect(screen.getByText('3,000원')).toBeInTheDocument()
+-    expect(screen.getByText('18,000원 더 담으면 무료 배송이에요')).toBeInTheDocument()
++    expect(screen.getByText('28,000원 더 담으면 무료 배송이에요')).toBeInTheDocument()
+   })
+ 
+   it('수량은 1 이상, 상품의 최대 수량 이하의 정수만 받는다 — 잘못된 값이면 서버에 묻지 않는다', async () => {
+diff --git a/web/src/pages/menu.test.tsx b/web/src/pages/menu.test.tsx
+index 43d92cf..ff27501 100644
+--- a/web/src/pages/menu.test.tsx
++++ b/web/src/pages/menu.test.tsx
+@@ -17,7 +17,7 @@ describe('메뉴', () => {
+ 
+   it('첫 화면에 기본 배송비와 무료 배송 기준을 알린다', async () => {
+     openAt('/')
+-    expect(await screen.findByText('쿠폰 할인 뒤 30,000원 미만 주문에는 배송비 3,000원이 붙어요')).toBeInTheDocument()
++    expect(await screen.findByText('쿠폰 할인 뒤 40,000원 미만 주문에는 배송비 3,000원이 붙어요')).toBeInTheDocument()
+   })
+ 
+   it('담으면 장바구니 수가 늘어난다', async () => {
+diff --git a/web/src/test/server.ts b/web/src/test/server.ts
+index 7ec24e0..1c8f8da 100644
+--- a/web/src/test/server.ts
++++ b/web/src/test/server.ts
+@@ -25,7 +25,7 @@ export const quote = (overrides: Partial<Quote> = {}): Quote => ({
+   pointsUsed: 0,
+   shippingFee: 3000,
+   total: 15000,
+-  freeShippingThreshold: 30000,
++  freeShippingThreshold: 40000,
+   method: 'card',
+   ...overrides,
+ })
+@@ -53,7 +53,7 @@ export const order = (overrides: Partial<Order> = {}): Order => ({
+ })
+ 
+ export const server = setupServer(
+-  http.get(`${API}/products`, () => HttpResponse.json({ items: products, shipping: { fee: 3000, freeThreshold: 30000 } })),
++  http.get(`${API}/products`, () => HttpResponse.json({ items: products, shipping: { fee: 3000, freeThreshold: 40000 } })),
+   http.post(`${API}/orders/quote`, () => HttpResponse.json(quote())),
+   http.get(`${API}/memberships/plan`, () => HttpResponse.json({ price: 2900 })),
+ )

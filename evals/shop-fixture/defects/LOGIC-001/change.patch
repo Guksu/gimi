@@ -1,0 +1,15 @@
+diff --git a/web/src/cart/cart.tsx b/web/src/cart/cart.tsx
+index 7d4be5b..e7ae33c 100644
+--- a/web/src/cart/cart.tsx
++++ b/web/src/cart/cart.tsx
+@@ -47,8 +47,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
+     items,
+     couponCode,
+     points,
+-    add: (productId) =>
+-      setItems((prev) => (prev.some((i) => i.productId === productId) ? prev.map((i) => (i.productId === productId ? { ...i, quantity: i.quantity + 1 } : i)) : [...prev, { productId, quantity: 1 }])),
++    // 다시 담은 상품은 맨 아래로 옮긴다 — 방금 담은 것을 바로 찾게
++    add: (productId) => setItems((prev) => [...prev.filter((i) => i.productId !== productId), { productId, quantity: 1 }]),
+     setQuantity: (productId, quantity) => setItems((prev) => prev.map((i) => (i.productId === productId ? { ...i, quantity } : i))),
+     remove: (productId) => setItems((prev) => prev.filter((i) => i.productId !== productId)),
+     setCoupon,
