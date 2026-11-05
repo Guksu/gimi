@@ -4,7 +4,7 @@ A code review skill for Claude Code and Codex. It first gathers the context outs
 
 AI review skills today usually judge only what is inside the diff. So they kept missing defects people catch in review, such as another screen that uses the changed function, or a requirement written only in the ticket. I built gimi to review with that context gathered first.
 
-[한국어](README.ko.md) · [Install](#installation) · [Full guide](docs/guide.en.md) · [Evaluation (Korean)](evals/review/README.md)
+[한국어](README.ko.md) · [Good fit](#good-fit) · [Install](#installation) · [Full guide](docs/guide.en.md) · [Evaluation (Korean)](evals/review/README.md)
 
 A finding looks like this (example):
 
@@ -21,7 +21,24 @@ A finding looks like this (example):
 
 In English: the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
 
-I reviewed 32 pull requests with defects planted in an example app, with gimi and with Claude Code's built-in `/code-review`. Both reviewers used the same model and instructions. Both found almost every defect (counted by where a finding points). Findings on something other than the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean they were wrong. Each pull request was reviewed once, and gimi ran without a settings file (domain presets off). One review averaged 57 seconds and $0.41 with gimi, and 45 seconds and $0.31 with `/code-review`. [Method and all results (Korean)](evals/review/README.md) · [Caveats](docs/guide.en.md#evaluation)
+I reviewed 32 pull requests with defects planted in an example app, with gimi and with Claude Code's built-in `/code-review`. Both reviewers used the same model and instructions. Both found almost every defect (counted by where a finding points). Findings on something other than the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean they were wrong. Each pull request was reviewed once, and gimi ran without a settings file (domain presets off). One review averaged 57 seconds and $0.41 with gimi, and 45 seconds and $0.31 with `/code-review`. A separate evaluation used four defects whose requirements were written only in an issue, reviewed twice per reviewer. gimi read the requirement in 8 of 8 reviews, `/code-review` in 5 of 8. [Method and all results (Korean)](evals/review/README.md) · [Caveats](docs/guide.en.md#evaluation)
+
+## Good fit
+
+- **TypeScript and JavaScript** — gimi finds where changed functions and types are used only in these two languages (Vue and Svelte included). When a file in another language changes, it searches only for where the changed strings (query keys, paths and the like) are used.
+- **Changes that need context outside the diff** — the context gimi gathers is meant for pull requests like these:
+  - Code this pull request did not touch uses a changed function, type or API contract (OpenAPI, GraphQL). If the frontend and backend live in separate repositories, list the path in the settings.
+  - The requirements are written in an issue.
+  - The description makes a claim such as "refactor only" or "backward compatible".
+  - It touches lines that an earlier fix changed.
+  - CI failed.
+- **Commerce and payments** — with the domain presets on (29 commerce rules, 14 Korean e-commerce law rules), gimi also reviews against those rules.
+- **Review only** — it does not write or run tests. It does review the test code in a pull request.
+- **Korean** — the skill, the rules and the finding format are in Korean.
+
+## Status
+
+The current version is 0.2.0. The evaluation above was run before 0.2.0 (2026-10-27 and 10-31) on one example app. What 0.2.0 added or changed has not been measured yet: pull request CI results, checking the pull request's claims, counting repeated findings, and guessing the target when there are no settings. Neither has the effect of turning on the domain presets. There are no results yet from real repositories outside the example app.
 
 ## Installation
 
