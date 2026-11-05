@@ -115,7 +115,7 @@ To also review against the commerce and Korean e-commerce law rules, ask "도메
 | Without | What changes |
 |---|---|
 | `gh` signed in | Pull request and issue text and CI results are not read and are listed as skipped. Intent comes only from commit messages |
-| `typescript` in the reviewed project | Usages of changed names are found by text search, marked "정확도 낮음" (low accuracy). Unrelated code with the same name may show up. If git tracks any file under `node_modules`, `typescript` is not loaded for security, with the same effect |
+| `typescript` in the reviewed project | Usages of changed names are found by text search, marked "정확도 낮음" (low accuracy). Unrelated code with the same name may show up. The same happens when git tracks any file under `node_modules`: `typescript` is not loaded, for security |
 | Full history (shallow clone) | Change history is skipped. Run `git fetch --unshallow` and review again |
 | Jira, Notion or Linear connection | If the agent cannot read the ticket, it asks you to paste it |
 
@@ -127,7 +127,7 @@ If something feels wrong, [open an issue](https://github.com/Guksu/gimi/issues) 
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-386%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-394%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## License

@@ -99,7 +99,7 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 | 없을 때 | 달라지는 것 |
 |---|---|
 | `gh` 로그인 | PR·이슈 본문과 CI 결과를 읽지 않고 건너뜀으로 적습니다. 의도는 커밋 메시지로만 봅니다 |
-| 리뷰할 프로젝트의 `typescript` | 바뀐 이름의 사용처를 문자열 검색으로 찾고 "정확도 낮음"으로 표시합니다. 이름만 같은 다른 코드가 섞일 수 있습니다. `node_modules`에 git이 추적하는 파일이 있으면 보안 때문에 typescript를 불러오지 않아 같습니다 |
+| 리뷰할 프로젝트의 `typescript` | 바뀐 이름의 사용처를 문자열 검색으로 찾고 "정확도 낮음"으로 표시합니다. 이름만 같은 다른 코드가 섞일 수 있습니다. `node_modules`에 git이 추적하는 파일이 있을 때도 같습니다. 보안 때문에 typescript를 불러오지 않습니다 |
 | 전체 이력(얕은 복제) | 변경 이력을 건너뜁니다. `git fetch --unshallow` 뒤 다시 돌립니다 |
 | Jira·Notion·Linear 연결 | 그 티켓을 읽지 못하면 본문을 붙여 넣어 달라고 묻습니다 |
 
@@ -111,7 +111,7 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-386%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-394%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## 라이선스
