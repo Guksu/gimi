@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { coverageOf, formatScore, hunksOf, judgmentItems, locateFinding, matchFindings, mergeJudgments, parseFindings, scoreRuns, tallyJudgments } from '../scripts/lib/review-eval.mjs'
+import { JUDGMENTS, coverageOf, formatScore, hunksOf, judgmentItems, locateFinding, matchFindings, mergeJudgments, parseFindings, scoreRuns, tallyJudgments } from '../scripts/lib/review-eval.mjs'
 
 const ROOT = '/tmp/shop-a1b2'
 const defect = (overrides = {}) => ({
@@ -262,6 +262,11 @@ describe('실행 조건 — 모델·gimi 판·도구(설계 결정 65)', () => {
     { ...base, reviewer: 'code-review', run: 2 },
   ]
 
+  it('gimi 판을 읽지 못한 실행은 안 씀이 아니라 읽지 못함이다', () => {
+    const { reviewers } = scoreRuns({ runs: [{ ...base, reviewer: 'gimi', run: 1, runs: 1, model: 'm', gimi: { error: 'git 없음' }, tools }] })
+    assert.equal(reviewers[0].setups[0].gimi, '읽지 못함(git 없음)')
+  })
+
   it('리뷰어마다 모델·gimi 판(커밋)·도구·반복 횟수가 같은 실행끼리 묶는다 — gimi를 쓰지 않은 리뷰어는 안 씀, 이 기록이 생기기 전의 결과는 기록 없음', () => {
     const { reviewers } = scoreRuns({ runs })
     assert.deepEqual(
@@ -339,12 +344,45 @@ describe('수동 판정 — 위치 점수와 의미 판정을 나눈다(설계 �
     assert.ok(problems.some((p) => /OLD-001#1.*채점 결과에 없다/.test(p)), problems.join(' / '))
   })
 
+  it('mergeJudgments — 채점 결과에 없는 항목과 지적이 바뀐 항목의 판정은 버리지 않고 orphans로 남긴다', () => {
+    const list = items()
+    const saved = {
+      items: [
+        { key: 'gimi/COM-024#1/정답 1', finding: '고쳐야 함 web/src/pages/OrderPage.tsx:70 다른 지적', judgment: '일치', note: '예전 지적' },
+        { key: 'gimi/OLD-001#1/정답 1', finding: 'x', judgment: '일치', note: '옛 실행' },
+      ],
+      orphans: [{ key: 'gimi/OLDER#1/정답 1', judgment: '불일치', reason: '전에 남김' }],
+    }
+    const { items: merged, orphans, problems } = mergeJudgments({ items: list, saved })
+    // 위치로 맞은 지적이 바뀌었다 — 예전 판정을 새 지적에 옮겨 붙이지 않는다
+    assert.equal(merged[0].judgment, '미검토')
+    assert.deepEqual(
+      orphans.map((o) => [o.key, o.judgment, o.reason]),
+      [
+        ['gimi/OLDER#1/정답 1', '불일치', '전에 남김'],
+        ['gimi/COM-024#1/정답 1', '일치', '판정한 지적과 지금 지적이 다르다'],
+        ['gimi/OLD-001#1/정답 1', '일치', '채점 결과에 없다'],
+      ],
+    )
+    assert.ok(problems.some((p) => /COM-024#1\/정답 1.*지적이 다르다/.test(p)), problems.join(' / '))
+  })
+
+  it('judgmentItems — 키가 겹치면(같은 리뷰어의 실행이 두 폴더에) 실패한다', () => {
+    const twice = scoreRuns({ runs: [runs[1], { ...runs[1] }] }).runs
+    assert.throws(() => judgmentItems(twice), /키가 겹친다.*gimi\/COM-024#2/)
+  })
+
+  it('정답 밖 지적은 "정답과 같은 결함"으로도 판정한다 — 놓친 정답의 다른 위치 지적을 두 번 세지 않는다', () => {
+    assert.ok(JUDGMENTS.extra.includes('정답과 같은 결함'))
+    assert.ok(!JUDGMENTS.false.includes('정답과 같은 결함'))
+  })
+
   it('tallyJudgments·formatScore — 의미 판정은 위치 점수와 따로 보이고, 사람이 보지 않은 것은 미검토로 센다', () => {
     const saved = { items: [{ key: 'gimi/COM-024#1/정답 1', judgment: '일치' }, { key: 'gimi/COM-024#1/지적 server/src/money.ts:3', judgment: '잘못된 지적' }] }
     const judged = tallyJudgments(mergeJudgments({ items: items(), saved }).items)
     const text = formatScore({ ...scoreRuns({ runs }), judged })
-    assert.ok(text.includes('| 리뷰어 | 위치로 찾은 정답 — 원인·실패 조건 일치 · 불일치 · 미검토 | 위치로 놓친 정답 — 다른 위치에서 찾음 · 못 찾음 · 미검토 | 정답 밖 지적 — 실제 결함 · 잘못된 지적 · 판단 보류 · 미검토 | 결함 없는 PR의 지적 — 실제 결함 · 잘못된 지적 · 판단 보류 · 미검토 |'), text)
-    assert.ok(text.includes('| gimi | 1 — 1 · 0 · 0 | 1 — 0 · 0 · 1 | 2 — 0 · 1 · 0 · 1 | 1 — 0 · 0 · 0 · 1 |'), text)
+    assert.ok(text.includes('| 리뷰어 | 위치로 찾은 정답 — 원인·실패 조건 일치 · 불일치 · 미검토 | 위치로 놓친 정답 — 다른 위치에서 찾음 · 못 찾음 · 미검토 | 정답 밖 지적 — 실제 결함 · 잘못된 지적 · 판단 보류 · 정답과 같은 결함 · 미검토 | 결함 없는 PR의 지적 — 실제 결함 · 잘못된 지적 · 판단 보류 · 미검토 |'), text)
+    assert.ok(text.includes('| gimi | 1 — 1 · 0 · 0 | 1 — 0 · 0 · 1 | 2 — 0 · 1 · 0 · 0 · 1 | 1 — 0 · 0 · 0 · 1 |'), text)
     assert.match(text, /사람이 판정한 것\(judgments\.json\)/)
     assert.doesNotMatch(formatScore(scoreRuns({ runs })), /위치로 놓친 정답/)
   })

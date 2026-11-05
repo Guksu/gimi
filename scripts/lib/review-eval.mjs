@@ -205,11 +205,11 @@ const groupConditions = (runs) => {
 
 /**
  * 실행 조건 — 모델·gimi 판(플러그인 버전과 gimi 저장소 커밋)·도구 조건·결함마다 반복 횟수.
- * 이 기록이 생기기 전의 결과는 '기록 없음', gimi를 플러그인으로 받지 않은 리뷰어는 '안 씀'
+ * 이 기록이 생기기 전의 결과는 '기록 없음', gimi를 플러그인으로 받지 않은 리뷰어는 '안 씀', 받았는데 판을 읽지 못했으면 '읽지 못함'
  */
 const setupOf = (run) => ({
   model: run.model === undefined ? '기록 없음' : String(run.model),
-  gimi: run.gimi === undefined ? '기록 없음' : run.gimi === null ? '안 씀' : `${run.gimi.version} (${String(run.gimi.commit).slice(0, 7)}${run.gimi.dirty ? ', 커밋하지 않은 수정 있음' : ''})`,
+  gimi: run.gimi === undefined ? '기록 없음' : run.gimi === null ? '안 씀' : run.gimi.error ? `읽지 못함(${run.gimi.error})` : `${run.gimi.version} (${String(run.gimi.commit).slice(0, 7)}${run.gimi.dirty ? ', 커밋하지 않은 수정 있음' : ''})`,
   tools: run.tools === undefined ? '기록 없음' : `${run.tools.allowed.join('·')} / 막음 ${run.tools.disallowed.length > 0 ? run.tools.disallowed.join('·') : '없음'}`,
   repeat: run.runs === undefined ? '기록 없음' : String(run.runs),
 })
@@ -354,12 +354,13 @@ export const formatScore = ({ reviewers, perDefect, mixed = false, judged = null
  * 수동 판정의 값 — 첫 값(미검토)이 기본이다.
  * found: 위치로 찾은 정답 — 지적의 원인·실패 조건이 정답과 같은가
  * missed: 위치로 놓친 정답 — 다른 위치의 지적이 같은 결함을 말했는가
- * extra·false: 정답 밖 지적·결함 없는 PR의 지적 — 실제 결함인가
+ * extra·false: 정답 밖 지적·결함 없는 PR의 지적 — 실제 결함인가. 정답 밖 지적이 놓친 정답과 같은 결함을 말했으면 "정답과 같은 결함"
+ *   (그 정답은 missed에서 "다른 위치에서 찾음"으로 센다 — 실제 결함으로 두 번 세지 않는다)
  */
 export const JUDGMENTS = {
   found: ['미검토', '일치', '불일치'],
   missed: ['미검토', '다른 위치에서 찾음', '못 찾음'],
-  extra: ['미검토', '실제 결함', '잘못된 지적', '판단 보류'],
+  extra: ['미검토', '실제 결함', '잘못된 지적', '판단 보류', '정답과 같은 결함'],
   false: ['미검토', '실제 결함', '잘못된 지적', '판단 보류'],
 }
 
@@ -370,7 +371,7 @@ const describeFinding = (finding) => `${finding.level ?? '단계 없음'} ${find
  * 키는 리뷰어/결함#실행/정답 N 또는 지적 경로:줄(같은 실행에 같은 위치가 또 있으면 (2)…)이다
  * @param {ReturnType<typeof scoreRuns>['runs']} runs scoreRuns가 돌려준 실행마다의 결과
  */
-export const judgmentItems = (runs) =>
+const itemsOf = (runs) =>
   runs.flatMap((run) => {
     const base = `${run.reviewer}/${run.id}#${run.run}`
     const common = { reviewer: run.reviewer, id: run.id, run: run.run }
@@ -392,28 +393,51 @@ export const judgmentItems = (runs) =>
     return [...answers, ...extras]
   })
 
+/** 판정할 항목 — 키가 겹치면(같은 리뷰어·결함·실행이 결과 폴더에 둘) 판정이 섞이므로 실패한다 */
+export const judgmentItems = (runs) => {
+  const items = itemsOf(runs)
+  const seen = new Set()
+  const twice = [...new Set(items.map((item) => item.key).filter((key) => (seen.has(key) ? true : (seen.add(key), false))))]
+  if (twice.length > 0) throw new Error(`판정 항목의 키가 겹친다 — 같은 리뷰어의 같은 실행이 결과 폴더에 둘 있다: ${twice.slice(0, 3).join(', ')}`)
+  return items
+}
+
+const judged = (old) => typeof old?.judgment === 'string' && old.judgment !== '미검토'
+
 /**
  * 저장된 판정(judgments.json)을 새 항목에 옮긴다 — 판정과 메모는 지키고, 새 항목은 미검토로 둔다.
- * 그 종류에 없는 값은 미검토로 두고 알린다. 채점 결과에 없는 항목의 판정도 알린다(지우지 않고 버린다)
- * @returns {{ items: ReturnType<typeof judgmentItems>, problems: string[] }}
+ * 그 종류에 없는 값은 미검토로 두고 알린다. 사람이 적은 판정은 버리지 않는다 — 채점 결과에 없는 항목과,
+ * 판정할 때의 지적(finding)이 지금 지적과 다른 항목(결함 정의가 바뀌어 다른 지적이 맞은 경우)의 판정은 orphans로 옮긴다
+ * @returns {{ items: ReturnType<typeof judgmentItems>, orphans: { key: string, finding?: string, judgment: string, note?: string, reason: string }[], problems: string[] }}
  */
 export const mergeJudgments = ({ items, saved }) => {
   const problems = []
+  const orphans = (Array.isArray(saved?.orphans) ? saved.orphans : []).filter((orphan) => typeof orphan?.key === 'string')
+  const orphan = (old, reason) => orphans.push({ key: old.key, ...(old.finding === undefined ? {} : { finding: old.finding }), judgment: old.judgment, ...(old.note ? { note: old.note } : {}), reason })
   const byKey = new Map((Array.isArray(saved?.items) ? saved.items : []).filter((item) => typeof item?.key === 'string').map((item) => [item.key, item]))
   const merged = items.map((item) => {
     const old = byKey.get(item.key)
     if (!old) return item
     byKey.delete(item.key)
+    if (judged(old) && old.finding !== undefined && old.finding !== item.finding) {
+      problems.push(`${item.key} — 판정한 지적과 지금 지적이 다르다. 판정(${old.judgment})은 orphans로 옮기고 미검토로 둔다`)
+      orphan(old, '판정한 지적과 지금 지적이 다르다')
+      return item
+    }
     const note = typeof old.note === 'string' ? old.note : ''
-    if (old.judgment === undefined || old.judgment === '미검토') return { ...item, note }
+    if (!judged(old)) return { ...item, note }
     if (!JUDGMENTS[item.kind].includes(old.judgment)) {
       problems.push(`${item.key} — "${old.judgment}"은(는) 이 항목의 판정 값(${JUDGMENTS[item.kind].join('·')})이 아니라 미검토로 둔다`)
       return { ...item, note }
     }
     return { ...item, judgment: old.judgment, note }
   })
-  for (const [key, old] of byKey) if (old.judgment && old.judgment !== '미검토') problems.push(`${key} — 판정(${old.judgment})이 있는데 채점 결과에 없다`)
-  return { items: merged, problems }
+  for (const [key, old] of byKey)
+    if (judged(old)) {
+      problems.push(`${key} — 판정(${old.judgment})이 있는데 채점 결과에 없다. orphans로 옮긴다`)
+      orphan(old, '채점 결과에 없다')
+    }
+  return { items: merged, orphans, problems }
 }
 
 const emptyTally = () => Object.fromEntries(Object.entries(JUDGMENTS).map(([kind, values]) => [kind, Object.fromEntries(values.map((value) => [value, 0]))]))

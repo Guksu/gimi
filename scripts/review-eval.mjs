@@ -150,15 +150,15 @@ const prepare = (fixture, id, config) => {
   return { holder, repo, env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` } }
 }
 
-/** 이 평가가 쓴 gimi — 플러그인 버전과 gimi 저장소의 커밋, 커밋하지 않은 수정이 있는지(읽지 못하면 null) */
+/** 이 평가가 쓴 gimi — 플러그인 버전과 gimi 저장소의 커밋, 커밋하지 않은 수정이 있는지(읽지 못하면 { error }) */
 const gimiVersion = () => {
   try {
     const version = JSON.parse(readFileSync(join(ROOT, '.claude-plugin/plugin.json'), 'utf8')).version
     const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
     const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() !== ''
     return { version, commit, dirty }
-  } catch {
-    return null
+  } catch (error) {
+    return { error: String(error?.message ?? error).split('\n')[0].slice(0, 120) }
   }
 }
 
@@ -317,13 +317,32 @@ const score = ({ fixture, dir }) => {
   const coverageFile = join(dir, 'coverage.json')
   const result = scoreRuns({ runs, coverage: existsSync(coverageFile) ? JSON.parse(readFileSync(coverageFile, 'utf8')) : {} })
   // 판정 양식 — 사람이 적은 판정은 지키고 새 항목은 미검토로 더한다. 판정이 하나도 없으면 의미 판정 표도 미검토로 보인다
+  // 사람이 적은 판정은 되살릴 수 없다(결과 폴더는 커밋하지 않는다) — 모양을 모르는 파일은 덮어쓰지 않고, 쓰기 전에 .bak을 둔다
   const judgmentsFile = join(dir, 'judgments.json')
-  const saved = existsSync(judgmentsFile) ? JSON.parse(readFileSync(judgmentsFile, 'utf8')) : null
-  const { items, problems } = mergeJudgments({ items: judgmentItems(result.runs), saved })
+  let saved = null
+  if (existsSync(judgmentsFile)) {
+    try {
+      saved = JSON.parse(readFileSync(judgmentsFile, 'utf8'))
+    } catch {
+      saved = undefined
+    }
+    if (!saved || typeof saved !== 'object' || !Array.isArray(saved.items)) throw new UsageError(`판정 양식(${judgmentsFile})의 모양을 모른다 — items 목록이 있는 JSON 객체여야 한다. 덮어쓰지 않았다`)
+    cpSync(judgmentsFile, `${judgmentsFile}.bak`)
+  }
+  let items
+  try {
+    items = judgmentItems(result.runs)
+  } catch (error) {
+    throw new UsageError(error.message)
+  }
+  const merged = mergeJudgments({ items, saved })
+  items = merged.items
+  const { problems } = merged
   const form = {
-    about: '사람이 리뷰 지적의 내용을 읽고 판정한다. judgment를 values의 값으로 바꾸고 note에 근거를 적는다. 미검토는 아직 아무도 보지 않았다는 뜻이다.',
+    about: '사람이 리뷰 지적의 내용을 읽고 판정한다. judgment를 values의 값으로 바꾸고 note에 근거를 적는다. 미검토는 아직 아무도 보지 않았다는 뜻이다. orphans는 지금 채점 결과에 짝이 없는 지난 판정이다.',
     values: JUDGMENTS,
     items,
+    ...(merged.orphans.length > 0 ? { orphans: merged.orphans } : {}),
   }
   writeFileSync(judgmentsFile, `${JSON.stringify(form, null, 2)}\n`)
   const text = `${formatScore({ ...result, judged: tallyJudgments(items) })}\n`

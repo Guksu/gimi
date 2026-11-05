@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -213,6 +213,44 @@ describe('review-eval.mjs', () => {
     assert.match(again.stdout, /\| gimi \| 1 — 1 · 0 · 0 \|/)
     const kept = JSON.parse(readFileSync(join(dir, 'judgments.json'), 'utf8')).items.find((item) => item.key === 'gimi/COM-007#1/정답 1')
     assert.deepEqual([kept.judgment, kept.note], ['일치', '원인과 실패 조건이 정답과 같다'])
+  })
+
+  it('score — 실행 때 남긴 정답으로 맞춘다. 결함 정의가 나중에 바뀌어도 같고, 정답이 없는 지난 기록에는 알린다', () => {
+    const file = join(repo.dir, 'defects/COM-007/defect.json')
+    const original = readFileSync(file, 'utf8')
+    try {
+      // 실행 뒤 예제 앱이 바뀌어 정답 줄이 옮겨졌다
+      writeFileSync(file, original.replace('"line":3', '"line":40'))
+      const now = run(['score', join(out, 'runs'), '--fixture', repo.dir])
+      assert.equal(now.status, 0, now.stderr)
+      assert.match(now.stdout, /\| gimi \| 2 \| 1\/1 \(100%\) \|/)
+      assert.doesNotMatch(now.stdout, /지금 결함 정의로 맞췄다/)
+      // 정답을 남기지 않은 지난 기록 — 지금 정의(40행)로 맞춰 놓치고, 그렇다고 알린다
+      const old = join(out, 'runs-old')
+      cpSync(join(out, 'runs'), old, { recursive: true })
+      rmSync(join(old, 'judgments.json'), { force: true })
+      const record = join(old, 'gimi/COM-007-1.json')
+      const { defect, hunks, ...rest } = JSON.parse(readFileSync(record, 'utf8'))
+      writeFileSync(record, JSON.stringify(rest))
+      const past = run(['score', old, '--fixture', repo.dir])
+      assert.equal(past.status, 0, past.stderr)
+      assert.match(past.stdout, /실행 때의 정답이 기록에 없는 실행 1개는 지금 결함 정의로 맞췄다/)
+      assert.match(past.stdout, /\| gimi \| 2 \| 0\/1 \(0%\) \|/)
+    } finally {
+      writeFileSync(file, original)
+    }
+  })
+
+  it('score — 모양을 모르는 판정 양식은 덮어쓰지 않고 실패한다', () => {
+    const dir = join(out, 'runs-bad-form')
+    cpSync(join(out, 'runs'), dir, { recursive: true })
+    const form = join(dir, 'judgments.json')
+    const text = JSON.stringify([{ key: 'gimi/COM-007#1/정답 1', judgment: '일치' }])
+    writeFileSync(form, text)
+    const result = run(['score', dir, '--fixture', repo.dir])
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /판정 양식.*모양/)
+    assert.equal(readFileSync(form, 'utf8'), text)
   })
 
   it('run --config — 설정을 정상 버전(main)에 넣어 두 리뷰어가 같은 설정을 본다. PR diff에는 없다', () => {

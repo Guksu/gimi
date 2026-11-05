@@ -130,6 +130,16 @@ describe('validateDefect — 가짜 PR·CI와 gh 없음(github, 설계 결정 65
     for (const pattern of [/체크는 PR이 있을 때만/, /결과\(bucket\)/, /작업 번호/, /실패한 체크.*로그/, /gh 없음.*PR/, /github\.pr/]) assert.ok(errors.some((e) => pattern.test(e)), `${pattern} — ${errors.join(' / ')}`)
   })
 
+  it('closes는 PR이 있을 때만, issues에 있는 번호여야 하고, 체크의 작업 번호는 겹치지 않는다', () => {
+    const errors = [
+      ...validate({ ...good(), github: { closes: [41] } }),
+      ...validate({ ...good(), issues: [{ number: 41, title: 't', body: 'b' }], github: { pr: true, closes: [41, 52] } }),
+      ...validate({ ...good(), github: { pr: true, checks: [check(), check({ name: 'lint' })] } }),
+    ]
+    for (const pattern of [/closes는 PR이 있을 때만/, /#52.*issues에 없다/, /작업 번호 456.*겹친다/]) assert.ok(errors.some((e) => pattern.test(e)), `${pattern} — ${errors.join(' / ')}`)
+    assert.deepEqual(validate({ ...good(), issues: [{ number: 41, title: 't', body: 'b' }], github: { pr: true, closes: [41] } }), [])
+  })
+
   it('맥락 종류에 "바뀐 코드"가 있다 — 바뀐 함수 안의 계산·분기만으로 실패가 설명되는 결함(규칙 없이도 된다)', () => {
     assert.deepEqual(validate({ ...good(), rules: [], context: '바뀐 코드' }), [])
   })

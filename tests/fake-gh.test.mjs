@@ -98,7 +98,23 @@ describe('fake-gh.mjs — 가짜 PR·CI(설계 결정 65)', () => {
     assert.equal(ghIn(prData, 'pr', 'checks', '8', '--json', 'name').status, 1)
   })
 
-  it('unavailable이면 모든 명령이 로그인하지 않았다고 실패한다 — 맥락 수집이 의도를 건너뛰었다고 적는다', () => {
+  it('리뷰 절차가 쓰는 PR 명령에도 같은 PR로 답한다 — pr checkout(이미 그 브랜치), pr diff, URL·브랜치 이름으로 pr view', () => {
+    const checkout = ghIn(prData, 'pr', 'checkout', '7')
+    assert.equal(checkout.status, 0, checkout.stderr)
+    assert.equal(ghIn(prData, 'pr', 'checkout', '8').status, 1)
+    const repo = makeRepo({ dir: repoDir, init: false })
+    repo.git('checkout', '-q', '-b', 'feature/pr')
+    repo.write({ 'a.txt': 'b\n' })
+    repo.commit('바꿈')
+    const diff = ghIn(prData, 'pr', 'diff', '7')
+    assert.equal(diff.status, 0, diff.stderr)
+    assert.match(diff.stdout, /^diff --git a\/a\.txt b\/a\.txt/m)
+    assert.equal(JSON.parse(ghIn(prData, 'pr', 'view', 'https://github.com/guksu-shop/shop/pull/7', '--json', 'number').stdout).number, 7)
+    assert.equal(JSON.parse(ghIn(prData, 'pr', 'view', 'feature/pr', '--json', 'number').stdout).number, 7)
+    assert.equal(ghIn(prData, 'pr', 'view', 'other-branch', '--json', 'number').status, 1)
+  })
+
+  it('unavailable이면 모든 명령이 gh auth login을 안내하며 실패한다(종료 코드 4)', () => {
     for (const args of [['auth', 'status'], ['issue', 'view', '41'], ['pr', 'view', '--json', 'number']]) {
       const result = ghIn(offData, ...args)
       assert.equal(result.status, 4, args.join(' '))

@@ -9,7 +9,8 @@
  *                   "unavailable"?: true }
  *
  * auth status·repo view·issue view·issue list·api repos/…/issues/N에 답한다. 그 밖의 명령은 실패한다.
- * pr가 없으면 PR은 없다고 답한다. pr가 있으면 지금 브랜치의 PR로 pr view·pr list·pr checks에 답하고(머리 커밋은 지금 HEAD),
+ * pr가 없으면 PR은 없다고 답한다. pr가 있으면 지금 브랜치의 PR로 pr view·pr list·pr checks·pr checkout(이미 그 브랜치)·pr diff에 답하고
+ * (번호·URL·브랜치 이름을 받는다, 머리 커밋은 지금 HEAD),
  * run view --job N은 그 체크의 log를 돌려준다(설계 결정 65). unavailable이면 모든 명령이 로그인하지 않았다고 실패한다.
  * --json 필드 고르기와 단순한 --jq(.필드)만 흉내 낸다.
  */
@@ -58,13 +59,21 @@ const prOf = () => ({
   url: `https://github.com/${repo}/pull/${pr.number}`,
   baseRefName: 'main',
   // 맥락 수집은 PR의 머리 커밋이 HEAD와 같은지 본다 — 평가용 저장소의 지금 HEAD를 머리로 답한다
-  headRefOid: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  headRefOid: git('rev-parse', 'HEAD').trim(),
   closingIssuesReferences: (pr.closes ?? []).map((number) => ({ number })),
   state: 'OPEN',
 })
 const checkOf = (check) => ({ name: check.name, workflow: check.workflow, bucket: check.bucket, state: check.state, event: check.event, link: `https://github.com/${repo}/actions/runs/${check.runId}/job/${check.jobId}` })
-// 번호가 없으면 지금 브랜치의 PR, 있으면 그 번호여야 한다
-const isThisPr = (ref) => pr !== null && (ref === undefined || ref.startsWith('-') || Number(String(ref).replace(/^#/, '')) === pr.number)
+const git = (...gitArgs) => execFileSync('git', gitArgs, { encoding: 'utf8' })
+// 번호가 없으면 지금 브랜치의 PR. 번호·#번호·PR URL·지금 브랜치 이름이면 그 PR이다
+const isThisPr = (ref) => {
+  if (pr === null) return false
+  if (ref === undefined || ref.startsWith('-')) return true
+  const text = String(ref)
+  if (text === `https://github.com/${repo}/pull/${pr.number}`) return true
+  if (/^#?\d+$/.test(text)) return Number(text.replace(/^#/, '')) === pr.number
+  return text === git('branch', '--show-current').trim()
+}
 
 const [group, command, target] = args
 if (data.unavailable === true) {
@@ -92,6 +101,11 @@ if (data.unavailable === true) {
   } else if (command === 'view' && isThisPr(target)) {
     if (args.includes('--json')) printJson(prOf())
     else console.log(`${pr.title} #${pr.number}\n\n${pr.body}`)
+  } else if (command === 'checkout' && isThisPr(target)) {
+    // 평가용 저장소는 이미 PR 브랜치에 있다 — 브랜치를 바꾸지 않는다
+    console.error(`Already on '${git('branch', '--show-current').trim()}'`)
+  } else if (command === 'diff' && isThisPr(target)) {
+    process.stdout.write(git('diff', '--no-color', 'main...HEAD'))
   } else if (command === 'checks' && isThisPr(target)) {
     if (checks.length === 0) fail('no checks reported on the \'feature/pr\' branch')
     if (args.includes('--json')) printJson(checks.map(checkOf))
