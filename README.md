@@ -21,24 +21,40 @@ A finding looks like this (example):
 
 In English: the order status changed shape, but a badge outside the diff still reads the old shape, so paid orders always show "unknown".
 
-I reviewed 32 pull requests with defects planted in an example app, with gimi and with Claude Code's built-in `/code-review`. Both reviewers used the same model and instructions. Both found almost every defect (counted by where a finding points). Findings on something other than the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean they were wrong. Each pull request was reviewed once, and gimi ran without a settings file (domain presets off). One review averaged 57 seconds and $0.41 with gimi, and 45 seconds and $0.31 with `/code-review`. A separate evaluation used four defects whose requirements were written only in an issue, reviewed twice per reviewer. gimi read the requirement in 8 of 8 reviews, `/code-review` in 5 of 8. [Method and all results (Korean)](evals/review/README.md) · [Caveats](docs/guide.en.md#evaluation)
+I reviewed 32 pull requests with defects planted in an example app, with gimi and with Claude Code's built-in `/code-review`. Both reviewers used the same model and instructions. Both found almost every defect (counted by where a finding points). Findings on something other than the planted defects were 55 for `/code-review` and 19 for gimi; that does not mean they were wrong. Each pull request was reviewed once, and gimi ran without a settings file (domain presets off). One review averaged 57 seconds and $0.41 with gimi, and 45 seconds and $0.31 with `/code-review`.
+
+A separate evaluation used four defects whose requirements were written only in an issue, reviewed twice per reviewer. Reviews that said the change contradicts the requirement: gimi 8 of 8, `/code-review` 5 of 8. I counted these by reading the findings, not by where they point. [Method and all results (Korean)](evals/review/README.md) · [Caveats](docs/guide.en.md#evaluation)
 
 ## Good fit
 
-- **TypeScript and JavaScript** — gimi finds where changed functions and types are used only in these two languages (Vue and Svelte included). When a file in another language changes, it searches only for where the changed strings (query keys, paths and the like) are used.
-- **Changes that need context outside the diff** — the context gimi gathers is meant for pull requests like these:
-  - Code this pull request did not touch uses a changed function, type or API contract (OpenAPI, GraphQL). If the frontend and backend live in separate repositories, list the path in the settings.
+- **TypeScript and JavaScript projects** — gimi looks for where changed functions and types are used in files of these two languages. Usages inside Vue and Svelte files show up only when the project has no `typescript` and gimi falls back to text search.
+- **Pull requests that need context outside the diff** — the context gimi gathers is meant for pull requests like these:
+  - Code this pull request did not touch uses a changed function or type.
+  - An API contract (OpenAPI or GraphQL schema) changed. If the frontend and backend live in separate repositories, list the other repository's path in the settings (`linkedRepos`), and gimi also looks for contract usages there.
   - The requirements are written in an issue.
   - The description makes a claim such as "refactor only" or "backward compatible".
-  - It touches lines that an earlier fix changed.
-  - CI failed.
-- **Commerce and payments** — with the domain presets on (29 commerce rules, 14 Korean e-commerce law rules), gimi also reviews against those rules.
-- **Review only** — it does not write or run tests. It does review the test code in a pull request.
-- **Korean** — the skill, the rules and the finding format are in Korean.
+  - It changes lines that an earlier bug fix put in.
+  - The GitHub pull request's CI failed. A branch review without a pull request skips CI.
+- **Commerce and payment code** — with the domain presets on (29 commerce rules, 14 Korean e-commerce law rules), gimi also reviews against those rules.
+
+It is a weaker fit in these cases:
+
+- **Languages other than TypeScript and JavaScript** — when a file in another language changes, gimi does not look for where changed functions and types are used. It looks only for where the changed strings (query keys, paths and the like) are used.
+- **You want tests written or run** — gimi only reviews. It does review the test code in a pull request.
+- **Teams that don't read Korean** — the skill, the rules and the finding format are in Korean.
 
 ## Status
 
-The current version is 0.2.0. The evaluation above was run before 0.2.0 (2026-10-27 and 10-31) on one example app. What 0.2.0 added or changed has not been measured yet: pull request CI results, checking the pull request's claims, counting repeated findings, and guessing the target when there are no settings. Neither has the effect of turning on the domain presets. There are no results yet from real repositories outside the example app.
+The evaluation above was run before 0.1.0 (2026-10-27 and 10-31) on one example app. What was added or changed after that has not been measured yet, for example:
+
+- using the pull request's CI results as evidence for findings
+- checking claims in the pull request description and commit messages against the gathered context
+- counting a finding repeated across reviews and proposing it as a rule candidate
+- deciding from the repository whether to apply the frontend or backend guardrails when there are no settings
+- looking for contract usages in other repositories (`linkedRepos`)
+- shortening and rewriting the review procedure (SKILL.md)
+
+Neither has the effect of turning on the domain presets. There are no results yet from real repositories outside the example app.
 
 ## Installation
 
