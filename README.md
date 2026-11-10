@@ -106,7 +106,7 @@ To also review against the commerce and Korean e-commerce law rules, ask "도메
 
 ## Reading the results
 
-- **Chat**: only the number of findings and the "must fix" ones.
+- **Chat**: the first line is the verdict (the number of findings per level and any skipped context). Below it, each "must fix" and each question gets one line. "Nice to fix" findings are only counted.
 - **Files**: two files appear in the reviewed repository. gimi does not comment on the pull request or post anything to GitHub.
   - `docs/gimi/reviews/{date}-pr-{number}.md` (`{date}-{branch}.md` without a pull request): the review record. Each finding has its level, evidence, what happens, when it was introduced, the rule and a verdict.
   - A `.context.json` with the same name: all the gathered context. It is large and can be regenerated, so don't commit it. Add `docs/gimi/reviews/*.context.json` to `.gitignore`.
