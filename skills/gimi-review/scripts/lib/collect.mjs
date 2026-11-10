@@ -11,6 +11,7 @@ import { collectImpact, loadTypescript } from './impact.mjs'
 import { collectIntent } from './intent.mjs'
 import { resolveLinked } from './linked.mjs'
 import { resolveScope } from './scope.mjs'
+import { untrackedFiles } from './worktree.mjs'
 import { builtinYaml, loadYaml } from './yaml.mjs'
 
 const PR_FIELDS = 'number,title,body,url,baseRefName,headRefOid,closingIssuesReferences'
@@ -48,10 +49,10 @@ const trustedLinkedRepos = ({ exec, scope, linkedRepos, notes }) => {
  *   pr?: number | null, base?: string | null, recentCommits?: number,
  *   keyPatterns?: { source: string, pattern: string }[], useGh?: boolean, now?: Date,
  *   loadTs?: (args: { root: string }) => { ts: any, reason: string | null },
- *   linkedRepos?: unknown,
- * }} args linkedRepos는 작업 트리 설정의 값 — PR이 바꿨으면 기준의 값을 쓴다(trustedLinkedRepos)
+ *   linkedRepos?: unknown, worktree?: boolean,
+ * }} args worktree면 커밋하지 않은 변경과 추적하지 않는 새 파일도 범위에 넣는다(설계 결정 67). linkedRepos는 작업 트리 설정의 값 — PR이 바꿨으면 기준의 값을 쓴다(trustedLinkedRepos)
  */
-export const collectContext = ({ exec, pr = null, base = null, recentCommits = 10, keyPatterns = [], useGh = true, now = new Date(), loadTs = loadTypescript, linkedRepos = null }) => {
+export const collectContext = ({ exec, pr = null, base = null, recentCommits = 10, keyPatterns = [], useGh = true, now = new Date(), loadTs = loadTypescript, linkedRepos = null, worktree = false }) => {
   const skipped = []
   const notes = []
 
@@ -64,9 +65,16 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   const prInfo = gh ? attempt(() => JSON.parse(gh(['pr', 'view', ...(pr == null ? [] : [String(pr)]), '--json', PR_FIELDS]))) : null
   if (gh && pr != null && !prInfo) skipped.push({ context: '의도', reason: `PR #${pr}을(를) 열지 못했다` })
 
-  const scope = resolveScope({ exec, base, pr: prInfo })
+  const scope = resolveScope({ exec, base, pr: prInfo, worktree })
   // 사용자의 diff 설정(접두어 없애기 등)이 출력 모양을 바꾸지 않게 접두어를 정해 준다
-  const files = parseDiff(exec.git(['diff', '--no-color', '--no-ext-diff', '--no-textconv', '--src-prefix=a/', '--dst-prefix=b/', '--unified=0', '-M', scope.mergeBase, 'HEAD']))
+  const files = parseDiff(exec.git(['diff', '--no-color', '--no-ext-diff', '--no-textconv', '--src-prefix=a/', '--dst-prefix=b/', '--unified=0', '-M', scope.mergeBase, ...(scope.worktree ? [] : ['HEAD'])]))
+  const root = exec.git(['rev-parse', '--show-toplevel']).trim()
+  // 추적하지 않는 새 파일은 git diff에 나오지 않는다 — 더한 파일로 붙인다
+  if (scope.worktree) {
+    const untracked = untrackedFiles({ exec, root })
+    files.push(...untracked.files)
+    notes.push(...untracked.notes)
+  }
   const intent = collectIntent({ exec, gh, scope, prInfo, keyPatterns })
   // PR의 CI 결과 — scope가 PR의 머리 커밋이 HEAD와 같은지 이미 확인했다
   const ci = collectChecks({ gh, prInfo, pr })
@@ -76,7 +84,6 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   if (shallow) skipped.push({ context: '이력', reason: '얕은 복제라 이력을 볼 수 없다(git fetch --unshallow 뒤 다시 돌린다)' })
   const history = shallow ? null : collectHistory({ exec, scope, files, recentCommits })
 
-  const root = exec.git(['rev-parse', '--show-toplevel']).trim()
   const { ts, reason } = loadTs({ root })
   const impact = collectImpact({ exec, root, scope, files, ts, reason })
   // 프론트·백엔드를 잇는 계약 파일(OpenAPI·GraphQL 스키마) — 바뀐 엔드포인트·필드와 그 사용처(설계 결정 47).
@@ -92,7 +99,10 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   impact.contracts = contracts.contracts
   impact.notes.push(...contracts.notes)
   skipped.push(...contracts.skipped)
-  if (scope.dirty) notes.push('작업 트리에 커밋하지 않은 변경이 있다 — 맥락에 넣지 않았다')
+  if (scope.worktree) {
+    if (!scope.dirty) notes.push('--worktree를 붙였지만 커밋하지 않은 변경이 없다 — HEAD까지와 같다')
+    else if (prInfo) notes.push('CI 결과와 PR은 푸시한 커밋의 것이다 — 커밋하지 않은 변경은 들어 있지 않다')
+  } else if (scope.dirty) notes.push('작업 트리에 커밋하지 않은 변경이 있다 — 맥락에 넣지 않았다. 함께 보려면 --worktree를 붙인다')
 
   const prRef = prInfo ? { number: prInfo.number, url: prInfo.url } : pr != null ? { number: pr, url: null } : null
   return { version: 1, generatedAt: now.toISOString(), scope: { ...scope, pr: prRef }, files: files.map(slim), intent, checks: ci.checks, history, impact, skipped, notes }

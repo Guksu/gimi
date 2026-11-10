@@ -19,7 +19,7 @@ const capped = ({ rows, max, unit }) => (rows.length > max ? [...rows.slice(0, m
 const fileRow = (file) => {
   const path = file.status === 'renamed' ? `${file.oldPath} → ${file.newPath}` : (file.newPath ?? file.oldPath)
   const counts = file.binary ? '(바이너리)' : `+${file.additions} −${file.deletions}`
-  return `  ${STATUS[file.status] ?? '?'} ${path}  ${counts}`
+  return `  ${STATUS[file.status] ?? '?'} ${path}  ${counts}${file.untracked ? '  (추적하지 않는 새 파일)' : ''}`
 }
 
 const MAX_INTENT_COMMITS = 5
@@ -198,7 +198,7 @@ const impactNotes = (impact) => {
  */
 export const renderSummary = ({ context, outPath, notWritten = false, maxLines = 300 }) => {
   const { scope, files, intent, history } = context
-  const rows = [`범위    ${scope.baseRef}...${scope.branch ?? scope.head.slice(0, 7)} (갈림점 ${scope.mergeBase.slice(0, 7)}, 커밋 ${scope.commitCount}, 파일 ${files.length})`]
+  const rows = [`범위    ${scope.baseRef}...${scope.branch ?? scope.head.slice(0, 7)} (갈림점 ${scope.mergeBase.slice(0, 7)}, 커밋 ${scope.commitCount}${scope.worktree && scope.dirty ? ' + 커밋하지 않은 변경' : ''}, 파일 ${files.length})`]
   rows.push('바뀐 파일', ...(files.length > 0 ? capped({ rows: files.map(fileRow), max: MAX_FILES, unit: '개' }) : ['  없음']))
   rows.push(...intentRows(intent, { prUnread: context.skipped.some((skip) => skip.context === '의도') }))
   rows.push(...ciRows(context.checks))

@@ -74,6 +74,8 @@ The evaluation above was run before 0.1.0 (2026-10-27 and 10-31) on one example 
 
 Neither has the effect of turning on the domain presets. There are no results yet from real repositories outside the example app.
 
+On 2026-11-10 the current version was run once on the same 32 defects. The location-based score was unchanged (31 of 32), and six pull requests without defects got no findings. All the changes above were in place together, so this does not separate the effect of any one of them. One case, where the requirement could not be read without `gh`, did not behave as expected (it should have asked a question). [Results](evals/review/results/2026-11-10-depth.md) (Korean)
+
 ## Installation
 
 **Claude Code** — run in the chat:
@@ -102,11 +104,13 @@ After installing, ask your agent in the repository you want reviewed:
 
 Before reviewing, the agent collects where the changed code is used, the pull request and issue text, the pull request's CI results, and the history of the changed lines. It then leaves only findings it can back with a location, and writes the full review to `docs/gimi/reviews/`. In Claude Code you can also call it directly as `/gimi:gimi-review`. The skill and its rules are written in Korean; [English usage notes](docs/guide.en.md#how-it-works) are in the full guide.
 
+To review before committing, ask for it ("review what I just changed before I commit"). Uncommitted changes and new files are then included.
+
 To also review against the commerce and Korean e-commerce law rules, ask "도메인 규칙 설정해줘" (set up domain rules). [Settings](docs/guide.en.md#settings)
 
 ## Reading the results
 
-- **Chat**: only the number of findings and the "must fix" ones.
+- **Chat**: the first line is the verdict (the number of findings per level and any skipped context). Below it, each "must fix" and each question gets one line. "Nice to fix" findings are only counted.
 - **Files**: two files appear in the reviewed repository. gimi does not comment on the pull request or post anything to GitHub.
   - `docs/gimi/reviews/{date}-pr-{number}.md` (`{date}-{branch}.md` without a pull request): the review record. Each finding has its level, evidence, what happens, when it was introduced, the rule and a verdict.
   - A `.context.json` with the same name: all the gathered context. It is large and can be regenerated, so don't commit it. Add `docs/gimi/reviews/*.context.json` to `.gitignore`.
@@ -127,7 +131,7 @@ If something feels wrong, [open an issue](https://github.com/Guksu/gimi/issues) 
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-394%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-417%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## License

@@ -58,6 +58,8 @@ Claude Code나 Codex가 코드를 리뷰할 때 쓰는 스킬입니다. 리뷰 �
 
 분야 프리셋을 켰을 때의 효과도 재지 않았습니다. 예제 앱 밖의 실제 저장소에서 잰 결과는 아직 없습니다.
 
+2026-11-10에 지금 판으로 같은 결함 32개를 한 번씩 다시 돌렸습니다. 위치 기준으로 찾은 수는 전과 같았습니다(31/32). 결함 없는 PR 6개에는 지적이 없었습니다. 다만 위 변경들이 한꺼번에 들어간 뒤의 결과라, 변경마다의 효과는 가르지 못했습니다. gh 없이 요구사항을 읽지 못한 사례 하나는 기대(확인 질문으로 묻기)대로 돌지 않았습니다. [결과](evals/review/results/2026-11-10-depth.md)
+
 ## 설치
 
 **Claude Code** — 대화창에서 실행합니다.
@@ -86,11 +88,13 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 
 에이전트는 리뷰 전에 바뀐 코드를 쓰는 곳, PR·이슈 본문, PR의 CI 결과, 바뀐 줄의 이력을 모읍니다. 그다음 근거 위치를 댈 수 있는 지적만 남깁니다. 전체는 `docs/gimi/reviews/`에 기록합니다. Claude Code에서는 `/gimi:gimi-review`로 직접 부를 수도 있습니다. 스킬과 규칙 문서는 한국어로 작성되어 있습니다.
 
+커밋하기 전의 변경을 보려면 "커밋하기 전에 방금 고친 코드 리뷰해줘"처럼 요청합니다. 커밋하지 않은 변경과 새 파일을 함께 봅니다.
+
 커머스·국내 전자상거래 법령 규칙으로도 보려면 "도메인 규칙 설정해줘"라고 요청합니다. [설정](docs/guide.md#설정)
 
 ## 결과 읽기
 
-- **채팅** — 지적 수와 "고쳐야 함"만 짧게 보입니다.
+- **채팅** — 첫 줄에 결론(단계마다 지적 수와 건너뛴 맥락)이, 그 아래 "고쳐야 함"과 "확인 질문"이 한 줄씩 보입니다. "고치면 좋음"은 수만 보입니다.
 - **파일** — 리뷰한 저장소에 두 파일이 생깁니다. PR에 코멘트를 달거나 GitHub에 무엇을 올리지는 않습니다.
   - `docs/gimi/reviews/{날짜}-pr-{번호}.md`(PR이 없으면 `{날짜}-{브랜치}.md`) — 리뷰 기록. 지적마다 단계·근거·상황·생긴 때·규칙·판정을 적습니다.
   - 같은 이름의 `.context.json` — 모은 맥락 전체. 크고 다시 만들 수 있어 커밋하지 않습니다. `.gitignore`에 `docs/gimi/reviews/*.context.json`을 더합니다.
@@ -111,7 +115,7 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-394%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-417%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## 라이선스
