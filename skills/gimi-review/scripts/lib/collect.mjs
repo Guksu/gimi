@@ -2,6 +2,7 @@
  * 맥락 묶음 만들기 — 범위·바뀐 파일·의도·CI·이력·영향 범위를 모으고, 모으지 못한 것은 이유와 함께 skipped에 남긴다(설계 결정 19).
  * "없음"과 "건너뜀"을 섞지 않는다. 사용처를 찾지 못한 것과 찾기를 건너뛴 것은 다르다.
  */
+import { bundleName } from './bundles.mjs'
 import { collectChecks } from './checks.mjs'
 import { collectContracts } from './contracts.mjs'
 import { parseDiff } from './diff.mjs'
@@ -10,6 +11,7 @@ import { collectHistory } from './history.mjs'
 import { collectImpact, loadTypescript } from './impact.mjs'
 import { collectIntent } from './intent.mjs'
 import { resolveLinked } from './linked.mjs'
+import { priorReview } from './prior.mjs'
 import { resolveScope } from './scope.mjs'
 import { untrackedFiles } from './worktree.mjs'
 import { builtinYaml, loadYaml } from './yaml.mjs'
@@ -105,5 +107,8 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   } else if (scope.dirty) notes.push('작업 트리에 커밋하지 않은 변경이 있다 — 맥락에 넣지 않았다. 함께 보려면 --worktree를 붙인다')
 
   const prRef = prInfo ? { number: prInfo.number, url: prInfo.url } : pr != null ? { number: pr, url: null } : null
-  return { version: 1, generatedAt: now.toISOString(), scope: { ...scope, pr: prRef }, files: files.map(slim), intent, checks: ci.checks, history, impact, skipped, notes }
+  // 같은 PR·브랜치의 지난 리뷰 기록 — 다시 리뷰할 때 지난 지적이 고쳐졌는지 보게 한다(설계 결정 72)
+  const prior = priorReview({ root, name: bundleName({ ...scope, pr: prRef }), changedPaths: new Set(files.flatMap((file) => [file.oldPath, file.newPath]).filter(Boolean)) })
+  if (prior?.changedInRange) notes.push(`이 변경이 지난 리뷰 기록(${prior.path})을 고쳤다 — 그 판정은 믿지 않는다`)
+  return { version: 1, generatedAt: now.toISOString(), scope: { ...scope, pr: prRef }, files: files.map(slim), intent, checks: ci.checks, history, impact, prior, skipped, notes }
 }

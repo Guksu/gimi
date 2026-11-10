@@ -16,7 +16,7 @@
  */
 import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { staleBundles } from './lib/bundles.mjs'
+import { bundleName, staleBundles } from './lib/bundles.mjs'
 import { collectContext } from './lib/collect.mjs'
 import { ContextError, attempt, createExec, readRepoFile } from './lib/exec.mjs'
 import { renderSummary } from './lib/summary.mjs'
@@ -49,8 +49,7 @@ const parseArgs = (argv) => {
 
 const today = (now) => [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
 
-const bundleName = (context) => (context.scope.pr ? `pr-${context.scope.pr.number}` : (context.scope.branch ?? context.scope.head.slice(0, 7))).replace(/[^\w.-]+/g, '-')
-const defaultOut = ({ context, now }) => `docs/gimi/reviews/${today(now)}-${bundleName(context)}.context.json`
+const defaultOut = ({ context, now }) => `docs/gimi/reviews/${today(now)}-${bundleName(context.scope)}.context.json`
 
 /** 저장소 루트부터 그 경로까지 심볼릭 링크가 하나도 없는지 — 있으면 저장소 밖(또는 없는 곳)을 가리킬 수 있다 */
 const insideRoot = ({ root, path }) => {
@@ -128,10 +127,12 @@ const main = () => {
     process.stdout.write(renderSummary({ context, outPath: null, notWritten: true, maxLines: args.maxLines }))
     return 0
   }
+  // 이 저장소의 첫 리뷰면 알린다 — 묻지 않고 생기는 파일을 사용자가 알 수 있게(설계 결정 73)
+  if (!args.out && !existsSync(dirname(target))) context.notes.push(`${dirname(outPath)}/를 처음 만들었다 — 이 저장소의 첫 리뷰다. 리뷰 기록(.md)과 맥락 묶음(.context.json)이 여기에 생긴다`)
   mkdirSync(dirname(target), { recursive: true })
   // 기본 위치에 쓸 때만 같은 PR·브랜치의 예전 묶음을 지운다(설계 결정 54) — --out으로 정한 파일은 사용자가 관리한다
   if (!args.out) {
-    const stale = staleBundles({ files: readdirSync(dirname(target)), name: bundleName(context), keep: basename(target) })
+    const stale = staleBundles({ files: readdirSync(dirname(target)), name: bundleName(context.scope), keep: basename(target) })
     for (const file of stale) rmSync(join(dirname(target), file), { force: true })
     if (stale.length > 0) context.notes.push(`예전 맥락 묶음 ${stale.length}개를 지웠다(같은 PR·브랜치 — ${stale.join(', ')})`)
   }
