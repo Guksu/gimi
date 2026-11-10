@@ -74,7 +74,7 @@ The evaluation above was run before 0.1.0 (2026-10-27 and 10-31) on one example 
 
 Neither has the effect of turning on the domain presets. There are no results yet from real repositories outside the example app.
 
-On 2026-11-10 the current version was run once on the same 32 defects. The location-based score was unchanged (31 of 32), and six pull requests without defects got no findings. All the changes above were in place together, so this does not separate the effect of any one of them. One case, where the requirement could not be read without `gh`, did not behave as expected (it should have asked a question). [Results](evals/review/results/2026-11-10-depth.md) (Korean)
+On 2026-11-10 the current version was run once on the same 32 defects. The location-based score was unchanged (31 of 32), and six pull requests without defects got no findings. All the changes above were in place together, so this does not separate the effect of any one of them. One case, where the requirement could not be read without `gh`, did not behave as expected (it should have asked a question). That was fixed, and two runs afterwards both asked the question. The "review first" list for large changes and the earlier-review lookup have no evaluation cases yet and are covered by tests only. [Results](evals/review/results/2026-11-10-depth.md) · [after the fix](evals/review/results/2026-11-10-followups.md) (Korean)
 
 ## Installation
 
@@ -131,7 +131,7 @@ If something feels wrong, [open an issue](https://github.com/Guksu/gimi/issues) 
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-417%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-435%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## License

@@ -95,6 +95,12 @@ A review adds two files to your repository:
 
 gimi does not comment on pull requests. It reviews only when you ask.
 
+- **First review**: when this folder is first created, it tells you which files it made and asks whether to add the line to `.gitignore`.
+- **Verdicts**: tell it whether a finding was right, wrong or intended, and it records that in the finding's `판정` line. Findings marked wrong or intended are not counted toward rule candidates.
+- **Re-review**: when you review the same pull request or branch again, it checks whether the earlier findings were fixed and lists them under "지난 지적" (earlier findings) in the new record. Findings that remain keep their verdict.
+- **Large changes**: above 30 changed files it starts with the riskiest items (breaking contract changes, signature changes and removals with unchanged usages, lines that an earlier fix introduced) and lists files it did not get to under "보지 못한 것" (not reviewed).
+- **Unread requirements**: if it cannot read an issue or ticket (for example, `gh` is not logged in), it asks a question instead of assuming.
+
 ## Settings
 
 Reviews work without settings. In that case gimi decides whether the common guardrails target the front end, the back end or both by looking at the repository: `package.json` dependencies (React or Vue for the front end; NestJS, Express or pg for the back end) and server build files such as `go.mod` or `pom.xml`. It looks only at files tracked by git. Frameworks with both server and UI code, such as Next.js, count as both. If it finds neither, or cannot tell, it uses both. Domain presets are not used; if `presets` is missing from the settings, the review record says so (an empty `[]` is not reported).
@@ -142,7 +148,7 @@ These results come from one model and one example app. The new defects were revi
 
 | What | Path |
 |---|---|
-| Skill | `skills/gimi-review/SKILL.md`; first-time setup and rule candidates in `references/setup.md` |
+| Skill | `skills/gimi-review/SKILL.md`; first-time setup and rule candidates in `references/setup.md`, large changes and re-reviews in `references/large-and-rereview.md` |
 | Context script | `skills/gimi-review/scripts/context.mjs` + `lib/` |
 | Rules | `skills/gimi-review/shared/rules/` (common guardrails), `shared/domains/` (domain presets) |
 | Example app and defect pull requests | `evals/shop-fixture/` |

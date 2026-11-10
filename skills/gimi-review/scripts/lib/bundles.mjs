@@ -3,6 +3,10 @@
  * 묶음 이름은 `{날짜}-{PR·브랜치}.context.json`이다. 이름이 정확히 같은 것만 고른다(pr-4와 pr-42, pr과 feature-pr을 섞지 않는다).
  */
 
+/** 맥락 묶음·리뷰 기록의 이름 — PR이면 pr-번호, 아니면 브랜치(없으면 머리 커밋 7자). 파일 이름에 쓸 수 없는 글자는 하이픈으로
+ * @param {{ pr?: { number: number } | null, branch?: string | null, head: string }} scope */
+export const bundleName = (scope) => (scope.pr ? `pr-${scope.pr.number}` : (scope.branch ?? scope.head.slice(0, 7))).replace(/[^\w.-]+/g, '-')
+
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**

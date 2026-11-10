@@ -12,6 +12,8 @@ const MAX_FILES = 30
 const MAX_COMMITS = 10
 const MAX_USAGES = 10
 const MAX_CHECKS = 10
+const MAX_PRIORITY = 10
+const MAX_PRIOR = 10
 const BUCKET_LABEL = { fail: '실패', cancel: '취소', pending: '진행 중', unknown: '알 수 없음', pass: '통과', skipping: '생략' }
 
 const capped = ({ rows, max, unit }) => (rows.length > max ? [...rows.slice(0, max), `  … 외 ${rows.length - max}${unit}`] : rows)
@@ -193,12 +195,62 @@ const impactNotes = (impact) => {
 }
 
 /**
+ * 큰 변경에서 먼저 볼 것(설계 결정 71) — 바뀐 파일이 요약 상한을 넘을 때만 보인다.
+ * 순서: 깨질 수 있는 계약 → 안 바뀐 사용처가 남은 시그니처 변경·삭제(안 바뀐 사용처가 많은 순) → 수정·되돌리기 커밋이 넣은 줄을 바꾼 파일
+ * @param {any} context @returns {string[]}
+ */
+export const priorityRows = (context) => {
+  const { files, impact, history } = context
+  if (files.length <= MAX_FILES) return []
+  const rows = []
+  for (const contract of impact?.contracts ?? []) {
+    for (const change of contract.changes) {
+      if (change.level === 'breaking') rows.push(`  계약 ${contract.path} — ${change.key} (깨질 수 있음${change.unchanged > 0 ? ` · 안 바뀐 사용처 ${change.unchanged}` : ''})`)
+    }
+  }
+  const risky = (impact?.symbols ?? []).filter((symbol) => (symbol.change === 'signature' || symbol.change === 'removed') && symbol.unchanged > 0)
+  for (const symbol of risky.sort((a, b) => b.unchanged - a.unchanged)) rows.push(`  ${symbol.name} (${CHANGE_LABEL[symbol.change]}) — ${symbol.path} · 안 바뀐 사용처 ${symbol.unchanged}`)
+  // 같은 커밋이 여러 파일에 닿아도 한 줄로 묶는다
+  const flagged = new Map()
+  for (const file of history?.files ?? []) {
+    for (const { sha } of file.blamed) {
+      const commit = history.commits[sha]
+      if (commit && !commit.formatting && commit.tags.length > 0) flagged.set(sha, [...(flagged.get(sha) ?? []), file.newPath ?? file.path])
+    }
+  }
+  for (const [sha, paths] of flagged) {
+    const commit = history.commits[sha]
+    rows.push(`  이력 ${commit.short} ${oneLine(commit.subject)} [${commit.tags.map((tag) => TAG_LABEL[tag]).join('·')}] — ${[...new Set(paths)].join(', ')}`)
+  }
+  const head = `먼저 볼 것  바뀐 파일 ${files.length}개 — 요약 상한(${MAX_FILES}개)을 넘었다.`
+  if (rows.length === 0) return [`${head} 위험 신호(깨질 수 있는 계약·안 바뀐 사용처가 남은 시그니처 변경과 삭제·수정 커밋에 닿은 줄)는 없다 — 바뀐 줄이 많은 파일부터 본다`]
+  return [`${head} 아래 순서로 보고, 다 보지 못한 파일은 리뷰 기록에 적는다`, ...capped({ rows, max: MAX_PRIORITY, unit: '개 — 아래 영향 범위·계약·이력에 있다' })]
+}
+
+// 지난 리뷰 기록(설계 결정 72) — 지적마다 고쳐졌는지 확인하게 번호·머리·판정을 보인다
+const priorRows = (prior) => {
+  if (!prior) return []
+  const warnings = []
+  if (prior.removed.length > 0) warnings.push(`지난 리뷰  이 변경이 지난 리뷰 기록을 지웠다 — ${prior.removed.join(', ')}. 남의 PR이면 지운 기록을 git show로 열어 지난 지적을 다시 확인한다`)
+  if (prior.unreadable.length > 0) warnings.push(`지난 리뷰  읽을 수 없는 기록 — ${prior.unreadable.join(', ')}(심볼릭 링크·폴더·큰 파일). 읽지 않았다`)
+  if (!prior.path) return warnings
+  const counts = ['맞음', '틀림', '의도함', '미정'].map((verdict) => [verdict, prior.findings.filter((finding) => finding.verdict === verdict).length]).filter(([, count]) => count > 0)
+  const tally = prior.findings.length > 0 ? `지적 ${prior.findings.length}(${counts.map(([verdict, count]) => `${verdict} ${count}`).join(' · ')})` : '지적 없음'
+  const malformed = prior.malformed > 0 ? ` · 형식이 다른 지적 머리 ${prior.malformed}개는 직접 연다` : ''
+  // 꾸민 기록이 진짜를 가리지 못하게, 이 변경이 건드린 기록이면 바로 아래에 알린다 — 내 브랜치에 내가 커밋한 기록도 여기에 든다
+  const touched = prior.changedInRange ? [`  이 변경이 이 기록을 더하거나 고쳤다 — 남의 PR이면 판정을 믿지 않고 지난 지적을 모두 다시 확인한다. 이 변경이 건드리지 않은 기록: ${prior.untouched ?? '없음'}`] : []
+  return [...warnings, `지난 리뷰  ${prior.path} — ${tally}${malformed}`, ...touched, ...capped({ rows: prior.findings.map((finding) => `  ${finding.index}. ${finding.heading} (${finding.verdict})`), max: MAX_PRIOR, unit: '개 — 기록 파일에 있다' })]
+}
+
+/**
  * @param {{ context: any, outPath: string | null, notWritten?: boolean, maxLines?: number }} args notWritten이면 전체를 어디에도 쓰지 않았다
  * @returns {string}
  */
 export const renderSummary = ({ context, outPath, notWritten = false, maxLines = 300 }) => {
   const { scope, files, intent, history } = context
   const rows = [`범위    ${scope.baseRef}...${scope.branch ?? scope.head.slice(0, 7)} (갈림점 ${scope.mergeBase.slice(0, 7)}, 커밋 ${scope.commitCount}${scope.worktree && scope.dirty ? ' + 커밋하지 않은 변경' : ''}, 파일 ${files.length})`]
+  // 줄 수 상한에 잘리지 않게 앞쪽에 둔다 — 먼저 볼 것, 지난 리뷰(기록을 건드린 변경의 알림이 여기에 있다)
+  rows.push(...priorityRows(context), ...priorRows(context.prior))
   rows.push('바뀐 파일', ...(files.length > 0 ? capped({ rows: files.map(fileRow), max: MAX_FILES, unit: '개' }) : ['  없음']))
   rows.push(...intentRows(intent, { prUnread: context.skipped.some((skip) => skip.context === '의도') }))
   rows.push(...ciRows(context.checks))
