@@ -169,7 +169,7 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
         const patterns = [...new Set(wanted.flatMap(pathPatterns))]
         // 계약 파일과 생성 타입 자신은 사용처가 아니다
         const excluded = [...(target === self ? [path] : []), ...target.openApiGenerated].map((p) => `:(exclude)${p}`)
-        pathHits.set(target, patterns.length === 0 ? [] : grep({ exec: target.exec, args: ['-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...scoped(target, CODE_GLOBS), ...excluded] }))
+        pathHits.set(target, patterns.length === 0 ? [] : grep({ exec: target.exec, args: ['-F', ...patterns.flatMap((p) => ['-e', p]), '--', ...scoped(target, CODE_GLOBS), ...excluded], untracked: Boolean(scope.worktree) && target === self }))
       }
       const patterns = pathPatterns(endpoint)
       return pathHits

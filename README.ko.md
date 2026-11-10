@@ -86,6 +86,8 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 
 에이전트는 리뷰 전에 바뀐 코드를 쓰는 곳, PR·이슈 본문, PR의 CI 결과, 바뀐 줄의 이력을 모읍니다. 그다음 근거 위치를 댈 수 있는 지적만 남깁니다. 전체는 `docs/gimi/reviews/`에 기록합니다. Claude Code에서는 `/gimi:gimi-review`로 직접 부를 수도 있습니다. 스킬과 규칙 문서는 한국어로 작성되어 있습니다.
 
+커밋하기 전의 변경을 보려면 "커밋하기 전에 방금 고친 코드 리뷰해줘"처럼 요청합니다. 커밋하지 않은 변경과 새 파일을 함께 봅니다.
+
 커머스·국내 전자상거래 법령 규칙으로도 보려면 "도메인 규칙 설정해줘"라고 요청합니다. [설정](docs/guide.md#설정)
 
 ## 결과 읽기
@@ -111,7 +113,7 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-409%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-417%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## 라이선스

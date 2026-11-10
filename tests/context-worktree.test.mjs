@@ -170,6 +170,97 @@ describe('collectContext — 커밋하지 않은 변경', () => {
   })
 })
 
+describe('--worktree — 리뷰가 찾은 빈틈', () => {
+  const small = () => {
+    const repo = makeRepo()
+    repo.write({ 'src/price.ts': 'export const price = (amount: number) => amount\n', 'src/cart.ts': "import { price } from './price'\nexport const total = price(1000)\n" })
+    repo.commit('feat: 처음')
+    return repo
+  }
+
+  it('추적하지 않는 새 파일 안의 사용처도 문자열로 찾는다', () => {
+    const repo = small()
+    repo.write({ 'src/price.ts': 'export const price = (amount: number, rate: number) => amount * rate\n', 'src/newcaller.ts': "import { price } from './price'\nexport const twice = price(2)\n" })
+    const context = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs, worktree: true, base: 'HEAD' })
+    const price = context.impact.symbols.find((symbol) => symbol.name === 'price')
+    assert.deepEqual(price.usages.map((usage) => usage.path).sort(), ['src/cart.ts', 'src/newcaller.ts'])
+    repo.cleanup()
+  })
+
+  it('맥락 묶음에 든 이름은 사용처로 세지 않는다', () => {
+    const repo = small()
+    repo.write({ 'src/price.ts': 'export const price = (amount: number, rate: number) => amount * rate\n', 'docs/gimi/reviews/2026-11-10-main.context.json': '{"name":"price(1)"}\n' })
+    const context = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs, worktree: true, base: 'HEAD' })
+    const price = context.impact.symbols.find((symbol) => symbol.name === 'price')
+    assert.deepEqual(price.usages.map((usage) => usage.path), ['src/cart.ts'])
+    repo.cleanup()
+  })
+
+  it('추적하는 리뷰 기록을 고친 것은 커밋하지 않은 변경이다 — 파일 목록과 참고가 어긋나지 않는다', () => {
+    const repo = small()
+    repo.write({ 'docs/gimi/reviews/2026-11-01-pr-1.md': '# 리뷰\n' })
+    repo.commit('docs: 리뷰 기록')
+    repo.write({ 'docs/gimi/reviews/2026-11-01-pr-1.md': '# 리뷰\n- 판정: 맞음\n' })
+    const context = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs, worktree: true, base: 'HEAD' })
+    assert.equal(context.scope.dirty, true)
+    assert.deepEqual(pathsOf(context), ['docs/gimi/reviews/2026-11-01-pr-1.md'])
+    assert.ok(!context.notes.some((note) => note.includes('커밋하지 않은 변경이 없다')))
+    repo.cleanup()
+  })
+
+  it('시크릿으로 보이는 새 파일은 읽지 않고 이름만 알린다', () => {
+    const repo = small()
+    repo.write({ '.env': 'TOKEN=abc\n', 'config/.env.local': 'A=1\n', 'keys/deploy.pem': 'x\n', 'src/env.ts': 'export const env = 1\n' })
+    const { files, notes } = untrackedFiles({ exec: execFor({ dir: repo.dir }), root: repo.dir })
+    assert.deepEqual(files.map((file) => file.newPath), ['src/env.ts'])
+    assert.ok(notes.some((note) => note.includes('시크릿') && note.includes('.env') && note.includes('keys/deploy.pem')), notes.join('\n'))
+    repo.cleanup()
+  })
+
+  it('시크릿으로 보이는 새 파일의 줄은 사용처에도 담지 않는다', () => {
+    const repo = small()
+    repo.write({ 'src/price.ts': 'export const price = (amount: number, rate: number) => amount * rate\n', '.env': 'SECRET=price(1)\n' })
+    const context = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs, worktree: true, base: 'HEAD' })
+    assert.ok(!JSON.stringify(context).includes('SECRET='))
+    repo.cleanup()
+  })
+
+  it('안에 다른 git 저장소가 든 폴더는 넣지 않고 그렇다고 알린다', () => {
+    const repo = small()
+    const inner = makeRepo({ dir: join(repo.dir, 'vendor/inner'), init: false })
+    repo.write({ 'vendor/inner/a.ts': 'export const a = 1\n' })
+    inner.git('init', '-q', '-b', 'main')
+    inner.commit('feat: 안쪽')
+    const { files, notes } = untrackedFiles({ exec: execFor({ dir: repo.dir }), root: repo.dir })
+    assert.deepEqual(files, [])
+    assert.ok(notes.some((note) => note.includes('vendor/inner') && note.includes('다른 git 저장소')), notes.join('\n'))
+    repo.cleanup()
+  })
+
+  it('빈 파일·끝 개행 없는 파일·CRLF 파일의 줄 수를 센다', () => {
+    const repo = small()
+    repo.write({ 'e/empty.ts': '', 'e/noeol.ts': 'a\nb', 'e/crlf.ts': 'a\r\nb\r\n' })
+    const { files } = untrackedFiles({ exec: execFor({ dir: repo.dir }), root: repo.dir })
+    assert.deepEqual(files.map((file) => [file.newPath, file.additions, file.hunks.length]), [['e/crlf.ts', 2, 1], ['e/empty.ts', 0, 0], ['e/noeol.ts', 2, 1]])
+    repo.cleanup()
+  })
+
+  it('커밋하지 않은 OpenAPI 계약 변경을 작업 트리에서 읽는다', () => {
+    const repo = small()
+    const api = (extra) => `openapi: 3.0.0\ninfo:\n  title: t\n  version: '1'\npaths:\n  /orders:\n    get:\n      responses:\n        '200':\n          description: ok\n${extra}`
+    repo.write({ 'openapi.yaml': api("  /orders/{id}:\n    get:\n      responses:\n        '200':\n          description: ok\n"), 'src/api.ts': "export const one = (id: string) => fetch(`/orders/${id}`)\n" })
+    repo.commit('feat: 계약')
+    repo.write({ 'openapi.yaml': api('') })
+    const context = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs, worktree: true, base: 'HEAD' })
+    const [contract] = context.impact.contracts
+    assert.ok(contract, JSON.stringify(context.impact.notes))
+    assert.ok(JSON.stringify(contract).includes('/orders/{id}'))
+    const without = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs, base: 'HEAD' })
+    assert.deepEqual(without.impact.contracts, [])
+    repo.cleanup()
+  })
+})
+
 describe('renderSummary — 커밋하지 않은 변경', () => {
   it('범위 줄에 커밋하지 않은 변경을, 새 파일 줄에 표시를 보인다', () => {
     const repo = buildRepo()

@@ -44,8 +44,11 @@ export const resolveScope = ({ exec, base = null, pr = null, worktree = false })
     branch: attempt(() => exec.git(['symbolic-ref', '--short', '-q', 'HEAD']).trim()) || null,
     mergeBase,
     commitCount: Number(exec.git(['rev-list', '--count', `${mergeBase}..HEAD`]).trim()),
-    // gimi가 쓴 맥락 묶음·리뷰 기록만 남은 것은 커밋하지 않은 변경으로 보지 않는다
-    dirty: exec.git(['status', '--porcelain', '--', '.', `:(top,exclude)${REVIEW_DIR}`]).trim().length > 0,
+    // gimi가 쓴 리뷰 폴더의 추적하지 않는 파일(맥락 묶음·새 리뷰 기록)만 남은 것은 커밋하지 않은 변경으로 보지 않는다 — 추적하는 기록을 고친 것은 변경이다
+    dirty: exec
+      .git(['status', '--porcelain', '-z', '--untracked-files=all'])
+      .split('\0')
+      .some((row) => row && !(row.startsWith('?? ') && row.slice(3).startsWith(`${REVIEW_DIR}/`))),
     worktree,
   }
 }

@@ -102,6 +102,8 @@ After installing, ask your agent in the repository you want reviewed:
 
 Before reviewing, the agent collects where the changed code is used, the pull request and issue text, the pull request's CI results, and the history of the changed lines. It then leaves only findings it can back with a location, and writes the full review to `docs/gimi/reviews/`. In Claude Code you can also call it directly as `/gimi:gimi-review`. The skill and its rules are written in Korean; [English usage notes](docs/guide.en.md#how-it-works) are in the full guide.
 
+To review before committing, ask for it ("review what I just changed before I commit"). Uncommitted changes and new files are then included.
+
 To also review against the commerce and Korean e-commerce law rules, ask "도메인 규칙 설정해줘" (set up domain rules). [Settings](docs/guide.en.md#settings)
 
 ## Reading the results
@@ -127,7 +129,7 @@ If something feels wrong, [open an issue](https://github.com/Guksu/gimi/issues) 
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-409%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-417%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## License

@@ -8,7 +8,7 @@
  */
 import { dirname, join, relative } from 'node:path'
 import { attempt, readRepoFile, requireFromProject } from './exec.mjs'
-import { readAfter } from './worktree.mjs'
+import { REVIEW_DIR, SECRET_LIKE, readAfter } from './worktree.mjs'
 import { compareExports, extractExportsText, extractExportsTs } from './exports.mjs'
 import { changedLiterals, removedFieldsOf } from './literals.mjs'
 
@@ -62,8 +62,12 @@ export const finalize = (usages) => {
   return { total: unique.length, unchanged: unique.filter((u) => !u.changedInPr).length, usages: unique.slice(0, MAX_USAGES) }
 }
 
-export const grep = ({ exec, args }) => {
-  const out = attempt(() => exec.git(['grep', '-n', '-z', '-I', ...args]))
+/**
+ * untracked면 추적하지 않는 새 파일(.gitignore 제외)도 찾는다 — --worktree가 그 파일을 범위에 넣으니 사용처도 거기서 찾는다(설계 결정 67).
+ * gimi가 쓴 리뷰 폴더의 추적하지 않는 파일(맥락 묶음에는 찾는 이름이 다 들어 있다)과 시크릿으로 보이는 추적하지 않는 파일은 뺀다
+ */
+export const grep = ({ exec, args, untracked = false }) => {
+  const out = attempt(() => exec.git(['grep', '-n', '-z', '-I', ...(untracked ? ['--untracked', '--exclude-standard'] : []), ...args]))
   if (!out) return []
   return out
     .split('\n')
@@ -72,7 +76,11 @@ export const grep = ({ exec, args }) => {
       const [path, line, ...rest] = row.split('\0')
       return { path, line: Number(line), text: rest.join('\0') }
     })
+    // 추적하지 않는 파일 가운데 리뷰 폴더와 시크릿으로 보이는 파일의 줄은 담지 않는다
+    .filter((hit) => !untracked || !(hit.path.startsWith(`${REVIEW_DIR}/`) || SECRET_LIKE.test(hit.path)) || tracked(exec, hit.path))
 }
+
+const tracked = (exec, path) => attempt(() => (exec.git(['ls-files', '--error-unmatch', '--', path]), true)) === true
 
 /** 필드처럼 쓰인 줄 — .이름, 이름:(객체·타입·YAML), 문자열 '이름', YAML·배열 목록 [a, 이름] */
 const fieldUse = (name) => {
@@ -167,7 +175,7 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
 
   // 클래스 멤버(`클래스.멤버`)는 이름이 아니라 멤버를 부르는 모양(`.멤버(`)으로 찾는다
   const textUsages = ({ name, kind, exclude }) =>
-    grep({ exec, args: [...(kind === 'method' ? ['-F', '-e', `.${name.split('.').at(-1)}(`] : ['-w', '-F', '-e', name]), '--', ...CODE_GLOBS, `:(exclude)${exclude}`] })
+    grep({ exec, args: [...(kind === 'method' ? ['-F', '-e', `.${name.split('.').at(-1)}(`] : ['-w', '-F', '-e', name]), '--', ...CODE_GLOBS, `:(exclude)${exclude}`], untracked: scope.worktree })
       .filter((hit) => !IMPORT_LINE.test(hit.text))
       .map((hit) => usageAt({ readLines, path: hit.path, line: hit.line, changedPaths }))
 
@@ -249,7 +257,7 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
     const path = file.newPath ?? file.oldPath
     for (const value of changedLiterals(file)) {
       if (literals.length >= MAX_LITERALS) break
-      const hits = grep({ exec, args: ['-F', '-e', value, '--', '.', ...LOCKFILES.map((lock) => `:(exclude)${lock}`), `:(exclude)${path}`] })
+      const hits = grep({ exec, args: ['-F', '-e', value, '--', '.', ...LOCKFILES.map((lock) => `:(exclude)${lock}`), `:(exclude)${path}`], untracked: scope.worktree })
       literals.push({ value, path, ...finalize(hits.map((hit) => usageAt({ readLines, path: hit.path, line: hit.line, changedPaths }))) })
     }
   }
@@ -262,7 +270,7 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
     for (const name of removedFieldsOf(file)) {
       if (fields.length >= MAX_FIELDS) break
       const use = fieldUse(name)
-      const hits = grep({ exec, args: ['-w', '-F', '-e', name, '--', '.', ...LOCKFILES.map((lock) => `:(exclude)${lock}`), `:(exclude)${path}`] }).filter((hit) => !IMPORT_LINE.test(hit.text) && use.test(hit.text))
+      const hits = grep({ exec, args: ['-w', '-F', '-e', name, '--', '.', ...LOCKFILES.map((lock) => `:(exclude)${lock}`), `:(exclude)${path}`], untracked: scope.worktree }).filter((hit) => !IMPORT_LINE.test(hit.text) && use.test(hit.text))
       fields.push({ name, path, method: 'text', ...finalize(hits.map((hit) => usageAt({ readLines, path: hit.path, line: hit.line, changedPaths }))) })
     }
   }
