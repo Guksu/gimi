@@ -74,6 +74,8 @@ The evaluation above was run before 0.1.0 (2026-10-27 and 10-31) on one example 
 
 Neither has the effect of turning on the domain presets. There are no results yet from real repositories outside the example app.
 
+On 2026-11-10 the current version was run once on the same 32 defects. The location-based score was unchanged (31 of 32), and six pull requests without defects got no findings. All the changes above were in place together, so this does not separate the effect of any one of them. One case, where the requirement could not be read without `gh`, did not behave as expected (it should have asked a question). [Results](evals/review/results/2026-11-10-depth.md) (Korean)
+
 ## Installation
 
 **Claude Code** — run in the chat:
