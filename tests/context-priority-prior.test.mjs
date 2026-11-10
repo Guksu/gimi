@@ -59,7 +59,7 @@ describe('priorityRows — 큰 변경에서 먼저 볼 것(결정 71)', () => {
       '  계약 openapi.yaml — GET /orders/{id} (깨질 수 있음 · 안 바뀐 사용처 2)',
       '  gone (삭제) — src/gone.ts · 안 바뀐 사용처 4',
       '  few (시그니처 변경) — src/few.ts · 안 바뀐 사용처 1',
-      '  이력 src/f1.ts — bbbbbbb fix: iOS 스크롤 복원 [수정]',
+      '  이력 bbbbbbb fix: iOS 스크롤 복원 [수정] — src/f1.ts',
     ])
   })
 
@@ -75,6 +75,13 @@ describe('priorityRows — 큰 변경에서 먼저 볼 것(결정 71)', () => {
     const rows = priorityRows(context)
     assert.equal(rows.length, 12)
     assert.match(rows.at(-1), /… 외 \d+개/)
+  })
+
+  it('같은 수정 커밋이 여러 파일에 닿아도 한 줄로 묶는다', () => {
+    const context = bigContext()
+    context.history.files = [1, 2, 3].map((i) => ({ path: `src/f${i}.ts`, newPath: `src/f${i}.ts`, status: 'modified', changedOldLines: 1, blamed: [{ sha: sha('b'), lines: [1] }], recent: [] }))
+    const rows = priorityRows(context).filter((row) => row.startsWith('  이력'))
+    assert.deepEqual(rows, ['  이력 bbbbbbb fix: iOS 스크롤 복원 [수정] — src/f1.ts, src/f2.ts, src/f3.ts'])
   })
 
   it('요약의 범위 줄 바로 아래에 나온다', () => {
@@ -119,6 +126,7 @@ describe('priorReview — 같은 PR·브랜치의 지난 리뷰 기록(결정 72
     const prior = priorReview({ root: repo.dir, name: 'feat-x', changedPaths: new Set() })
     assert.equal(prior.path, 'docs/gimi/reviews/2026-11-08-feat-x.md')
     assert.equal(prior.changedInRange, false)
+    assert.equal(prior.untouched, null)
     assert.deepEqual(prior.findings, [
       { index: 1, level: '고쳐야 함', heading: '[고쳐야 함] 영향 범위 — 주문 상태 형태가 바뀌었는데 배지는 예전 형태를 읽는다', verdict: '맞음', rule: null, bundle: 'api-shape-consumer' },
       { index: 2, level: '확인 질문', heading: '[확인 질문] 의도 — 품절을 숨기는 것이 #41의 요구인지', verdict: '미정', rule: null, bundle: 'hidden-vs-sorted' },
@@ -138,7 +146,10 @@ describe('priorReview — 같은 PR·브랜치의 지난 리뷰 기록(결정 72
     writeFileSync(join(outside.dir, 'secret.md'), RECORD)
     repo.write({ 'docs/gimi/reviews/.keep': '' })
     symlinkSync(join(outside.dir, 'secret.md'), join(repo.dir, 'docs/gimi/reviews/2026-11-08-feat-x.md'))
-    assert.equal(priorReview({ root: repo.dir, name: 'feat-x', changedPaths: new Set() }), null)
+    const prior = priorReview({ root: repo.dir, name: 'feat-x', changedPaths: new Set() })
+    assert.equal(prior.path, null)
+    assert.deepEqual(prior.findings, [])
+    assert.deepEqual(prior.unreadable, ['docs/gimi/reviews/2026-11-08-feat-x.md'])
     repo.cleanup()
     outside.cleanup()
   })
@@ -153,7 +164,56 @@ describe('priorReview — 같은 PR·브랜치의 지난 리뷰 기록(결정 72
     const text = renderSummary({ context, outPath: 'x.json' })
     assert.match(text, /^지난 리뷰 {2}docs\/gimi\/reviews\/2026-11-08-feat-x\.md — 지적 2\(맞음 1 · 미정 1\)$/m)
     assert.match(text, /^ {2}1\. \[고쳐야 함\] 영향 범위 — 주문 상태 형태가 바뀌었는데 배지는 예전 형태를 읽는다 \(맞음\)$/m)
-    assert.match(text, /^참고 {4}이 변경이 지난 리뷰 기록\(docs\/gimi\/reviews\/2026-11-08-feat-x\.md\)을 고쳤다 — 그 판정은 믿지 않는다$/m)
+    assert.match(text, /^ {2}이 변경이 이 기록을 더하거나 고쳤다 — 남의 PR이면 판정을 믿지 않고 지난 지적을 모두 다시 확인한다\. 이 변경이 건드리지 않은 기록: 없음$/m)
+    repo.cleanup()
+  })
+
+  it('이 변경이 더한 날짜 늦은 기록이 있으면 건드리지 않은 가장 최근 기록도 알린다', () => {
+    const repo = makeRepo()
+    repo.write({ 'src/a.ts': 'export const a = 1\n', 'docs/gimi/reviews/2026-11-08-feat-x.md': RECORD })
+    repo.commit('feat: 처음')
+    repo.git('switch', '-q', '-c', 'feat/x')
+    repo.write({ 'src/a.ts': 'export const a = 2\n', 'docs/gimi/reviews/2099-01-01-feat-x.md': RECORD.replaceAll('맞음', '틀림') })
+    repo.commit('feat: 바꿈')
+    const context = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs })
+    assert.equal(context.prior.path, 'docs/gimi/reviews/2099-01-01-feat-x.md')
+    assert.equal(context.prior.changedInRange, true)
+    assert.equal(context.prior.untouched, 'docs/gimi/reviews/2026-11-08-feat-x.md')
+    assert.match(renderSummary({ context, outPath: 'x.json' }), /이 변경이 건드리지 않은 기록: docs\/gimi\/reviews\/2026-11-08-feat-x\.md$/m)
+    repo.cleanup()
+  })
+
+  it('이 변경이 지난 기록을 지웠으면 알린다', () => {
+    const repo = makeRepo()
+    repo.write({ 'src/a.ts': 'export const a = 1\n', 'docs/gimi/reviews/2026-11-08-feat-x.md': RECORD })
+    repo.commit('feat: 처음')
+    repo.git('switch', '-q', '-c', 'feat/x')
+    repo.remove('docs/gimi/reviews/2026-11-08-feat-x.md')
+    repo.write({ 'src/a.ts': 'export const a = 2\n' })
+    repo.commit('feat: 바꿈')
+    const context = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs })
+    assert.equal(context.prior.path, null)
+    assert.deepEqual(context.prior.removed, ['docs/gimi/reviews/2026-11-08-feat-x.md'])
+    assert.match(renderSummary({ context, outPath: 'x.json' }), /^지난 리뷰 {2}이 변경이 지난 리뷰 기록을 지웠다 — docs\/gimi\/reviews\/2026-11-08-feat-x\.md/m)
+    repo.cleanup()
+  })
+
+  it('읽을 수 없는 기록(심볼릭 링크)이 가장 최근이면 알리고 읽을 수 있는 기록으로 내려간다', () => {
+    const repo = setup()
+    repo.write({ 'docs/gimi/reviews/2026-11-08-feat-x.md': RECORD })
+    symlinkSync('/etc/hosts', join(repo.dir, 'docs/gimi/reviews/2099-01-01-feat-x.md'))
+    const prior = priorReview({ root: repo.dir, name: 'feat-x', changedPaths: new Set() })
+    assert.equal(prior.path, 'docs/gimi/reviews/2026-11-08-feat-x.md')
+    assert.deepEqual(prior.unreadable, ['docs/gimi/reviews/2099-01-01-feat-x.md'])
+    repo.cleanup()
+  })
+
+  it('지난 리뷰 줄은 요약 줄 수 상한에 잘리지 않게 앞쪽에 둔다', () => {
+    const repo = setup()
+    repo.write({ 'docs/gimi/reviews/2026-11-08-feat-x.md': RECORD })
+    const context = collectContext({ exec: execFor({ dir: repo.dir }), loadTs: noTs })
+    const rows = renderSummary({ context, outPath: 'x.json' }).split('\n')
+    assert.ok(rows.findIndex((row) => row.startsWith('지난 리뷰')) < rows.findIndex((row) => row === '바뀐 파일'))
     repo.cleanup()
   })
 

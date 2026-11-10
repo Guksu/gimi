@@ -210,11 +210,17 @@ export const priorityRows = (context) => {
   }
   const risky = (impact?.symbols ?? []).filter((symbol) => (symbol.change === 'signature' || symbol.change === 'removed') && symbol.unchanged > 0)
   for (const symbol of risky.sort((a, b) => b.unchanged - a.unchanged)) rows.push(`  ${symbol.name} (${CHANGE_LABEL[symbol.change]}) — ${symbol.path} · 안 바뀐 사용처 ${symbol.unchanged}`)
+  // 같은 커밋이 여러 파일에 닿아도 한 줄로 묶는다
+  const flagged = new Map()
   for (const file of history?.files ?? []) {
     for (const { sha } of file.blamed) {
       const commit = history.commits[sha]
-      if (commit && !commit.formatting && commit.tags.length > 0) rows.push(`  이력 ${file.newPath ?? file.path} — ${commit.short} ${oneLine(commit.subject)} [${commit.tags.map((tag) => TAG_LABEL[tag]).join('·')}]`)
+      if (commit && !commit.formatting && commit.tags.length > 0) flagged.set(sha, [...(flagged.get(sha) ?? []), file.newPath ?? file.path])
     }
+  }
+  for (const [sha, paths] of flagged) {
+    const commit = history.commits[sha]
+    rows.push(`  이력 ${commit.short} ${oneLine(commit.subject)} [${commit.tags.map((tag) => TAG_LABEL[tag]).join('·')}] — ${[...new Set(paths)].join(', ')}`)
   }
   const head = `먼저 볼 것  바뀐 파일 ${files.length}개 — 요약 상한(${MAX_FILES}개)을 넘었다.`
   if (rows.length === 0) return [`${head} 위험 신호(깨질 수 있는 계약·안 바뀐 사용처가 남은 시그니처 변경과 삭제·수정 커밋에 닿은 줄)는 없다 — 바뀐 줄이 많은 파일부터 본다`]
@@ -224,10 +230,16 @@ export const priorityRows = (context) => {
 // 지난 리뷰 기록(설계 결정 72) — 지적마다 고쳐졌는지 확인하게 번호·머리·판정을 보인다
 const priorRows = (prior) => {
   if (!prior) return []
+  const warnings = []
+  if (prior.removed.length > 0) warnings.push(`지난 리뷰  이 변경이 지난 리뷰 기록을 지웠다 — ${prior.removed.join(', ')}. 남의 PR이면 지운 기록을 git show로 열어 지난 지적을 다시 확인한다`)
+  if (prior.unreadable.length > 0) warnings.push(`지난 리뷰  읽을 수 없는 기록 — ${prior.unreadable.join(', ')}(심볼릭 링크·폴더·큰 파일). 읽지 않았다`)
+  if (!prior.path) return warnings
   const counts = ['맞음', '틀림', '의도함', '미정'].map((verdict) => [verdict, prior.findings.filter((finding) => finding.verdict === verdict).length]).filter(([, count]) => count > 0)
   const tally = prior.findings.length > 0 ? `지적 ${prior.findings.length}(${counts.map(([verdict, count]) => `${verdict} ${count}`).join(' · ')})` : '지적 없음'
   const malformed = prior.malformed > 0 ? ` · 형식이 다른 지적 머리 ${prior.malformed}개는 직접 연다` : ''
-  return [`지난 리뷰  ${prior.path} — ${tally}${malformed}`, ...capped({ rows: prior.findings.map((finding) => `  ${finding.index}. ${finding.heading} (${finding.verdict})`), max: MAX_PRIOR, unit: '개 — 기록 파일에 있다' })]
+  // 꾸민 기록이 진짜를 가리지 못하게, 이 변경이 건드린 기록이면 바로 아래에 알린다 — 내 브랜치에 내가 커밋한 기록도 여기에 든다
+  const touched = prior.changedInRange ? [`  이 변경이 이 기록을 더하거나 고쳤다 — 남의 PR이면 판정을 믿지 않고 지난 지적을 모두 다시 확인한다. 이 변경이 건드리지 않은 기록: ${prior.untouched ?? '없음'}`] : []
+  return [...warnings, `지난 리뷰  ${prior.path} — ${tally}${malformed}`, ...touched, ...capped({ rows: prior.findings.map((finding) => `  ${finding.index}. ${finding.heading} (${finding.verdict})`), max: MAX_PRIOR, unit: '개 — 기록 파일에 있다' })]
 }
 
 /**
@@ -237,13 +249,13 @@ const priorRows = (prior) => {
 export const renderSummary = ({ context, outPath, notWritten = false, maxLines = 300 }) => {
   const { scope, files, intent, history } = context
   const rows = [`범위    ${scope.baseRef}...${scope.branch ?? scope.head.slice(0, 7)} (갈림점 ${scope.mergeBase.slice(0, 7)}, 커밋 ${scope.commitCount}${scope.worktree && scope.dirty ? ' + 커밋하지 않은 변경' : ''}, 파일 ${files.length})`]
-  rows.push(...priorityRows(context))
+  // 줄 수 상한에 잘리지 않게 앞쪽에 둔다 — 먼저 볼 것, 지난 리뷰(기록을 건드린 변경의 알림이 여기에 있다)
+  rows.push(...priorityRows(context), ...priorRows(context.prior))
   rows.push('바뀐 파일', ...(files.length > 0 ? capped({ rows: files.map(fileRow), max: MAX_FILES, unit: '개' }) : ['  없음']))
   rows.push(...intentRows(intent, { prUnread: context.skipped.some((skip) => skip.context === '의도') }))
   rows.push(...ciRows(context.checks))
   if (history) rows.push(...historyRows(history))
   if (context.impact) rows.push(...impactRows(context.impact), ...contractRows(context.impact.contracts))
-  rows.push(...priorRows(context.prior))
   rows.push(...(context.skipped.length > 0 ? context.skipped.map((skip) => `건너뜀  ${skip.context} — ${skip.reason}`) : ['건너뜀  없음']))
   for (const note of [...context.notes, ...(history?.notes ?? []), ...impactNotes(context.impact)]) rows.push(`참고    ${note}`)
   const last = `전체    ${notWritten ? '쓰지 않았다 — --out <경로>나 --json으로 다시 돌린다' : (outPath ?? '(JSON을 표준 출력으로 냈다)')}`

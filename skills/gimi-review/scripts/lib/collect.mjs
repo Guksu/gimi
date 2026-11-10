@@ -109,6 +109,5 @@ export const collectContext = ({ exec, pr = null, base = null, recentCommits = 1
   const prRef = prInfo ? { number: prInfo.number, url: prInfo.url } : pr != null ? { number: pr, url: null } : null
   // 같은 PR·브랜치의 지난 리뷰 기록 — 다시 리뷰할 때 지난 지적이 고쳐졌는지 보게 한다(설계 결정 72)
   const prior = priorReview({ root, name: bundleName({ ...scope, pr: prRef }), changedPaths: new Set(files.flatMap((file) => [file.oldPath, file.newPath]).filter(Boolean)) })
-  if (prior?.changedInRange) notes.push(`이 변경이 지난 리뷰 기록(${prior.path})을 고쳤다 — 그 판정은 믿지 않는다`)
   return { version: 1, generatedAt: now.toISOString(), scope: { ...scope, pr: prRef }, files: files.map(slim), intent, checks: ci.checks, history, impact, prior, skipped, notes }
 }

@@ -127,8 +127,8 @@ const main = () => {
     process.stdout.write(renderSummary({ context, outPath: null, notWritten: true, maxLines: args.maxLines }))
     return 0
   }
-  // 이 저장소의 첫 리뷰면 알린다 — 묻지 않고 생기는 파일을 사용자가 알 수 있게(설계 결정 73)
-  if (!args.out && !existsSync(dirname(target))) context.notes.push(`${dirname(outPath)}/를 처음 만들었다 — 이 저장소의 첫 리뷰다. 리뷰 기록(.md)과 맥락 묶음(.context.json)이 여기에 생긴다`)
+  // 리뷰 폴더가 없던 체크아웃이면 알린다 — 묻지 않고 생기는 파일을 사용자가 알 수 있게(설계 결정 73)
+  if (!args.out && !existsSync(dirname(target))) context.notes.push(`${dirname(outPath)}/를 처음 만들었다 — 리뷰 기록(.md)과 맥락 묶음(.context.json)이 여기에 생긴다`)
   mkdirSync(dirname(target), { recursive: true })
   // 기본 위치에 쓸 때만 같은 PR·브랜치의 예전 묶음을 지운다(설계 결정 54) — --out으로 정한 파일은 사용자가 관리한다
   if (!args.out) {
