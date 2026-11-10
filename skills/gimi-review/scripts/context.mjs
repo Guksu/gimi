@@ -6,6 +6,7 @@
  *   node context.mjs                    # 현재 브랜치 — 기준 브랜치와의 갈림점부터 HEAD까지
  *   node context.mjs --pr 42            # PR #42 (gh pr checkout 42로 체크아웃한 상태여야 한다)
  *   node context.mjs --base develop     # 기준 브랜치를 정한다
+ *   node context.mjs --worktree         # 커밋하지 않은 변경과 추적하지 않는 새 파일도 함께 — 갈림점부터 작업 트리까지(--base HEAD면 커밋하지 않은 것만)
  *   node context.mjs --json             # JSON만 표준 출력으로(파일을 쓰지 않는다)
  *   node context.mjs --no-gh            # gh를 부르지 않는다(PR·이슈 본문·CI 결과 없이)
  *
@@ -20,16 +21,17 @@ import { collectContext } from './lib/collect.mjs'
 import { ContextError, attempt, createExec, readRepoFile } from './lib/exec.mjs'
 import { renderSummary } from './lib/summary.mjs'
 
-const USAGE = '사용: node context.mjs [--pr 번호] [--base 브랜치] [--out 경로] [--json] [--no-gh] [--recent N] [--max-lines N]'
+const USAGE = '사용: node context.mjs [--pr 번호] [--base 브랜치] [--worktree] [--out 경로] [--json] [--no-gh] [--recent N] [--max-lines N]'
 const VALUE_OPTIONS = { '--pr': 'pr', '--base': 'base', '--out': 'out', '--recent': 'recent', '--max-lines': 'maxLines' }
 const NUMBER_OPTIONS = new Set(['pr', 'recent', 'maxLines'])
 
 const parseArgs = (argv) => {
-  const args = { json: false, noGh: false, help: false }
+  const args = { json: false, noGh: false, worktree: false, help: false }
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--json') args.json = true
     else if (arg === '--no-gh') args.noGh = true
+    else if (arg === '--worktree') args.worktree = true
     else if (arg === '--help' || arg === '-h') args.help = true
     else if (arg in VALUE_OPTIONS) {
       const key = VALUE_OPTIONS[arg]
@@ -40,6 +42,8 @@ const parseArgs = (argv) => {
       i += 1
     } else throw new Error(`모르는 옵션 ${arg}`)
   }
+  // 남의 PR을 체크아웃한 작업 트리의 변경은 그 PR의 변경이 아니다(설계 결정 67)
+  if (args.worktree && args.pr != null) throw new Error('--pr와 --worktree는 함께 쓰지 않는다 — 내 브랜치의 커밋하지 않은 변경은 --pr 없이 --worktree로 본다')
   return args
 }
 
@@ -97,7 +101,7 @@ const main = () => {
 
   let context
   try {
-    context = collectContext({ exec, pr: args.pr ?? null, base: args.base ?? null, recentCommits: args.recent ?? config.history?.recentCommits ?? 10, keyPatterns, useGh: !args.noGh, now, linkedRepos: config.linkedRepos ?? null })
+    context = collectContext({ exec, pr: args.pr ?? null, base: args.base ?? null, recentCommits: args.recent ?? config.history?.recentCommits ?? 10, keyPatterns, useGh: !args.noGh, now, linkedRepos: config.linkedRepos ?? null, worktree: args.worktree })
   } catch (error) {
     if (error instanceof ContextError) {
       console.error(error.message)

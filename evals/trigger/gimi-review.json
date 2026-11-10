@@ -13,7 +13,8 @@
     "review this pull request against the ticket requirements",
     "code review my branch before merge and check the impact on callers",
     "OpenAPI 스키마 바꾼 거 프론트 화면에 영향 없는지 리뷰해줘",
-    "GraphQL 스키마에서 필드 지웠는데 쓰는 곳 깨지는지 봐줘"
+    "GraphQL 스키마에서 필드 지웠는데 쓰는 곳 깨지는지 봐줘",
+    "커밋하기 전에 방금 고친 코드 리뷰해줘"
   ],
   "shouldNot": [
     "이 함수 단위 테스트 써줘",

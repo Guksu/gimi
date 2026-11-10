@@ -1,9 +1,10 @@
 /**
- * 리뷰 범위 — 기준 브랜치와 HEAD의 갈림점(merge-base)부터 HEAD까지다.
+ * 리뷰 범위 — 기준 브랜치와 HEAD의 갈림점(merge-base)부터 HEAD까지다. worktree면 작업 트리까지다(설계 결정 67).
  * 기준은 --base → PR의 기준 브랜치 → 원격 기본 브랜치(origin/HEAD) → origin/main·origin/master → main·master 순서로 정한다.
  * PR을 지정했는데 그 PR이 체크아웃돼 있지 않으면 멈춘다 — 사용자 저장소에 ref를 만드는 부수효과를 피한다.
  */
 import { ContextError, attempt } from './exec.mjs'
+import { REVIEW_DIR } from './worktree.mjs'
 
 /** @param {{ git: (args: string[]) => string }} exec @param {string} ref */
 const exists = (exec, ref) => attempt(() => exec.git(['rev-parse', '--verify', '-q', `${ref}^{commit}`])) != null
@@ -24,9 +25,9 @@ const baseFromPr = (exec, pr) => {
 }
 
 /**
- * @param {{ exec: { git: (args: string[]) => string }, base?: string | null, pr?: { number: number, baseRefName?: string, headRefOid?: string } | null }} args
+ * @param {{ exec: { git: (args: string[]) => string }, base?: string | null, pr?: { number: number, baseRefName?: string, headRefOid?: string } | null, worktree?: boolean }} args
  */
-export const resolveScope = ({ exec, base = null, pr = null }) => {
+export const resolveScope = ({ exec, base = null, pr = null, worktree = false }) => {
   const head = attempt(() => exec.git(['rev-parse', 'HEAD']).trim())
   if (!head) throw new ContextError('커밋이 없다 — 리뷰할 커밋을 만든 뒤 돌린다')
   if (pr?.headRefOid && pr.headRefOid !== head) {
@@ -43,6 +44,8 @@ export const resolveScope = ({ exec, base = null, pr = null }) => {
     branch: attempt(() => exec.git(['symbolic-ref', '--short', '-q', 'HEAD']).trim()) || null,
     mergeBase,
     commitCount: Number(exec.git(['rev-list', '--count', `${mergeBase}..HEAD`]).trim()),
-    dirty: exec.git(['status', '--porcelain']).trim().length > 0,
+    // gimi가 쓴 맥락 묶음·리뷰 기록만 남은 것은 커밋하지 않은 변경으로 보지 않는다
+    dirty: exec.git(['status', '--porcelain', '--', '.', `:(top,exclude)${REVIEW_DIR}`]).trim().length > 0,
+    worktree,
   }
 }

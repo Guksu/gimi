@@ -8,6 +8,7 @@
  */
 import { dirname, join, relative } from 'node:path'
 import { attempt, readRepoFile, requireFromProject } from './exec.mjs'
+import { readAfter } from './worktree.mjs'
 import { compareExports, extractExportsText, extractExportsTs } from './exports.mjs'
 import { changedLiterals, removedFieldsOf } from './literals.mjs'
 
@@ -151,7 +152,7 @@ export const lineOfPos = ({ readLines, path, pos }) => {
 }
 
 /**
- * @param {{ exec: { git: (args: string[]) => string }, root: string, scope: { mergeBase: string }, files: import('./diff.mjs').FileDiff[], ts: any, reason: string | null }} args
+ * @param {{ exec: { git: (args: string[]) => string }, root: string, scope: { mergeBase: string, worktree?: boolean }, files: import('./diff.mjs').FileDiff[], ts: any, reason: string | null }} args
  */
 export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
   const readLines = createFileReader({ root })
@@ -200,8 +201,8 @@ export const collectImpact = ({ exec, root, scope, files, ts, reason }) => {
       continue
     }
     const beforeText = file.status === 'added' ? '' : (attempt(() => exec.git(['show', `${scope.mergeBase}:${file.oldPath}`])) ?? '')
-    const afterText = file.status === 'deleted' ? '' : (attempt(() => exec.git(['show', `HEAD:${file.newPath}`])) ?? '')
-    // 참조 찾기는 디스크의 파일을 읽는다 — 커밋하지 않은 변경이 있으면 위치가 어긋나니 그 파일은 문자열로 찾는다
+    const afterText = file.status === 'deleted' ? '' : (readAfter({ exec, root, scope, path: file.newPath }) ?? '')
+    // 참조 찾기는 디스크의 파일을 읽는다 — 범위 밖의 커밋하지 않은 변경이 있으면 위치가 어긋나니 그 파일은 문자열로 찾는다(--worktree면 디스크가 곧 변경 후다)
     const diskMatches = file.newPath != null && readRepoFile({ root, path: file.newPath }) === afterText
     if (ts && file.newPath != null && !diskMatches) dirtyFiles += 1
     const extract = (text, name) => (ts ? extractExportsTs({ ts, text, fileName: name }) : extractExportsText({ text }))

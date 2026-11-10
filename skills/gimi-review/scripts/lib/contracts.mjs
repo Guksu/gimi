@@ -9,6 +9,7 @@
  */
 import { join } from 'node:path'
 import { attempt, readRepoFile } from './exec.mjs'
+import { readAfter } from './worktree.mjs'
 import { diffSchema, extractDocuments, hasTypeDefinitions, parseDocument, parseSchema, resolveOperations } from './graphql.mjs'
 import { CODE_GLOBS, createFileReader, createTsIndex, finalize, grep, lineOfPos, usageAt } from './impact.mjs'
 import { diffOpenApi, isOpenApi } from './openapi.mjs'
@@ -73,7 +74,7 @@ const pathPatterns = (endpoint) => {
 }
 
 /**
- * @param {{ exec: any, root: string, scope: { mergeBase: string }, files: import('./diff.mjs').FileDiff[], ts: any, yaml: { parse: (text: string) => any, name: string }, linked?: { label: string, root: string, prefix: string, exec: any, ts: any }[] }} args
+ * @param {{ exec: any, root: string, scope: { mergeBase: string, worktree?: boolean }, files: import('./diff.mjs').FileDiff[], ts: any, yaml: { parse: (text: string) => any, name: string }, linked?: { label: string, root: string, prefix: string, exec: any, ts: any }[] }} args
  * @returns {{ contracts: any[], skipped: { context: string, reason: string }[], notes: string[] }}
  */
 export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = [] }) => {
@@ -129,7 +130,7 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
     if (/\.proto$/i.test(path)) skipped.push({ context: '영향 범위', reason: `proto 계약(${path})은 아직 읽지 않는다 — 생성된 코드의 사용처는 직접 찾는다` })
     // 서버 코드 안의 스키마(gql typeDefs)는 계약으로 읽지 않는다 — 스키마 파일만 읽는다
     if (CODE.test(path) && file.status !== 'deleted') {
-      const after = show(exec, 'HEAD', file.newPath)
+      const after = readAfter({ exec, root, scope, path: file.newPath })
       if (after && extractDocuments({ path, text: after }).some((doc) => /\b(?:extend\s+)?type\s+(?:Query|Mutation)\b/.test(doc.text))) {
         notes.push(`${path} 안의 GraphQL 스키마(gql typeDefs)는 계약으로 읽지 않았다 — 스키마 파일(.graphql)만 비교한다`)
       }
@@ -141,7 +142,7 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
     const path = file.newPath ?? file.oldPath
     if (file.binary || !OPENAPI_FILE.test(path)) continue
     const beforeText = file.status === 'added' ? null : show(exec, scope.mergeBase, file.oldPath)
-    const afterText = file.status === 'deleted' ? null : show(exec, 'HEAD', file.newPath)
+    const afterText = file.status === 'deleted' ? null : readAfter({ exec, root, scope, path: file.newPath })
     if (!OPENAPI_MARK.test(beforeText ?? '') && !OPENAPI_MARK.test(afterText ?? '')) continue
     let before
     let after
@@ -208,18 +209,19 @@ export const collectContracts = ({ exec, root, scope, files, ts, yaml, linked = 
   // GraphQL — 저장소의 스키마 파일을 모두 합쳐 옛 판·새 판을 비교한다
   const changedSdl = files.filter((file) => !file.binary && GRAPHQL_FILE.test(file.newPath ?? file.oldPath))
   if (changedSdl.length > 0) {
+    // rev가 null이면 작업 트리다(--worktree) — 추적하는 파일과 추적하지 않는 새 파일을 디스크에서 읽는다
     const sourcesAt = (rev) => {
-      const listed = attempt(() => exec.git(['ls-tree', '-r', '-z', '--name-only', rev])) ?? ''
+      const listed = attempt(() => exec.git(rev ? ['ls-tree', '-r', '-z', '--name-only', rev] : ['ls-files', '-z', '--cached', '--others', '--exclude-standard'])) ?? ''
       const out = []
-      for (const path of listed.split('\0').filter((p) => GRAPHQL_FILE.test(p))) {
-        const text = show(exec, rev, path)
+      for (const path of [...new Set(listed.split('\0'))].filter((p) => GRAPHQL_FILE.test(p))) {
+        const text = rev ? show(exec, rev, path) : readRepoFile({ root, path })
         const definitions = attempt(() => parseDocument(text ?? ''))
         if (definitions && hasTypeDefinitions(definitions)) out.push({ path, text })
       }
       return out
     }
     const oldSources = sourcesAt(scope.mergeBase)
-    const newSources = sourcesAt('HEAD')
+    const newSources = sourcesAt(scope.worktree ? null : 'HEAD')
     const schemaPaths = new Set([...oldSources, ...newSources].map((s) => s.path))
     const changedSchema = changedSdl.map((file) => file.newPath ?? file.oldPath).filter((path) => schemaPaths.has(path))
     if (changedSchema.length > 0) {
