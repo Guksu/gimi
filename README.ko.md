@@ -115,7 +115,7 @@ Node.js 22 이상과 리뷰할 git 저장소가 필요합니다. PR·이슈 본�
 
 [![CI](https://github.com/Guksu/gimi/actions/workflows/ci.yml/badge.svg)](https://github.com/Guksu/gimi/actions/workflows/ci.yml)
 ![Preset rules](https://img.shields.io/badge/gimi-43%20preset%20rules-1b1e24)
-![Tests](https://img.shields.io/badge/tests-435%20passing-555555)
+![Tests](https://img.shields.io/badge/tests-437%20passing-555555)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
 
 ## 라이선스
