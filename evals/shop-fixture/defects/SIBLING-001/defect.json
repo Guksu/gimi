@@ -1,0 +1,22 @@
+{
+  "id": "SIBLING-001",
+  "rules": [],
+  "context": "영향 범위",
+  "layer": "프론트",
+  "pr": {
+    "title": "fix: 쿠폰 코드를 소문자로 입력해도 적용되게 한다",
+    "body": "## 배경\n쿠폰 코드는 대문자로 등록돼 있다. 손님이 noodle10처럼 소문자로 입력하면 '없는 쿠폰이에요'가 떠서 문의가 들어왔다.\n\n## 변경\n- 장바구니가 금액을 물을 때 쿠폰 코드를 대문자로 바꿔 보낸다\n- 소문자로 입력해도 할인이 적용되는 화면 테스트를 더했다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "쿠폰 코드를 대문자로 바꾸는 일을 장바구니의 금액 요청 한 곳에서만 한다. 장바구니에 저장된 코드는 입력한 그대로(noodle10)라, 같은 요청을 따로 만드는 주문 확인 화면의 금액 요청(CheckoutPage.tsx:31)과 주문 만들기(CheckoutPage.tsx:57)는 소문자를 그대로 보낸다. 소문자로 쿠폰을 넣으면 장바구니에서는 할인된 금액이 보이는데, 주문하기를 눌러 주문 확인 화면에 가면 서버가 COUPON_NOT_FOUND로 거절해 '없는 쿠폰이에요'가 뜨고 금액 요약이 나오지 않아 결제할 수 없다",
+      "path": "web/src/pages/CartPage.tsx",
+      "line": 36,
+      "evidence": [
+        { "path": "web/src/pages/CheckoutPage.tsx", "line": 31 },
+        { "path": "web/src/pages/CheckoutPage.tsx", "line": 57 }
+      ]
+    }
+  ]
+}

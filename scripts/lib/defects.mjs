@@ -3,6 +3,7 @@
  * 패치는 정상 버전(예제 저장소에서 defects/를 뺀 것)에 붙이는 diff다. defect.json은 어긴 규칙·맥락 종류·PR 제목과 본문,
  * 정답(단계 + file:line, 범위면 endLine까지 + 근거 위치), 결함을 잡는 테스트를 적는다. 경로는 모두 예제 저장소 루트 기준이다.
  * 이력 결함은 history(예전 커밋 — 메시지와 history/ 아래의 패치)를 더해, 평가용 저장소의 main에 그 커밋들을 쌓는다.
+ * history의 extra: true 커밋은 정상 버전에 없는 파일(예: 지난 리뷰 기록 — 설계 결정 72·74)을 main에만 더한다.
  * 근거(evidence)는 위치(path·line)나 이력 커밋(commit — history의 메시지 앞부분)이다.
  * 파일 읽기·git·테스트 실행은 scripts/defects.mjs가 맡고, 여기에는 판단만 둔다.
  */
@@ -127,6 +128,7 @@ export const validateDefect = ({ dir, json, ruleIds, patchedLines, baseLines, to
   })
 
   // 이력 — 평가용 저장소의 main에 쌓을 예전 커밋. 패치는 그 커밋 앞의 상태 → 뒤의 상태이고, 마지막 커밋 뒤가 정상 버전이다
+  // extra: true인 커밋은 정상 버전에 없는 파일을 더한다 — 거꾸로 풀지 않고 올리기만 해서, main에는 있고 정상 버전에는 없다
   if (json?.history !== undefined) {
     if (!Array.isArray(json.history) || json.history.length === 0) errors.push('history는 예전 커밋 목록이다 — 이력이 없으면 history를 뺀다')
     else
@@ -135,6 +137,7 @@ export const validateDefect = ({ dir, json, ruleIds, patchedLines, baseLines, to
         if (!isText(commit?.message)) errors.push(`${label}: 커밋 메시지(message)가 없다`)
         if (!isText(commit?.patch)) errors.push(`${label}: 패치 파일(patch)이 없다`)
         else if (!/^history\/[\w.-]+\.patch$/.test(commit.patch)) errors.push(`${label}: patch는 history/ 아래의 .patch 파일이다 — ${commit.patch}`)
+        if (commit?.extra !== undefined && typeof commit.extra !== 'boolean') errors.push(`${label}: extra는 true·false다 — true면 정상 버전에 없는 파일을 더하는 커밋이다`)
       })
   }
 
@@ -179,6 +182,9 @@ export const parseConfig = (text) => {
   }
   return config !== null && typeof config === 'object' && !Array.isArray(config) ? { config } : { error: 'JSON 객체가 아니다' }
 }
+
+/** 처음 상태를 만들 때 거꾸로 풀 이력 커밋 — extra 커밋은 정상 버전에 없는 파일이라 풀 것이 없다 */
+export const reversibleHistory = (history) => (Array.isArray(history) ? history : []).map((commit, index) => ({ commit, index })).filter(({ commit }) => commit?.extra !== true)
 
 /** 패치가 고치는 파일 — 고친 파일, 새 파일, 지운 파일, 이름을 바꾼 파일의 옛 이름과 새 이름 */
 export const patchedPaths = (patch) => {

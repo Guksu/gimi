@@ -123,6 +123,35 @@ describe('defects.mjs materialize·base', () => {
     assert.equal(git(configured, 'diff', '--name-only', 'main'), 'app/src/stock.ts')
   })
 
+  it('history의 extra 커밋은 거꾸로 풀지 않고 올리기만 한다 — 정상 버전에 없는 파일(지난 리뷰 기록)이 main에만 생기고 결함 PR diff에는 없다', () => {
+    const record = ['# 리뷰', '', '## 1. [고쳐야 함] 바뀐 코드 — 재고를 읽고 앱에서 비교한다', '- 규칙: COM-007', '- 판정: 맞음', ''].join('\n')
+    repo.write({ 'docs/gimi/reviews/2026-11-01-feature-pr.md': record })
+    repo.git('add', '-N', 'docs/gimi/reviews/2026-11-01-feature-pr.md')
+    const patch = repo.git('diff', '--', 'docs')
+    repo.git('rm', '-q', '--cached', 'docs/gimi/reviews/2026-11-01-feature-pr.md')
+    rmSync(join(repo.dir, 'docs'), { recursive: true, force: true })
+    const defect = JSON.parse(readFileSync(join(repo.dir, 'defects/COM-007/defect.json'), 'utf8'))
+    mkdirSync(join(repo.dir, 'defects/REREVIEW-001/history'), { recursive: true })
+    writeFileSync(join(repo.dir, 'defects/REREVIEW-001/history/01-review.patch'), patch)
+    writeFileSync(join(repo.dir, 'defects/REREVIEW-001/change.patch'), readFileSync(join(repo.dir, 'defects/COM-007/change.patch')))
+    const write = (extra) => writeFileSync(join(repo.dir, 'defects/REREVIEW-001/defect.json'), JSON.stringify({ ...defect, id: 'REREVIEW-001', history: [{ message: 'docs: 지난 리뷰 기록', patch: 'history/01-review.patch', ...extra }] }))
+
+    // extra가 없으면 정상 버전에 없는 파일이라 거꾸로 붙지 않는다
+    write({})
+    assert.equal(run(['check', 'REREVIEW-001', '--fixture', repo.dir, '--no-tests']).status, 1)
+
+    write({ extra: true })
+    const dir = join(out, 'rereview')
+    const result = run(['materialize', 'REREVIEW-001', dir, '--fixture', repo.dir, '--branch', 'feature/pr'])
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    assert.equal(git(dir, 'log', '--format=%s', 'main'), 'docs: 지난 리뷰 기록\nfeat: 국수집 주문 앱')
+    assert.equal(git(dir, 'show', '--name-only', '--format=', 'main'), 'docs/gimi/reviews/2026-11-01-feature-pr.md')
+    assert.equal(git(dir, 'ls-tree', '-r', '--name-only', 'main~1').includes('docs/gimi'), false)
+    assert.equal(git(dir, 'diff', '--name-only', 'main', 'feature/pr'), 'app/src/stock.ts')
+    assert.equal(run(['check', 'REREVIEW-001', '--fixture', repo.dir, '--no-tests']).status, 0)
+    rmSync(join(repo.dir, 'defects/REREVIEW-001'), { recursive: true, force: true })
+  })
+
   it('이력 패치가 정상 버전에서 거꾸로 붙지 않으면 실패한다', () => {
     writeFileSync(join(repo.dir, 'defects/HIST-001/history/01-conditional.patch'), readFileSync(join(repo.dir, 'defects/COM-016/change.patch')))
     const result = run(['check', 'HIST-001', '--fixture', repo.dir, '--no-tests'])

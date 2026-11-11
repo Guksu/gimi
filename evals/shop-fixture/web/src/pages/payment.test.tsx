@@ -45,6 +45,13 @@ describe('결제 결과', () => {
     expect(screen.getByRole('link', { name: '메뉴로 돌아가기' })).toHaveAttribute('href', '/')
   })
 
+  it('확정이 거절되면 서버가 준 코드에 맞는 문구를 보이고 주문으로 돌아가 다시 결제할 수 있다', async () => {
+    server.use(http.post(`${API}/payments/confirm`, () => HttpResponse.json({ code: 'PAYMENT_REJECTED', message: 'REJECT_CARD_COMPANY 한도 초과' }, { status: 402 })))
+    openAt('/payments/success?paymentKey=pay_1&orderId=7&amount=15000')
+    expect(await screen.findByRole('alert')).toHaveTextContent('결제가 거절됐어요. 다른 결제수단으로 다시 시도해 주세요')
+    expect(screen.getByRole('link', { name: '주문으로 돌아가 다시 결제하기' })).toHaveAttribute('href', '/orders/7')
+  })
+
   it('결제창에서 취소하면 실패 화면에서 다시 결제할 수 있다', async () => {
     openAt('/payments/fail?code=USER_CANCEL&orderId=7')
     expect(await screen.findByRole('heading', { name: '결제를 취소했어요' })).toBeInTheDocument()
