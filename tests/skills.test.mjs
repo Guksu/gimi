@@ -77,9 +77,9 @@ describe('checkSkillSet', () => {
 })
 
 const manifests = () => ({
-  claudePlugin: { name: 'gimi', version: '0.2.0' },
-  claudeMarketplace: { name: 'gimi', metadata: { version: '0.2.0' }, plugins: [{ name: 'gimi', source: './', version: '0.2.0' }] },
-  codexPlugin: { name: 'gimi', version: '0.2.0', skills: './skills/' },
+  claudePlugin: { name: 'gimi', version: '0.3.0' },
+  claudeMarketplace: { name: 'gimi', metadata: { version: '0.3.0' }, plugins: [{ name: 'gimi', source: './', version: '0.3.0' }] },
+  codexPlugin: { name: 'gimi', version: '0.3.0', skills: './skills/' },
   agentsMarketplace: { name: 'gimi', plugins: [{ name: 'gimi', source: { source: 'local', path: './' } }] },
 })
 
