@@ -146,7 +146,7 @@ PR에 코멘트를 달지는 않습니다. 리뷰는 요청할 때만 돕니다.
 
 | 무엇 | 경로 |
 |---|---|
-| 스킬 | `skills/gimi-review/SKILL.md`, 처음 설정·규칙 후보는 `references/setup.md`, 큰 변경·다시 리뷰는 `references/large-and-rereview.md` |
+| 스킬 | `skills/gimi-review/SKILL.md`, 처음 설정·규칙 후보는 `references/setup.md`, 요약 읽는 법(계약·CI·커밋 전 변경)은 `references/summary-guide.md`, 큰 변경·다시 리뷰는 `references/large-and-rereview.md` |
 | 맥락 수집 스크립트 | `skills/gimi-review/scripts/context.mjs` + `lib/` |
 | 규칙 | `skills/gimi-review/shared/rules/`(공통 금지선), `shared/domains/`(분야 프리셋) |
 | 예제 앱과 결함 PR | `evals/shop-fixture/` |

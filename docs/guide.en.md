@@ -148,7 +148,7 @@ These results come from one model and one example app. The new defects were revi
 
 | What | Path |
 |---|---|
-| Skill | `skills/gimi-review/SKILL.md`; first-time setup and rule candidates in `references/setup.md`, large changes and re-reviews in `references/large-and-rereview.md` |
+| Skill | `skills/gimi-review/SKILL.md`; first-time setup and rule candidates in `references/setup.md`, reading the summary (contracts, CI, uncommitted changes) in `references/summary-guide.md`, large changes and re-reviews in `references/large-and-rereview.md` |
 | Context script | `skills/gimi-review/scripts/context.mjs` + `lib/` |
 | Rules | `skills/gimi-review/shared/rules/` (common guardrails), `shared/domains/` (domain presets) |
 | Example app and defect pull requests | `evals/shop-fixture/` |
