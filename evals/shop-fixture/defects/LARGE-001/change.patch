@@ -1,0 +1,486 @@
+diff --git a/server/src/ads/ads.service.ts b/server/src/ads/ads.service.ts
+index dcaff68..048ed3a 100644
+--- a/server/src/ads/ads.service.ts
++++ b/server/src/ads/ads.service.ts
+@@ -1,7 +1,7 @@
+ import { Injectable } from '@nestjs/common'
+-import { Clock } from '../clock'
+-import { Db } from '../db/db'
+-import { addYears, kstDate, kstHour } from '../kst'
++import { Clock } from '../common/clock'
++import { Db } from '../common/db'
++import { addYears, kstDate, kstHour } from '../common/kst'
+ 
+ export type AdChannel = 'push' | 'sms' | 'email'
+ 
+diff --git a/server/src/app.module.ts b/server/src/app.module.ts
+index 5ecb7fb..82bca9b 100644
+--- a/server/src/app.module.ts
++++ b/server/src/app.module.ts
+@@ -1,9 +1,9 @@
+ import 'reflect-metadata'
+ import { Module } from '@nestjs/common'
+ import { AdsService } from './ads/ads.service'
+-import { Clock } from './clock'
+-import { AppConfig } from './config'
+-import { Db } from './db/db'
++import { Clock } from './common/clock'
++import { AppConfig } from './common/config'
++import { Db } from './common/db'
+ import { MembersController } from './members/members.controller'
+ import { MembersService } from './members/members.service'
+ import { RetentionService } from './members/retention.service'
+diff --git a/server/src/app.ts b/server/src/app.ts
+index 11fe51f..e2914ec 100644
+--- a/server/src/app.ts
++++ b/server/src/app.ts
+@@ -1,5 +1,5 @@
+ import type { INestApplication } from '@nestjs/common'
+-import { AppConfig } from './config'
++import { AppConfig } from './common/config'
+ 
+ /** 앱 설정 — 실행(main)과 테스트가 함께 쓴다 */
+ export const configure = (app: INestApplication) => {
+diff --git a/server/src/clock.ts b/server/src/common/clock.ts
+similarity index 100%
+rename from server/src/clock.ts
+rename to server/src/common/clock.ts
+diff --git a/server/src/config.ts b/server/src/common/config.ts
+similarity index 100%
+rename from server/src/config.ts
+rename to server/src/common/config.ts
+diff --git a/server/src/security/crypto.ts b/server/src/common/crypto.ts
+similarity index 100%
+rename from server/src/security/crypto.ts
+rename to server/src/common/crypto.ts
+diff --git a/server/src/db/db.ts b/server/src/common/db.ts
+similarity index 97%
+rename from server/src/db/db.ts
+rename to server/src/common/db.ts
+index be57a5f..df18f8b 100644
+--- a/server/src/db/db.ts
++++ b/server/src/common/db.ts
+@@ -1,6 +1,6 @@
+ import { Injectable, type OnModuleDestroy } from '@nestjs/common'
+ import { Pool, type PoolClient } from 'pg'
+-import { AppConfig } from '../config'
++import { AppConfig } from './config'
+ 
+ export type Queryable = Pool | PoolClient
+ 
+diff --git a/server/src/http/errors.ts b/server/src/common/errors.ts
+similarity index 100%
+rename from server/src/http/errors.ts
+rename to server/src/common/errors.ts
+diff --git a/server/src/kst.ts b/server/src/common/kst.ts
+similarity index 100%
+rename from server/src/kst.ts
+rename to server/src/common/kst.ts
+diff --git a/server/src/logging/mask.ts b/server/src/common/mask.ts
+similarity index 100%
+rename from server/src/logging/mask.ts
+rename to server/src/common/mask.ts
+diff --git a/server/src/money.ts b/server/src/common/money.ts
+similarity index 100%
+rename from server/src/money.ts
+rename to server/src/common/money.ts
+diff --git a/server/src/http/user.guard.ts b/server/src/common/user.guard.ts
+similarity index 100%
+rename from server/src/http/user.guard.ts
+rename to server/src/common/user.guard.ts
+diff --git a/server/src/members/members.controller.ts b/server/src/members/members.controller.ts
+index 26a7772..b48aeda 100644
+--- a/server/src/members/members.controller.ts
++++ b/server/src/members/members.controller.ts
+@@ -1,5 +1,5 @@
+ import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common'
+-import { UserGuard, UserId } from '../http/user.guard'
++import { UserGuard, UserId } from '../common/user.guard'
+ import { MembersService, type SignUpInput } from './members.service'
+ 
+ @Controller('members')
+diff --git a/server/src/members/members.service.ts b/server/src/members/members.service.ts
+index 966376f..c8f8a4a 100644
+--- a/server/src/members/members.service.ts
++++ b/server/src/members/members.service.ts
+@@ -1,8 +1,8 @@
+ import { Injectable } from '@nestjs/common'
+-import { Clock } from '../clock'
+-import { Db } from '../db/db'
+-import { fail } from '../http/errors'
+-import { ageOn, kstDate } from '../kst'
++import { Clock } from '../common/clock'
++import { Db } from '../common/db'
++import { fail } from '../common/errors'
++import { ageOn, kstDate } from '../common/kst'
+ 
+ export interface SignUpInput {
+   name?: unknown
+diff --git a/server/src/members/retention.service.ts b/server/src/members/retention.service.ts
+index a05a491..7f27a29 100644
+--- a/server/src/members/retention.service.ts
++++ b/server/src/members/retention.service.ts
+@@ -1,6 +1,6 @@
+ import { Injectable } from '@nestjs/common'
+-import { Clock } from '../clock'
+-import { Db } from '../db/db'
++import { Clock } from '../common/clock'
++import { Db } from '../common/db'
+ import { RETAIN_YEARS } from './members.service'
+ 
+ /**
+diff --git a/server/src/memberships/memberships.controller.ts b/server/src/memberships/memberships.controller.ts
+index 505dfe3..af64082 100644
+--- a/server/src/memberships/memberships.controller.ts
++++ b/server/src/memberships/memberships.controller.ts
+@@ -1,5 +1,5 @@
+ import { Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common'
+-import { UserGuard, UserId } from '../http/user.guard'
++import { UserGuard, UserId } from '../common/user.guard'
+ import { MembershipsService } from './memberships.service'
+ 
+ @Controller('memberships')
+diff --git a/server/src/memberships/memberships.service.ts b/server/src/memberships/memberships.service.ts
+index 7f253f2..94f7aed 100644
+--- a/server/src/memberships/memberships.service.ts
++++ b/server/src/memberships/memberships.service.ts
+@@ -1,8 +1,8 @@
+ import { Injectable } from '@nestjs/common'
+-import { Clock } from '../clock'
+-import { Db } from '../db/db'
+-import { fail } from '../http/errors'
+-import { addMonthsKst, kstDay } from '../kst'
++import { Clock } from '../common/clock'
++import { Db } from '../common/db'
++import { fail } from '../common/errors'
++import { addMonthsKst, kstDay } from '../common/kst'
+ 
+ // 오른 요금은 청구일 전 30일 안에 받은 별도 동의로만 청구한다
+ const CONSENT_WINDOW_DAYS = 30
+diff --git a/server/src/orders/order-state.ts b/server/src/orders/order-state.ts
+index aee9c15..7188eca 100644
+--- a/server/src/orders/order-state.ts
++++ b/server/src/orders/order-state.ts
+@@ -1,7 +1,7 @@
+ /**
+  * 주문 상태 전이표 — 상태는 이 표에 있는 전이로만 바꾼다(transition). 되돌아가는 전이도 표에 둔다
+  */
+-import type { Queryable } from '../db/db'
++import type { Queryable } from '../common/db'
+ 
+ export type OrderStatus = 'pending_payment' | 'waiting_for_deposit' | 'payment_failed' | 'paid' | 'preparing' | 'shipped' | 'delivered' | 'partially_refunded' | 'cancelled'
+ 
+diff --git a/server/src/orders/orders.controller.ts b/server/src/orders/orders.controller.ts
+index ef37891..908c845 100644
+--- a/server/src/orders/orders.controller.ts
++++ b/server/src/orders/orders.controller.ts
+@@ -1,6 +1,6 @@
+ import { Body, Controller, Get, Headers, HttpCode, Param, ParseIntPipe, Post, Res, UseGuards } from '@nestjs/common'
+ import type { Response } from 'express'
+-import { UserGuard, UserId } from '../http/user.guard'
++import { UserGuard, UserId } from '../common/user.guard'
+ import { PricingService, type QuoteInput } from '../pricing/pricing.service'
+ import { OrdersService } from './orders.service'
+ 
+diff --git a/server/src/orders/orders.service.ts b/server/src/orders/orders.service.ts
+index ac23339..a466f18 100644
+--- a/server/src/orders/orders.service.ts
++++ b/server/src/orders/orders.service.ts
+@@ -1,10 +1,10 @@
+ import { Injectable } from '@nestjs/common'
+ import type { PoolClient } from 'pg'
+-import { AppConfig } from '../config'
+-import { Clock } from '../clock'
+-import { Db, isUniqueViolation, type Queryable } from '../db/db'
+-import { fail } from '../http/errors'
+-import type { Method } from '../money'
++import { AppConfig } from '../common/config'
++import { Clock } from '../common/clock'
++import { Db, isUniqueViolation, type Queryable } from '../common/db'
++import { fail } from '../common/errors'
++import type { Method } from '../common/money'
+ import { PgClient, PgError, PgUnavailable } from '../payments/pg-client'
+ import { PricingService, type QuoteInput } from '../pricing/pricing.service'
+ import { transition, type OrderStatus } from './order-state'
+diff --git a/server/src/orders/refund-accounts.controller.ts b/server/src/orders/refund-accounts.controller.ts
+index bd21261..a4819cc 100644
+--- a/server/src/orders/refund-accounts.controller.ts
++++ b/server/src/orders/refund-accounts.controller.ts
+@@ -1,10 +1,10 @@
+ import { Body, Controller, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common'
+-import { Clock } from '../clock'
+-import { AppConfig } from '../config'
+-import { Db } from '../db/db'
+-import { fail } from '../http/errors'
+-import { UserGuard, UserId } from '../http/user.guard'
+-import { encrypt, maskAccount } from '../security/crypto'
++import { Clock } from '../common/clock'
++import { AppConfig } from '../common/config'
++import { Db } from '../common/db'
++import { fail } from '../common/errors'
++import { UserGuard, UserId } from '../common/user.guard'
++import { encrypt, maskAccount } from '../common/crypto'
+ 
+ /**
+  * 가상계좌 환불 계좌 — 입금한 가상계좌 주문을 환불할 때 직원이 이 계좌로 보낸다(예제라 환불 이체는 없다).
+diff --git a/server/src/orders/supply.service.ts b/server/src/orders/supply.service.ts
+index e9662d9..f335a72 100644
+--- a/server/src/orders/supply.service.ts
++++ b/server/src/orders/supply.service.ts
+@@ -1,7 +1,7 @@
+ import { Injectable } from '@nestjs/common'
+-import { Clock } from '../clock'
+-import { Db } from '../db/db'
+-import { fail } from '../http/errors'
++import { Clock } from '../common/clock'
++import { Db } from '../common/db'
++import { fail } from '../common/errors'
+ import { OrdersService } from './orders.service'
+ 
+ // 보내기 전이라 취소할 수 있는 주문
+diff --git a/server/src/payments/payments.controller.ts b/server/src/payments/payments.controller.ts
+index 6799e1e..21432ff 100644
+--- a/server/src/payments/payments.controller.ts
++++ b/server/src/payments/payments.controller.ts
+@@ -1,6 +1,6 @@
+ import { Body, Controller, Post, Res, UseGuards } from '@nestjs/common'
+ import type { Response } from 'express'
+-import { UserGuard, UserId } from '../http/user.guard'
++import { UserGuard, UserId } from '../common/user.guard'
+ import { PaymentsService } from './payments.service'
+ 
+ @Controller('payments')
+diff --git a/server/src/payments/payments.service.ts b/server/src/payments/payments.service.ts
+index c6428fd..c95e0a7 100644
+--- a/server/src/payments/payments.service.ts
++++ b/server/src/payments/payments.service.ts
+@@ -1,8 +1,8 @@
+ import { Injectable } from '@nestjs/common'
+-import { Clock } from '../clock'
+-import { Db } from '../db/db'
+-import { fail } from '../http/errors'
+-import { pointsToEarn } from '../money'
++import { Clock } from '../common/clock'
++import { Db } from '../common/db'
++import { fail } from '../common/errors'
++import { pointsToEarn } from '../common/money'
+ import { canTransition, transition, type OrderStatus } from '../orders/order-state'
+ import { OrdersService, type OrderRow } from '../orders/orders.service'
+ import { PgClient, PgError, PgUnavailable, type PgPayment } from './pg-client'
+diff --git a/server/src/payments/pg-client.ts b/server/src/payments/pg-client.ts
+index 9f2fc19..5ba858a 100644
+--- a/server/src/payments/pg-client.ts
++++ b/server/src/payments/pg-client.ts
+@@ -1,7 +1,7 @@
+ import { Injectable, Logger } from '@nestjs/common'
+-import { AppConfig } from '../config'
+-import { mask } from '../logging/mask'
+-import type { Method } from '../money'
++import { AppConfig } from '../common/config'
++import { mask } from '../common/mask'
++import type { Method } from '../common/money'
+ 
+ export interface PgPayment {
+   paymentKey: string
+diff --git a/server/src/pricing/pricing.service.ts b/server/src/pricing/pricing.service.ts
+index 1e8828d..c21b0c0 100644
+--- a/server/src/pricing/pricing.service.ts
++++ b/server/src/pricing/pricing.service.ts
+@@ -1,8 +1,8 @@
+ import { Injectable } from '@nestjs/common'
+-import { Clock } from '../clock'
+-import { Db, type Queryable } from '../db/db'
+-import { fail } from '../http/errors'
+-import { FREE_SHIPPING_THRESHOLD, METHODS, MINIMUM_PAYMENT, POINT_UNIT, SHIPPING_FEE, discountByRate, type Method } from '../money'
++import { Clock } from '../common/clock'
++import { Db, type Queryable } from '../common/db'
++import { fail } from '../common/errors'
++import { FREE_SHIPPING_THRESHOLD, METHODS, MINIMUM_PAYMENT, POINT_UNIT, SHIPPING_FEE, discountByRate, type Method } from '../common/money'
+ 
+ export interface QuoteInput {
+   items?: unknown
+diff --git a/server/src/products/products.controller.ts b/server/src/products/products.controller.ts
+index 9861130..03f9691 100644
+--- a/server/src/products/products.controller.ts
++++ b/server/src/products/products.controller.ts
+@@ -1,6 +1,6 @@
+ import { Controller, Get } from '@nestjs/common'
+-import { Db } from '../db/db'
+-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '../money'
++import { Db } from '../common/db'
++import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '../common/money'
+ 
+ @Controller('products')
+ export class ProductsController {
+diff --git a/server/src/webhooks/webhooks.controller.ts b/server/src/webhooks/webhooks.controller.ts
+index 0c5db19..1a0fc00 100644
+--- a/server/src/webhooks/webhooks.controller.ts
++++ b/server/src/webhooks/webhooks.controller.ts
+@@ -1,8 +1,8 @@
+ import { Controller, Headers, HttpCode, Post, Req, type RawBodyRequest } from '@nestjs/common'
+ import type { Request } from 'express'
+-import { AppConfig } from '../config'
+-import { Db } from '../db/db'
+-import { fail } from '../http/errors'
++import { AppConfig } from '../common/config'
++import { Db } from '../common/db'
++import { fail } from '../common/errors'
+ import { PaymentsService } from '../payments/payments.service'
+ import { verifySignature } from './signature'
+ 
+diff --git a/server/test/config-mask.test.ts b/server/test/config-mask.test.ts
+index 21fa8ff..06a2b37 100644
+--- a/server/test/config-mask.test.ts
++++ b/server/test/config-mask.test.ts
+@@ -1,6 +1,6 @@
+ import { describe, expect, it } from 'vitest'
+-import { AppConfig } from '../src/config'
+-import { mask } from '../src/logging/mask'
++import { AppConfig } from '../src/common/config'
++import { mask } from '../src/common/mask'
+ 
+ describe('AppConfig', () => {
+   it('시크릿이 없으면 시작할 때 실패한다 — 기본값으로 뜨지 않는다', () => {
+diff --git a/server/test/helpers.ts b/server/test/helpers.ts
+index 0a75366..30c81f5 100644
+--- a/server/test/helpers.ts
++++ b/server/test/helpers.ts
+@@ -8,7 +8,7 @@ import { Pool } from 'pg'
+ import request from 'supertest'
+ import { SEED } from '../db/migrate'
+ import { AppModule } from '../src/app.module'
+-import { Clock } from '../src/clock'
++import { Clock } from '../src/common/clock'
+ import { configure } from '../src/app'
+ import { TEST_URL } from './global-setup'
+ 
+diff --git a/server/test/supply-refund-account.test.ts b/server/test/supply-refund-account.test.ts
+index 2baef32..33feb2a 100644
+--- a/server/test/supply-refund-account.test.ts
++++ b/server/test/supply-refund-account.test.ts
+@@ -1,6 +1,6 @@
+ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+ import { SupplyService } from '../src/orders/supply.service'
+-import { decrypt } from '../src/security/crypto'
++import { decrypt } from '../src/common/crypto'
+ import { REFUND_ACCOUNT_KEY, orderWithCheckout, startApp, type TestApp } from './helpers'
+ 
+ let t: TestApp
+diff --git a/web/src/api/messages.test.ts b/web/src/api/messages.test.ts
+new file mode 100644
+index 0000000..dc64ef3
+--- /dev/null
++++ b/web/src/api/messages.test.ts
+@@ -0,0 +1,15 @@
++import { describe, expect, it } from 'vitest'
++import { ApiError } from './client'
++import { messageOf } from './messages'
++
++describe('오류 문구', () => {
++  it('서버가 준 코드에 맞는 문구를 고른다', () => {
++    expect(messageOf(new ApiError(409, 'SOLD_OUT', '칼국수는 품절이다'))).toBe('품절된 상품이 있어요')
++  })
++
++  it('모르는 코드와 서버 응답이 아닌 오류는 같은 문구로 보인다', () => {
++    const fallback = '문제가 생겼어요. 잠시 뒤 다시 시도해 주세요'
++    expect(messageOf(new ApiError(500, 'SOMETHING_NEW', ''))).toBe(fallback)
++    expect(messageOf(new TypeError('Failed to fetch'))).toBe(fallback)
++  })
++})
+diff --git a/web/src/api/messages.ts b/web/src/api/messages.ts
+index cce331e..9265e68 100644
+--- a/web/src/api/messages.ts
++++ b/web/src/api/messages.ts
+@@ -1,3 +1,5 @@
++import { ApiError } from './client'
++
+ /** 서버 오류 코드 → 화면 문구. 서버가 준 message를 그대로 보이지 않는다 */
+ const MESSAGES: Record<string, string> = {
+   COUPON_NOT_FOUND: '없는 쿠폰이에요',
+@@ -18,4 +20,5 @@ const MESSAGES: Record<string, string> = {
+   PAYMENT_REJECTED: '결제가 거절됐어요. 다른 결제수단으로 다시 시도해 주세요',
+ }
+ 
+-export const messageOf = (code: string) => MESSAGES[code] ?? '문제가 생겼어요. 잠시 뒤 다시 시도해 주세요'
++/** 잡은 오류를 그대로 넘긴다 — 서버가 코드를 준 오류(ApiError)만 그 코드의 문구로 보이고, 나머지는 같은 문구다 */
++export const messageOf = (error: unknown) => (error instanceof ApiError ? MESSAGES[error.code] : undefined) ?? '문제가 생겼어요. 잠시 뒤 다시 시도해 주세요'
+diff --git a/web/src/pages/CartPage.tsx b/web/src/pages/CartPage.tsx
+index 4b3b0a2..a9e163a 100644
+--- a/web/src/pages/CartPage.tsx
++++ b/web/src/pages/CartPage.tsx
+@@ -1,5 +1,5 @@
+ import { useEffect, useRef, useState } from 'react'
+-import { ApiError, api, type Product, type Quote } from '../api/client'
++import { api, type Product, type Quote } from '../api/client'
+ import { messageOf } from '../api/messages'
+ import { useCart } from '../cart/cart'
+ import { formatPrice } from '../money/format'
+@@ -40,7 +40,7 @@ export const CartPage = () => {
+       })
+       .catch((e: unknown) => {
+         if (id !== latest.current) return
+-        setError(messageOf(e instanceof ApiError ? e.code : 'UNKNOWN'))
++        setError(messageOf(e))
+       })
+   }, [cart.items, cart.couponCode, cart.points, invalid.length])
+ 
+diff --git a/web/src/pages/CheckoutPage.tsx b/web/src/pages/CheckoutPage.tsx
+index 1311108..508237c 100644
+--- a/web/src/pages/CheckoutPage.tsx
++++ b/web/src/pages/CheckoutPage.tsx
+@@ -30,7 +30,7 @@ export const CheckoutPage = () => {
+     api
+       .quote({ items: cart.items, couponCode: cart.couponCode ?? undefined, points: cart.points || undefined, method })
+       .then(({ data }) => alive && setQuote(data))
+-      .catch((e: unknown) => alive && setError(messageOf(e instanceof ApiError ? e.code : 'UNKNOWN')))
++      .catch((e: unknown) => alive && setError(messageOf(e)))
+     return () => {
+       alive = false
+     }
+@@ -69,7 +69,7 @@ export const CheckoutPage = () => {
+       const { data: checkout } = await api.checkout(order.id)
+       redirect(checkout.checkoutUrl)
+     } catch (e) {
+-      setError(messageOf(e instanceof ApiError ? e.code : 'UNKNOWN'))
++      setError(messageOf(e))
+       inFlight.current = false
+       setSubmitting(false)
+     }
+diff --git a/web/src/pages/OrderPage.tsx b/web/src/pages/OrderPage.tsx
+index 350ffc9..a809993 100644
+--- a/web/src/pages/OrderPage.tsx
++++ b/web/src/pages/OrderPage.tsx
+@@ -1,5 +1,5 @@
+ import { useEffect, useState } from 'react'
+-import { ApiError, api, type Order } from '../api/client'
++import { api, type Order } from '../api/client'
+ import { messageOf } from '../api/messages'
+ import { formatPrice } from '../money/format'
+ import { redirect } from '../navigation'
+@@ -31,7 +31,7 @@ export const OrderPage = ({ id }: { id: number }) => {
+     api
+       .order(id)
+       .then(({ data }) => alive && setOrder(data))
+-      .catch((e: unknown) => alive && setError(messageOf(e instanceof ApiError ? e.code : 'UNKNOWN')))
++      .catch((e: unknown) => alive && setError(messageOf(e)))
+     return () => {
+       alive = false
+     }
+@@ -43,7 +43,7 @@ export const OrderPage = ({ id }: { id: number }) => {
+       setOrder(result.data && 'status' in result.data ? result.data : (await api.order(id)).data)
+       setError(null)
+     } catch (e) {
+-      setError(messageOf(e instanceof ApiError ? e.code : 'UNKNOWN'))
++      setError(messageOf(e))
+     }
+   }
+ 
+@@ -64,7 +64,7 @@ export const OrderPage = ({ id }: { id: number }) => {
+       {order.refundedAmount > 0 && <p>환불한 금액 {formatPrice(order.refundedAmount)}</p>}
+       {error && <p role="alert">{error}</p>}
+       {PAYABLE.has(order.status) && (
+-        <button type="button" onClick={() => void api.checkout(order.id).then(({ data }) => redirect(data.checkoutUrl), (e: unknown) => setError(messageOf(e instanceof ApiError ? e.code : 'UNKNOWN')))}>
++        <button type="button" onClick={() => void api.checkout(order.id).then(({ data }) => redirect(data.checkoutUrl), (e: unknown) => setError(messageOf(e)))}>
+           결제하기
+         </button>
+       )}

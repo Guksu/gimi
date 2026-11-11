@@ -1,0 +1,86 @@
+diff --git a/web/src/pages/OrderPage.tsx b/web/src/pages/OrderPage.tsx
+index 350ffc9..fef9cb2 100644
+--- a/web/src/pages/OrderPage.tsx
++++ b/web/src/pages/OrderPage.tsx
+@@ -22,9 +22,13 @@ const KST_DAY = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month
+ /** 반품 기한(이 시각부터 막힌다)의 마지막 날 — 한국 시간 */
+ const lastDay = (deadline: string) => KST_DAY.format(new Date(new Date(deadline).getTime() - 1))
+ 
++/** 부분 취소 금액 — 1원 이상, 상한 이하의 정수만 */
++const parseAmount = (text: string, max: number) => (/^\d+$/.test(text) && Number(text) >= 1 && Number(text) <= max ? Number(text) : null)
++
+ export const OrderPage = ({ id }: { id: number }) => {
+   const [order, setOrder] = useState<Order | null>(null)
+   const [error, setError] = useState<string | null>(null)
++  const [amountText, setAmountText] = useState('')
+ 
+   useEffect(() => {
+     let alive = true
+@@ -48,6 +52,8 @@ export const OrderPage = ({ id }: { id: number }) => {
+   }
+ 
+   if (!order) return error ? <p role="alert">{error}</p> : <p>주문을 불러오고 있어요</p>
++  // 부분 취소는 결제한 금액 안에서만 받는다
++  const partialAmount = parseAmount(amountText, order.total)
+   return (
+     <section aria-label="주문 상세">
+       <h1>주문 {order.id}</h1>
+@@ -74,6 +80,25 @@ export const OrderPage = ({ id }: { id: number }) => {
+           주문 취소
+         </button>
+       )}
++      {order.canCancel && order.refundableAmount > 0 && (
++        <>
++          <label>
++            부분 취소 금액
++            <input type="number" inputMode="numeric" min={1} value={amountText} onChange={(event) => setAmountText(event.target.value)} />
++          </label>
++          <button
++            type="button"
++            disabled={partialAmount === null}
++            onClick={() => {
++              if (partialAmount === null) return
++              setAmountText('')
++              void run(() => api.cancel(order.id, { amount: partialAmount, reason: '고객 요청' }))
++            }}
++          >
++            부분 취소
++          </button>
++        </>
++      )}
+       {order.canReturn && order.returnDeadline && (
+         <>
+           <p>{lastDay(order.returnDeadline)} 23:59까지 반품할 수 있어요</p>
+diff --git a/web/src/pages/order.test.tsx b/web/src/pages/order.test.tsx
+index 315d289..d84b55a 100644
+--- a/web/src/pages/order.test.tsx
++++ b/web/src/pages/order.test.tsx
+@@ -19,6 +19,28 @@ describe('주문 상세', () => {
+     expect(screen.queryByRole('button', { name: '주문 취소' })).not.toBeInTheDocument()
+   })
+ 
++  it('부분 취소는 1원 이상의 정수만 받고, 넣은 금액을 그대로 서버에 보낸다', async () => {
++    show({ status: 'paid', canCancel: true, total: 15000, refundableAmount: 15000 })
++    const bodies: unknown[] = []
++    server.use(http.post(`${API}/orders/7/cancel`, async ({ request }) => (bodies.push(await request.json()), HttpResponse.json(order({ status: 'partially_refunded', refundedAmount: 5000, refundableAmount: 10000 })))))
++    const { user } = openAt('/orders/7')
++    const input = await screen.findByRole('spinbutton', { name: '부분 취소 금액' })
++    const button = screen.getByRole('button', { name: '부분 취소' })
++    expect(button).toBeDisabled()
++    for (const value of ['0', '1.5', '-100']) {
++      await user.clear(input)
++      await user.click(input)
++      await user.paste(value)
++      expect(button).toBeDisabled()
++    }
++    await user.clear(input)
++    await user.click(input)
++    await user.paste('5000')
++    await user.click(button)
++    expect(await screen.findByText('환불한 금액 5,000원')).toBeInTheDocument()
++    expect(bodies).toEqual([{ amount: 5000, reason: '고객 요청' }])
++  })
++
+   it('모르는 상태 값은 "확인 중"으로 보인다', async () => {
+     show({ status: 'held_by_risk_team' })
+     openAt('/orders/7')

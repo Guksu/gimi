@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseRuleFile } from '../skills/gimi-review/scripts/lib/rulefile.mjs'
-import { formatCheck, parseConfig, patchedPaths, runCatches, validateDefect } from './lib/defects.mjs'
+import { formatCheck, parseConfig, patchedPaths, reversibleHistory, runCatches, validateDefect } from './lib/defects.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BASE_MESSAGE = 'feat: 국수집 주문 앱'
@@ -114,15 +114,16 @@ const readDefect = (fixture, id) => {
 /**
  * 결함 버전 — 정상 버전 위에 defect/<ID> 브랜치를 따고 패치를 PR 제목·본문으로 커밋한다.
  * 이력(history)이 있으면 정상 버전에서 이력 패치를 거꾸로 풀어 처음 상태를 커밋하고, 이력 패치를 차례로 다시 올려 main에 쌓는다.
- * 그래서 main의 마지막 상태는 언제나 정상 버전과 같다. config(파일 경로)를 주면 첫 커밋에 .agents/gimi.json으로 넣는다
+ * 그래서 main의 마지막 상태는 정상 버전과 같다 — extra: true인 이력 커밋만 예외로, 거꾸로 풀지 않고 올리기만 해서 정상 버전에 없는 파일
+ * (지난 리뷰 기록 등)을 main에 더한다. config(파일 경로)를 주면 첫 커밋에 .agents/gimi.json으로 넣는다
  */
 const materialize = (fixture, id, dir, { branch = `defect/${id}`, config = null } = {}) => {
   const { json, patchPath } = readDefect(fixture, id)
   const history = Array.isArray(json.history) ? json.history : []
   const historyPath = (commit) => join(fixture, 'defects', id, commit.patch ?? '')
   copyBase(fixture, dir)
-  for (let index = history.length - 1; index >= 0; index--) {
-    applyPatch(dir, historyPath(history[index]), { reverse: true, what: `이력 패치가 정상 버전에서 거꾸로 붙지 않는다 — history ${index + 1}` })
+  for (const { commit, index } of reversibleHistory(history).reverse()) {
+    applyPatch(dir, historyPath(commit), { reverse: true, what: `이력 패치가 정상 버전에서 거꾸로 붙지 않는다 — history ${index + 1}` })
   }
   if (config) {
     mkdirSync(join(dir, '.agents'), { recursive: true })
