@@ -1,0 +1,23 @@
+{
+  "id": "LARGE-001",
+  "rules": [],
+  "context": "영향 범위",
+  "layer": "둘 다",
+  "pr": {
+    "title": "refactor: 서버 공용 모듈을 common/으로 모으고 화면의 오류 문구 호출을 줄인다",
+    "body": "## 배경\n- 서버의 공용 모듈이 src 바로 아래와 파일 하나짜리 폴더(http·db·logging·security)에 흩어져 있어 import 경로가 제각각이다.\n- 화면은 오류를 잡을 때마다 `messageOf(e instanceof ApiError ? e.code : 'UNKNOWN')`을 되풀이한다.\n\n## 변경\n- 서버: clock·config·kst·money·errors·mask·crypto·db·user.guard를 `server/src/common/`으로 옮기고 import 경로를 고쳤다(내용은 그대로)\n- 화면: `messageOf`가 잡은 오류를 그대로 받는다. ApiError면 코드의 문구를, 아니면 기본 문구를 돌려준다. 부르는 쪽은 `messageOf(e)`로 줄였다\n- `messageOf` 단위 테스트를 더했다\n\n동작은 바뀌지 않는다."
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "messageOf가 오류 코드(문자열) 대신 잡은 오류를 받게 바뀌었는데, 결제 결과 화면(PaymentPages.tsx)은 고치지 않아 여전히 코드 문자열을 넘긴다. 인자 타입이 unknown이라 타입 검사는 통과하고, 문자열은 ApiError가 아니어서 늘 기본 문구가 나온다. 결제 확정이 PAYMENT_REJECTED(402)로 거절되면(PaymentPages.tsx:32) '결제가 거절됐어요. 다른 결제수단으로 다시 시도해 주세요' 대신 '문제가 생겼어요. 잠시 뒤 다시 시도해 주세요'가 뜨고, 결제 실패 화면(:62)도 주소의 code가 무엇이든 같은 기본 문구만 보인다",
+      "path": "web/src/api/messages.ts",
+      "line": 24,
+      "evidence": [
+        { "path": "web/src/pages/PaymentPages.tsx", "line": 32 },
+        { "path": "web/src/pages/PaymentPages.tsx", "line": 62 }
+      ]
+    }
+  ],
+  "catches": ["web/src/pages/payment.test.tsx"]
+}
