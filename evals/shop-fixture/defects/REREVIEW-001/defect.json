@@ -1,0 +1,29 @@
+{
+  "id": "REREVIEW-001",
+  "rules": [],
+  "context": "영향 범위",
+  "layer": "프론트",
+  "history": [
+    {
+      "message": "docs: feature/pr 리뷰 기록을 남긴다",
+      "patch": "history/01-review-record.patch",
+      "extra": true
+    }
+  ],
+  "pr": {
+    "title": "feat: 주문 상세에서 금액을 정해 부분 취소한다",
+    "body": "## 배경\n부분 취소는 API만 있고 화면이 없어, 일부만 환불받으려는 손님이 고객센터에 연락해야 했다.\n\n## 변경\n- 주문 상세에 부분 취소 금액 칸과 버튼을 더했다(취소할 수 있고 환불할 금액이 남은 주문에만 보인다)\n- 화면 테스트를 더했다\n\n## 리뷰 반영\n- 부분 취소 금액은 1원 이상의 정수만 받는다 — 빈 값·소수·음수이면 버튼이 눌리지 않는다"
+  },
+  "findings": [
+    {
+      "level": "고쳐야 함",
+      "summary": "지난 리뷰의 2번 지적이 고쳐지지 않고 남았다. 부분 취소 금액의 상한을 남은 환불 가능 금액(order.refundableAmount)이 아니라 결제 금액(order.total)으로 본다. 15,000원 주문에서 5,000원을 부분 취소한 뒤 12,000원을 넣으면 버튼이 눌리고, 서버가 남은 금액 10,000원을 넘는다고 EXCEED_REFUNDABLE(400)로 거절한다(orders.service.ts:199). 화면의 문구 표에 그 코드가 없어 '문제가 생겼어요. 잠시 뒤 다시 시도해 주세요'만 보인다. 지난 리뷰의 1번 지적(금액을 검사 없이 Number로 바꿔 보냄)은 parseAmount로 고쳐졌다",
+      "path": "web/src/pages/OrderPage.tsx",
+      "line": 56,
+      "evidence": [
+        { "path": "docs/gimi/reviews/2026-11-01-feature-pr.md", "line": 17 },
+        { "path": "server/src/orders/orders.service.ts", "line": 199 }
+      ]
+    }
+  ]
+}

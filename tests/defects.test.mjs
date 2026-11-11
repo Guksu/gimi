@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { formatCheck, parseConfig, patchedPaths, runCatches, validateDefect } from '../scripts/lib/defects.mjs'
+import { formatCheck, parseConfig, patchedPaths, reversibleHistory, runCatches, validateDefect } from '../scripts/lib/defects.mjs'
 
 const good = () => ({
   id: 'COM-007',
@@ -77,6 +77,16 @@ describe('validateDefect — 이력(history)', () => {
     assert.ok(validate({ ...good(), history: 'x' }).some((e) => /history.*목록/.test(e)))
     const errors = validate({ ...good(), history: [{ message: '', patch: 'history/a.patch' }, { message: 'fix: x' }, { message: 'fix: y', patch: '../change.patch' }] })
     for (const pattern of [/history 1.*메시지/, /history 2.*패치 파일/, /history 3.*history\//]) assert.ok(errors.some((e) => pattern.test(e)), `${pattern} — ${errors.join(' / ')}`)
+  })
+
+  it('extra: true는 정상 버전에 없는 파일을 main에 더하는 커밋이다(예: 지난 리뷰 기록) — true·false만 받는다', () => {
+    const entry = { message: 'docs: 지난 리뷰 기록', patch: 'history/01-review.patch' }
+    assert.deepEqual(validate({ ...good(), history: [{ ...entry, extra: true }] }), [])
+    assert.deepEqual(validate({ ...good(), history: [{ ...entry, extra: false }] }), [])
+    assert.ok(validate({ ...good(), history: [{ ...entry, extra: 'yes' }] }).some((e) => /history 1.*extra/.test(e)))
+    // 처음 상태를 만들 때 거꾸로 푸는 것은 extra가 아닌 커밋뿐이다 — 차례(index)는 history의 자리 그대로
+    assert.deepEqual(reversibleHistory([{ ...entry, extra: true }, { message: 'fix: a', patch: 'history/02.patch' }]).map(({ index }) => index), [1])
+    assert.deepEqual(reversibleHistory(undefined), [])
   })
 })
 

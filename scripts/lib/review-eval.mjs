@@ -153,7 +153,7 @@ const usagesIn = (value, out = []) => {
 /**
  * 결함의 정답·근거가 맥락 묶음에 있는가 — 모델 없이 맥락 수집을 점검한다
  * @param {{ bundle: any, defect: any, tolerance?: number }} args
- * @returns {{ answer: number, kind: 'location' | 'commit' | 'issue', what: string, covered: boolean, where: '바뀐 조각' | '영향 범위' | '바뀐 파일' | '이력' | '의도' | null }[]}
+ * @returns {{ answer: number, kind: 'location' | 'commit' | 'issue', what: string, covered: boolean, where: '바뀐 조각' | '영향 범위' | '바뀐 파일' | '지난 리뷰' | '이력' | '의도' | null }[]}
  */
 export const coverageOf = ({ bundle, defect, tolerance = TOLERANCE }) => {
   const hunks = (bundle.files ?? []).flatMap((file) => (file.hunks ?? []).map((hunk) => ({ path: file.newPath ?? file.path, from: hunk.newStart, to: hunk.newStart + Math.max(hunk.newLines, 1) - 1 })))
@@ -167,6 +167,8 @@ export const coverageOf = ({ bundle, defect, tolerance = TOLERANCE }) => {
     if (usages.some((usage) => overlaps(span, { path: usage.path, from: usage.line, to: usage.line }, tolerance))) return '영향 범위'
     // 바뀐 파일의 조각 밖 — 묶음이 파일을 가리키고, 리뷰어가 그 파일을 열면 보인다
     if (changedFiles.has(path)) return '바뀐 파일'
+    // 지난 리뷰 기록(설계 결정 72) — 묶음의 prior가 읽은 그 기록 파일이면 요약의 "지난 리뷰"에 지적이 보인다
+    if (bundle.prior?.path && bundle.prior.path === path) return '지난 리뷰'
     return null
   }
   return (defect.findings ?? []).flatMap((answer, index) => [answer, ...(answer.evidence ?? [])].map((item) => {
